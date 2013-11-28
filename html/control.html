@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<TITLE>Simple Appliance Control (SAC)</TITLE>
+
+<body>
+<H1>SAC - Simple Appliance Control</H1>
+This page allows to issue simple commands to the appliance and to verify its status
+
+<hr>
+<h2>Main Parameters</h2>
+<ol>
+<li> Appliance base directory: <iframe src="cgi-bin/getcwd_cgi.py" width="200" height="40"></iframe>
+<li> Appliance idle resources: <iframe src="cgi-bin/idres_cgi.py" width="200" height="40"></iframe>
+<li> Appliance online resources: <iframe src="cgi-bin/idres_cgi.py" width="200" height="40"></iframe>
+</ol>
+<hr>
+<h2>Status</h2>
+<ol>
+<li> Ongoing Runs:<iframe src="cgi-bin/runl_cgi.py" width="200" height="40"></iframe> 
+</ol>
+<form name="input" action="cgi-bin/start_cgi.py" method="post">
+Start New Run: <input type="text" name="run">
+<input type="submit" value="Start">
+</form> 
+<form name="input" action="cgi-bin/stop_cgi.py" method="post">
+Stop Run: <input type="text" name="run">
+<input type="submit" value="Stop">
+</form> 
+</body>
+</html> 

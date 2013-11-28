@@ -1,0 +1,38 @@
+#!/bin/env python
+
+import os,sys
+sys.path.append('/opt/hltd/python')
+sys.path.append('/opt/hltd/lib')
+from hltd import hltd
+from subprocess import Popen
+from subprocess import PIPE
+
+if __name__ == "__main__":
+    daemon = hltd('/tmp/hltd.pid')
+    if len(sys.argv) == 2:
+        if 'start' == sys.argv[1]:
+            output = Popen(["/opt/hltd/python/hltd.py"], stdout=PIPE).communicate()[0]
+            if daemon.silentStatus():
+                print '[OK]'
+            else:
+                print '[Failed]'
+                print output
+        elif 'stop' == sys.argv[1]:
+            if daemon.status():
+                daemon.stop()
+            elif os.path.exists('/tmp/hltd.pid'):
+                daemon.delpid()
+        elif 'restart' == sys.argv[1]:
+            daemon.restart()
+        elif 'status' == sys.argv[1]:
+            daemon.status()
+        else:
+            print "Unknown command"
+            sys.exit(2)
+#        print "hltd "+sys.argv[1]+"ed"
+#        logging.debug("executed "+sys.argv[1])
+        sys.exit(0)
+
+    else:
+        print "usage: %s start|stop|restart|status" % sys.argv[0]
+        sys.exit(2)
