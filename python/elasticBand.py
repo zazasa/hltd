@@ -27,6 +27,10 @@ class elasticBand():
                         "delimiter": "_"
                         }
                     }
+             },
+            "index":{
+                'number_of_shards' : 16,
+                'number_of_replicas' : 1
                 }
             }
 
@@ -72,6 +76,10 @@ class elasticBand():
                     }
                 },
             'prc-out': {
+                '_routing' :{
+                    'required' : True,
+                    'path'     : 'source'
+                    },
                 'properties' : {
                     'definition': {'type': 'string'},
                     'data' : { 'properties' : {
@@ -99,6 +107,10 @@ class elasticBand():
                      }
                 },
             'prc-in': {
+                '_routing' :{
+                    'required' : True,
+                    'path'     : 'dest'
+                    },
                 'properties' : {
                     'definition': {'type': 'string'},
                     'data' : { 'properties' : {
@@ -126,6 +138,10 @@ class elasticBand():
                     }
                 },
             'fu-out': {
+                '_routing' :{
+                    'required' : True,
+                    'path'     : 'source'
+                    },
                 'properties' : {
                     'definition': {'type': 'string'},
                     'data' : { 'properties' : {

@@ -86,9 +86,11 @@ class LumiSectionRanger(threading.Thread):
         complete_streams = []
         try:
             while not complete:
+                if iterations%4==0:
+                    self.coll.refresh(self.index)
                 iterations+=1
                 lslogger.info(self.index+" ls "+str(self.ls)+" running ")
-                time.sleep(1.)        
+                time.sleep(2.)
                 cres = self.coll.collate(self.index,'prc-in',self.ls)
                 lslogger.info("collate of prc-in for ls "+str(self.ls)+" returned "+str(cres))
                 total_in = cres['data']['out']
@@ -98,7 +100,7 @@ class LumiSectionRanger(threading.Thread):
                               '/'+str(prev_in)+" iterations:",str(iterations))
                     prev_in = total_in
                 else:
-                    if total_in == 0: break;
+                    if total_in == None: break;
                     complete = True
 
                     res = self.coll.search(self.index,'prc-out',self.ls)
@@ -106,23 +108,24 @@ class LumiSectionRanger(threading.Thread):
                     streams = list(set([res['hits']['hits'][i]['_source']['stream'] for i in range(len(res['hits']['hits']))]))
                     lslogger.info(self.index+" ls "+str(self.ls)+" streams found "+
                                   str(streams)+" iterations "+str(iterations))
-                    for x in streams:
-                        if x not in complete_streams:
-                            res = self.coll.collate(self.index,'prc-out',self.ls,x)
-                            lslogger.info("collate of prc-out for ls "+str(self.ls)+" returned "+str(res))
-                            total_out[x] = res['data']['in']
-                            lslogger.info(self.index+" "+str(self.ls)+'/'+x+
+                    if len(streams) != 0:
+                        for x in streams:
+                            if x not in complete_streams:
+                                res = self.coll.collate(self.index,'prc-out',self.ls,x)
+                                lslogger.info("collate of prc-out for ls "+str(self.ls)+" returned "+str(res))
+                                total_out[x] = res['data']['in']
+                                lslogger.info(self.index+" "+str(self.ls)+'/'+x+
                                           "********totals "+ str(total_out[x]) + ","+str(total_in))
-                            if total_out[x] == total_in:
-                                lslogger.info(self.index+" "+str(self.ls)+" going to write for "+x )
-                                self.writeout(res,x)
-                                self.coll.stash(self.index,'fu-out',res)
-                                self.filemover(x)
-                                complete_streams.append(x)
-                            else:
-                                complete = False
-                        if len(streams) == 0:
-                            complete = False
+                                if total_out[x] == total_in:
+                                    lslogger.info(self.index+" "+str(self.ls)+" going to write for "+x )
+                                    self.writeout(res,x)
+                                    self.coll.stash(self.index,'fu-out',res)
+                                    self.filemover(x)
+                                    complete_streams.append(x)
+                                else:
+                                    complete = False
+                    else:
+                        complete = False
 
                     if iterations > 60: 
                         lslogger.error(self.index+" lumisection "+str(self.ls)+" timed out")
