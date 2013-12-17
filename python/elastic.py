@@ -63,6 +63,15 @@ class LumiSectionRanger(threading.Thread):
         fp.close()
 
     def filemover(self,stream):
+        #do the ini file if it isn't already there
+        
+        if not os.path.exists(self.outpath()+stream+'.ini'): 
+            infile=self.inpath()+stream+'.ini'
+            outfile=self.outpath()+stream+'.ini'
+            if os.path.exists(self.inpath()+stream+'.ini'): 
+                if not os.path.exists(self.outpath()):
+                    os.makedirs(self.outpath())
+                shutil.move(infile,outfile)
         #check once more that files are there
         datafile = self.inpath()+self.filestem(stream)+'.dat'
         jsonfile = self.inpath()+self.filestem(stream)+'.jsn'
