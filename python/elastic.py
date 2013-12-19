@@ -2,6 +2,8 @@
 
 import sys
 import os
+import glob
+import filecmp
 import time
 import shutil
 import json
@@ -32,6 +34,10 @@ es = None
 
 conf=hltdconf.hltdConf('/etc/hltd.conf')
 es_url = 'http://localhost:9200'
+hostname = os.uname()[1]
+
+class BadIniFile(Exception):
+    pass
 
 class LumiSectionRanger(threading.Thread):
     def __init__(self,es_url,run_index,ls):
@@ -64,14 +70,23 @@ class LumiSectionRanger(threading.Thread):
 
     def filemover(self,stream):
         #do the ini file if it isn't already there
-        
-        if not os.path.exists(self.outpath()+stream+'.ini'): 
-            infile=self.inpath()+stream+'.ini'
-            outfile=self.outpath()+stream+'.ini'
-            if os.path.exists(self.inpath()+stream+'.ini'): 
-                if not os.path.exists(self.outpath()):
-                    os.makedirs(self.outpath())
-                shutil.move(infile,outfile)
+        outfile=self.outpath()+self.index+'_'+stream+'_'+hostname+'.ini'
+        if not os.path.exists(outfile):
+            if not os.path.exists(self.outpath()):
+                os.makedirs(self.outpath())
+            iniFiles = iter(glob.glob(self.inpath()+self.index+'_'+stream+'*.ini'))
+            try:
+                infile = next(iniFiles)
+            except StopIteration:
+                lslogger.warn("Did not find any ini file for stream "+stream)
+            for f in iniFiles:
+                if not filecmp.cmp(infile,f,False):
+                    raise BadIniFile("Found a bad ini file "+f+" for stream "+stream)
+                else:
+                    os.remove(f)
+
+            shutil.move(infile,outfile)
+
         #check once more that files are there
         datafile = self.inpath()+self.filestem(stream)+'.dat'
         jsonfile = self.inpath()+self.filestem(stream)+'.jsn'
