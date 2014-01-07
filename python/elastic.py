@@ -78,14 +78,15 @@ class LumiSectionRanger(threading.Thread):
             try:
                 infile = next(iniFiles)
             except StopIteration:
-                lslogger.warn("Did not find any ini file for stream "+stream)
-            for f in iniFiles:
-                if not filecmp.cmp(infile,f,False):
-                    raise BadIniFile("Found a bad ini file "+f+" for stream "+stream)
-                else:
-                    os.remove(f)
+                pass
+            else:
+                for f in iniFiles:
+                    if not filecmp.cmp(infile,f,False):
+                        raise BadIniFile("Found a bad ini file "+f+" for stream "+stream)
+                    else:
+                        os.remove(f)
 
-            shutil.move(infile,outfile)
+                shutil.move(infile,outfile)
 
         #check once more that files are there
         datafile = self.inpath()+self.filestem(stream)+'.dat'
