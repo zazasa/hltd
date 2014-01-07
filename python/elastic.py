@@ -69,25 +69,6 @@ class LumiSectionRanger(threading.Thread):
         fp.close()
 
     def filemover(self,stream):
-        #do the ini file if it isn't already there
-        outfile=self.outpath()+self.index+'_'+stream+'_'+hostname+'.ini'
-        if not os.path.exists(outfile):
-            if not os.path.exists(self.outpath()):
-                os.makedirs(self.outpath())
-            iniFiles = iter(glob.glob(self.inpath()+self.index+'_'+stream+'*.ini'))
-            try:
-                infile = next(iniFiles)
-            except StopIteration:
-                pass
-            else:
-                for f in iniFiles:
-                    if not filecmp.cmp(infile,f,False):
-                        raise BadIniFile("Found a bad ini file "+f+" for stream "+stream)
-                    else:
-                        os.remove(f)
-
-                shutil.move(infile,outfile)
-
         #check once more that files are there
         datafile = self.inpath()+self.filestem(stream)+'.dat'
         jsonfile = self.inpath()+self.filestem(stream)+'.jsn'
@@ -171,15 +152,11 @@ class MonitorRanger(pyinotify.ProcessEvent):
     def process_IN_MOVED_TO(self, event):
         if 'open' in event.pathname:
             return
-        if '.dat' in event.pathname:
+        if event.pathname.endswith('.dat'):
             return
 
-#        print 'MonitorRanger-MOVEDTO: event '+event.pathname
+        #mologger.info('MonitorRanger-MOVEDTO: event '+event.pathname)
         if es:
-            if 'open' in event.pathname: 
-                return
-            if '.dat' in event.pathname:
-                return
             try:
                 path=event.pathname[0:event.pathname.rfind("/")+1]
                 name=event.pathname[event.pathname.rfind("/")+1:]
@@ -196,12 +173,34 @@ class MonitorRanger(pyinotify.ProcessEvent):
 
         if 'open' in event.pathname:
             return
-        if '.dat' in event.pathname:
+        if event.pathname.endswith('.dat'):
             return
+        #mologger.info('MonitorRanger-CLOSE_WRITE: event '+event.pathname)
+        if event.pathname.endswith('.ini'):
+            path=event.pathname[0:event.pathname.rfind("/")+1]
+            in_name=event.pathname[event.pathname.rfind("/")+1:]
+            out_name=in_name[0:in_name.rfind("_")+1]+hostname+'.ini'
+            # Keep a local copy to compare later ini messages
+            # Thus, we do not rely on what happens on the remote version
+            local_out_path = path+out_name
+            if not os.path.exists(local_out_path):
+                shutil.move(event.pathname,local_out_path)
+                remote_out_path = conf.micromerge_output+'/'+self.dirname
+                if not os.path.exists(remote_out_path):
+                    os.makedirs(remote_out_path)
+                shutil.copy(local_out_path,remote_out_path)
+            else:
+                if not filecmp.cmp(local_out_path,event.pathname,False):
+                    # Where shall this exception be handled?
+                    raise BadIniFile("Found a bad ini file "+event.pathname)
+                else:
+                    os.remove(event.pathname)
+            return
+
         if 'complete' in event.pathname:
             mologger.info("exiting because run "+self.dirname+" is complete")
             sys.exit(0) 
-#        print 'MonitorRanger-CLOSE_WRITE: event '+event.pathname
+
         if es:
 
             try:
@@ -232,7 +231,7 @@ class MonitorRanger(pyinotify.ProcessEvent):
                 mologger.error("when processing event "+name)
             
     def process_default(self, event):
-#        print 'MonitorRanger: event '+event.pathname+' type '+event.maskname
+        #mologger.info('MonitorRanger: event '+event.pathname+' type '+event.maskname)
         filename=event.pathname[event.pathname.rfind("/")+1:]
 
 
