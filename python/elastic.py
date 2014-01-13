@@ -40,12 +40,13 @@ class BadIniFile(Exception):
     pass
 
 class LumiSectionRanger(threading.Thread):
-    def __init__(self,es_url,run_index,ls):
+    def __init__(self,es_url,run_index,streams,ls):
         threading.Thread.__init__(self)
         self.coll = collate.Collation(es_url)
         self.target = 0
         self.index = run_index
         self.ls=ls
+        self.active_streams = streams
 
     def filestem(self,stream):
         return self.index+'_ls'+str(self.ls).zfill(4)+'_'+stream+'_'+os.uname()[1]
@@ -109,13 +110,10 @@ class LumiSectionRanger(threading.Thread):
                     if total_in == None: break;
                     complete = True
 
-                    res = self.coll.search(self.index,'prc-out',self.ls)
-                    lslogger.info("search for prc-out for ls "+str(self.ls)+" returned "+str(res))
-                    streams = list(set([res['hits']['hits'][i]['_source']['stream'] for i in range(len(res['hits']['hits']))]))
-                    lslogger.info(self.index+" ls "+str(self.ls)+" streams found "+
-                                  str(streams)+" iterations "+str(iterations))
-                    if len(streams) != 0:
-                        for x in streams:
+                    lslogger.info(self.index+" ls "+str(self.ls)+" looking for streams "+
+                                  str(self.active_streams)+" iterations "+str(iterations))
+                    if len(active_streams) != 0:
+                        for x in active_streams:
                             if x not in complete_streams:
                                 res = self.coll.collate(self.index,'prc-out',self.ls,x)
                                 lslogger.info("collate of prc-out for ls "+str(self.ls)+" returned "+str(res))
@@ -146,6 +144,7 @@ class MonitorRanger(pyinotify.ProcessEvent):
     def __init__(self,s,dirname):
         pyinotify.ProcessEvent.__init__(self,s)
 #        print 'MonitorRanger constructor'
+        self.streams = []
         self.thread_history = {}
         self.dirname = dirname
 
@@ -180,10 +179,12 @@ class MonitorRanger(pyinotify.ProcessEvent):
             path=event.pathname[0:event.pathname.rfind("/")+1]
             in_name=event.pathname[event.pathname.rfind("/")+1:]
             out_name=in_name[0:in_name.rfind("_")+1]+hostname+'.ini'
+            stream_name=in_name[in_name.find("_")+1:in_name.rfind("_")-1]
             # Keep a local copy to compare later ini messages
             # Thus, we do not rely on what happens on the remote version
             local_out_path = path+out_name
             if not os.path.exists(local_out_path):
+                self.streams.append(stream_name)
                 shutil.move(event.pathname,local_out_path)
                 remote_out_path = conf.micromerge_output+'/'+self.dirname
                 if not os.path.exists(remote_out_path):
