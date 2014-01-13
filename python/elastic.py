@@ -112,8 +112,8 @@ class LumiSectionRanger(threading.Thread):
 
                     lslogger.info(self.index+" ls "+str(self.ls)+" looking for streams "+
                                   str(self.active_streams)+" iterations "+str(iterations))
-                    if len(active_streams) != 0:
-                        for x in active_streams:
+                    if len(self.active_streams) != 0:
+                        for x in self.active_streams:
                             if x not in complete_streams:
                                 res = self.coll.collate(self.index,'prc-out',self.ls,x)
                                 lslogger.info("collate of prc-out for ls "+str(self.ls)+" returned "+str(res))
@@ -179,7 +179,7 @@ class MonitorRanger(pyinotify.ProcessEvent):
             path=event.pathname[0:event.pathname.rfind("/")+1]
             in_name=event.pathname[event.pathname.rfind("/")+1:]
             out_name=in_name[0:in_name.rfind("_")+1]+hostname+'.ini'
-            stream_name=in_name[in_name.find("_")+1:in_name.rfind("_")-1]
+            stream_name=in_name[in_name.find("_")+1:in_name.rfind("_")]
             # Keep a local copy to compare later ini messages
             # Thus, we do not rely on what happens on the remote version
             local_out_path = path+out_name
@@ -221,6 +221,7 @@ class MonitorRanger(pyinotify.ProcessEvent):
                         if ls not in self.thread_history:
                             self.thread_history[ls] = LumiSectionRanger(es_url,
                                                                         dirname,
+                                                                        self.streams,
                                                                         ls)
                             self.thread_history[ls].start()
 
