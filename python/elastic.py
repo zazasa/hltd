@@ -77,8 +77,10 @@ class LumiSectionRanger(threading.Thread):
         if not os.path.exists(jsonfile): return False
         datadest = self.outpath()+self.filestem(stream)+'.dat'
         jsondest = self.outpath()+self.filestem(stream)+'.jsn'
-        if not os.path.exists(self.outpath()):
-            os.makedirs(self.outpath())
+        try:
+             os.makedirs(self.outpath())
+        except OSError:
+            pass
             
         shutil.move(datafile,datadest)
         shutil.move(jsonfile,jsondest)
@@ -187,8 +189,10 @@ class MonitorRanger(pyinotify.ProcessEvent):
                 self.streams.append(stream_name)
                 shutil.move(event.pathname,local_out_path)
                 remote_out_path = conf.micromerge_output+'/'+self.dirname
-                if not os.path.exists(remote_out_path):
+                try:
                     os.makedirs(remote_out_path)
+                except OSError:
+                    pass
                 shutil.copy(local_out_path,remote_out_path)
             else:
                 if not filecmp.cmp(local_out_path,event.pathname,False):
