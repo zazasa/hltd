@@ -23,7 +23,7 @@ mkdir  /tmp/hltd-build-tmp
 ls
 cd     /tmp/hltd-build-tmp
 TOPDIR=$PWD
-ls 
+ls
 
 
 echo "Moving files to their destination"
@@ -49,7 +49,7 @@ ls opt/hltd
 #simplejson 3.3.1
 cd opt/hltd/lib/simplejson-3.3.1/
 ./setup.py -q build
-python - <<'EOF' 
+python - <<'EOF'
 import py_compile
 py_compile.compile("build/lib.linux-x86_64-2.6/simplejson/__init__.py")
 py_compile.compile("build/lib.linux-x86_64-2.6/simplejson/compat.py")
@@ -59,7 +59,7 @@ py_compile.compile("build/lib.linux-x86_64-2.6/simplejson/ordered_dict.py")
 py_compile.compile("build/lib.linux-x86_64-2.6/simplejson/scanner.py")
 py_compile.compile("build/lib.linux-x86_64-2.6/simplejson/tool.py")
 EOF
-python -O - <<'EOF' 
+python -O - <<'EOF'
 import py_compile
 py_compile.compile("build/lib.linux-x86_64-2.6/simplejson/__init__.py")
 py_compile.compile("build/lib.linux-x86_64-2.6/simplejson/compat.py")
@@ -79,14 +79,14 @@ cd $TOPDIR
 #pyelasticsearch
 cd opt/hltd/lib/pyelasticsearch-0.6/
 ./setup.py -q build
-python - <<'EOF' 
+python - <<'EOF'
 import py_compile
 py_compile.compile("build/lib/pyelasticsearch/__init__.py")
 py_compile.compile("build/lib/pyelasticsearch/client.py")
 py_compile.compile("build/lib/pyelasticsearch/downtime.py")
 py_compile.compile("build/lib/pyelasticsearch/exceptions.py")
 EOF
-python -O - <<'EOF' 
+python -O - <<'EOF'
 import py_compile
 py_compile.compile("build/lib/pyelasticsearch/__init__.py")
 py_compile.compile("build/lib/pyelasticsearch/client.py")
@@ -102,11 +102,11 @@ cd $TOPDIR
 #python-prctl
 cd opt/hltd/lib/python-prctl/
 ./setup.py -q build
-python - <<'EOF' 
+python - <<'EOF'
 import py_compile
 py_compile.compile("build/lib.linux-x86_64-2.6/prctl.py")
 EOF
-python -O - <<'EOF' 
+python -O - <<'EOF'
 import py_compile
 py_compile.compile("build/lib.linux-x86_64-2.6/prctl.py")
 EOF
@@ -138,7 +138,7 @@ cd $TOPDIR
 cd opt/hltd/lib/pyinotify-master/
 ./setup.py -q build
 cp build/lib/pyinotify.py $TOPDIR/usr/lib64/python2.6/site-packages
-python - <<'EOF' 
+python - <<'EOF'
 import py_compile
 py_compile.compile("build/lib/pyinotify.py")
 EOF
@@ -179,7 +179,7 @@ cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > hltd.spec <<EOF
 Name: hltd
-Version: 1.0
+Version: 1.1
 Release: 0
 Summary: hlt daemon
 License: gpl
@@ -198,7 +198,7 @@ Provides:/usr/lib64/python2.6/site-packages/pyinotify.py
 Requires:python,libcap,python-six,python-requests
 
 %description
-fff hlt daemon 
+fff hlt daemon
 
 %prep
 %build
@@ -215,7 +215,7 @@ rm -rf /etc/appliance/offline/*
 rm -rf /etc/appliance/except/*
 /opt/hltd/python/fillresources.py
 /sbin/service hltd restart
-%files 
+%files
 %defattr(-, root, root, -)
 /opt/hltd/
 /etc/hltd.conf
