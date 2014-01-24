@@ -664,7 +664,7 @@ class RunRanger(pyinotify.ProcessEvent):
                 try:
                     logging.info('new run '+str(nr))
                     if len(bu_disk_list):
-                        os.symlink(bu_disk_list[0]+'/'+dirname+'/jsd',event.pathname+'/jsd')
+                        os.symlink(bu_disk_list[0]+'/ramdisk/'+dirname+'/jsd',event.pathname+'/jsd')
                     run_list.append(Run(nr,event.pathname))
                     run_list[-1].AcquireResources(mode='greedy')
                     run_list[-1].Start()
