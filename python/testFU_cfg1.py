@@ -33,7 +33,7 @@ process.MessageLogger = cms.Service("MessageLogger",
                                     )
 
 process.FastMonitoringService = cms.Service("FastMonitoringService",
-    sleepTime = cms.untracked.int32(1),
+    sleepTime = cms.untracked.int32(100),
     microstateDefPath = cms.untracked.string( '/nfshome0/meschi/cmssw_noxdaq/cmssw/src/EventFilter/Utilities/plugins/microstatedef.jsd' ),
     outputDefPath = cms.untracked.string( '/nfshome0/meschi/cmssw_noxdaq/cmssw/src/EventFilter/Utilities/plugins/output.jsd' ),
     fastName = cms.untracked.string( 'fastmoni' ),
@@ -41,10 +41,10 @@ process.FastMonitoringService = cms.Service("FastMonitoringService",
 
 process.EvFDaqDirector = cms.Service("EvFDaqDirector",
                                      buBaseDir = cms.untracked.string(options.buBaseDir),
-                                     baseDir = cms.untracked.string("/data/"),
-                                     smBaseDir  = cms.untracked.string("hdd"),
+                                     baseDir = cms.untracked.string("/fff/data"),
                                      directorIsBU = cms.untracked.bool(False ),
-                                     testModeNoBuilderUnit = cms.untracked.bool(False)
+                                     testModeNoBuilderUnit = cms.untracked.bool(False),
+                                     runNumber = cms.untracked.uint32(options.runNumber)
                                      )
 process.PrescaleService = cms.Service( "PrescaleService",
                                        lvl1DefaultLabel = cms.string( "B" ),
@@ -52,22 +52,18 @@ process.PrescaleService = cms.Service( "PrescaleService",
                                                                  'B'
                                                                  ),
                                        prescaleTable = cms.VPSet(
-    cms.PSet(  pathName = cms.string( "p1" ),                                                                                                                
+    cms.PSet(  pathName = cms.string( "p1" ),
                prescales = cms.vuint32( 0, 10)
-               ),                                                                                                                                   
-    cms.PSet(  pathName = cms.string( "p2" ),                                                                                                           
-               prescales = cms.vuint32( 0, 100)                                                                                                                   
+               ),
+    cms.PSet(  pathName = cms.string( "p2" ),
+               prescales = cms.vuint32( 0, 100)
                )
     ))
 
 
 process.source = cms.Source("FedRawDataInputSource",
-                            rootFUDirectory = cms.untracked.string("/data/"),
-                            rootBUDirectory = cms.untracked.string(options.buBaseDir),
                             getLSFromFilename = cms.untracked.bool(True),
-                            testModeNoBuilderUnit = cms.untracked.bool(False),
-                            eventChunkSize = cms.untracked.uint32(128),
-                            runNumber = cms.untracked.uint32(options.runNumber)
+                            eventChunkSize = cms.untracked.uint32(128)
                             )
 
 
@@ -79,11 +75,11 @@ process.filter2 = cms.EDFilter("HLTPrescaler",
                                )
 
 process.a = cms.EDAnalyzer("ExceptionGenerator",
-                           defaultAction = cms.untracked.int32(10),
-                           defaultQualifier = cms.untracked.int32(5))
+                           defaultAction = cms.untracked.int32(0),
+                           defaultQualifier = cms.untracked.int32(150))
 
 process.b = cms.EDAnalyzer("ExceptionGenerator",
-                           defaultAction = cms.untracked.int32(10),
+                           defaultAction = cms.untracked.int32(0),
                            defaultQualifier = cms.untracked.int32(0))
 
 process.p1 = cms.Path(process.a*process.filter1)
@@ -97,7 +93,7 @@ process.streamA = cms.OutputModule("Stream",
 process.streamB = cms.OutputModule("Stream",
                                    SelectEvents = cms.untracked.PSet(SelectEvents = cms.vstring( 'p2' ))
                                    )
-                                   
+
 process.ep = cms.EndPath(process.streamA+process.streamB)
 
 
