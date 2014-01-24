@@ -41,7 +41,7 @@ process.FastMonitoringService = cms.Service("FastMonitoringService",
 
 process.EvFDaqDirector = cms.Service("EvFDaqDirector",
                                      buBaseDir = cms.untracked.string(options.buBaseDir),
-                                     baseDir = cms.untracked.string("/data"),
+                                     baseDir = cms.untracked.string("/fff/data"),
                                      directorIsBU = cms.untracked.bool(False ),
                                      testModeNoBuilderUnit = cms.untracked.bool(False),
                                      runNumber = cms.untracked.uint32(options.runNumber)
@@ -62,8 +62,6 @@ process.PrescaleService = cms.Service( "PrescaleService",
 
 
 process.source = cms.Source("FedRawDataInputSource",
-                            rootFUDirectory = cms.untracked.string("/data/"),
-                            rootBUDirectory = cms.untracked.string(options.buBaseDir),
                             getLSFromFilename = cms.untracked.bool(True),
                             testModeNoBuilderUnit = cms.untracked.bool(False),
                             eventChunkSize = cms.untracked.uint32(128)
@@ -78,7 +76,7 @@ process.filter2 = cms.EDFilter("HLTPrescaler",
                                )
 
 process.a = cms.EDAnalyzer("ExceptionGenerator",
-                           defaultAction = cms.untracked.int32(14),
+                           defaultAction = cms.untracked.int32(0),
                            defaultQualifier = cms.untracked.int32(120))
 
 process.b = cms.EDAnalyzer("ExceptionGenerator",

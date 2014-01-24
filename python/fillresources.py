@@ -13,8 +13,6 @@ if not conf.role and 'bu' in os.uname()[1]: role='bu'
 else:
     role='fu'
 
-if not os.path.exists(conf.output_directory): os.makedirs(conf.output_directory)
-
 if role=='fu':
 
     fp=open('/proc/cpuinfo','r')
@@ -33,4 +31,4 @@ elif role=='bu':
     if not os.path.exists(conf.watch_directory+'/appliance'):
         os.makedirs(conf.watch_directory+'/appliance')
 
-    
+

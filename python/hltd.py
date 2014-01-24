@@ -17,6 +17,7 @@ import BaseHTTPServer
 import cgitb
 import httplib
 import demote
+import re
 
 #modules distributed with hltd
 import pyinotify
@@ -28,7 +29,7 @@ import hltdconf
 
 conf=hltdconf.hltdConf('/etc/hltd.conf')
 
-    
+
 #put this in the configuration !!!
 RUNNUMBER_PADDING=conf.run_number_padding
 
@@ -52,7 +53,7 @@ def preexec_function():
     dem()
     prctl.set_pdeathsig(SIGKILL)
     #    os.setpgrp()
-    
+
 def cleanup_resources():
 
     dirlist = os.listdir(abused)
@@ -64,17 +65,19 @@ def cleanup_resources():
     dirlist = os.listdir(quarantined)
     for cpu in dirlist:
         os.rename(quarantined+cpu,idles+cpu)
-            
+
 def cleanup_mountpoints():
     bu_disk_list[:] = []
     if conf.bu_base_dir[0] == '/':
         bu_disk_list[:] = [conf.bu_base_dir]
         return
     try:
-        mounts = filter(lambda x: conf.bu_base_dir in x, os.listdir('/'))
+        process = subprocess.Popen(['mount'],stdout=subprocess.PIPE)
+        out = process.communicate()[0]
+        mounts = re.findall('/'+conf.bu_base_dir+'[0-9]+',out)
         logging.info("cleanup_mountpoints: found following mount points ")
         logging.info(mounts)
-        for point in mounts: 
+        for point in mounts:
             logging.error("trying umount of "+point)
             try:
                 subprocess.check_call(['umount','/'+point])
@@ -104,7 +107,7 @@ def cleanup_mountpoints():
                     logging.error("Error calling mount in cleanup_mountpoints for "+line.strip()+':/',
                          '/'+conf.bu_base_dir+str(i))
                     logging.error(str(err2.returncode))
-                
+
                 i+=1
     except Exception as ex:
         logging.error("Exception in cleanup_mountpoints")
@@ -121,18 +124,18 @@ class system_monitor(threading.Thread):
         self.rehash()
 
     def rehash(self):
-        self.directory = ['/'+x+'/appliance/boxes/' for x in bu_disk_list]
+        self.directory = ['/'+x+'/ramdisk/appliance/boxes/' for x in bu_disk_list]
         self.file = [x+self.hostname for x in self.directory]
         for dir in self.directory:
             if not os.path.exists(dir):
-                os.makedirs(dir) 
+                os.makedirs(dir)
         logging.info("system_monitor: rehash found the following BU disks")
         for disk in self.file:
             logging.info(disk)
 
     def run(self):
         try:
-            logging.debug('entered system monitor thread ') 
+            logging.debug('entered system monitor thread ')
             while self.running:
 #                logging.info('system monitor - running '+str(self.running))
                 time.sleep(5.)
@@ -161,11 +164,11 @@ class system_monitor(threading.Thread):
                     fp.truncate()
                     json.dump(stat,fp)
                     fp.close()
-                                 
-                        
+
+
         except Exception as ex:
             logging.error(ex)
-        logging.debug('exiting system monitor thread ') 
+        logging.debug('exiting system monitor thread ')
 
     def stop(self):
         logging.debug("system_monitor: request to stop")
@@ -199,7 +202,7 @@ class BUEmu:
         except Exception as ex:
             logging.error("Error in forking BU emulator process")
             logging.error(ex)
-        
+
     def stop(self):
         os.kill(self.process.pid,SIGINT)
         self.process.wait()
@@ -208,7 +211,7 @@ class BUEmu:
 bu_emulator=BUEmu()
 
 class OnlineResource:
-    
+
     def __init__(self,resourcename,lock):
         self.hoststate = 0
         self.cpu = resourcename
@@ -251,14 +254,14 @@ class OnlineResource:
         fall back to test config only if those are not found
         """
         pass
-    
+
         """
         this is just a trick to be able to use two
         independent mounts of the BU - it should not be necessary in due course
-        IFF it is necessary, it should address "any" number of mounts, not just 2 
+        IFF it is necessary, it should address "any" number of mounts, not just 2
         """
-        
-        input_disk = bu_disk_list[startindex%len(bu_disk_list)]
+
+        input_disk = bu_disk_list[startindex%len(bu_disk_list)]+'/ramdisk'
 
         logging.info("starting process with "+version+" and run number "+str(runnumber))
 
@@ -315,7 +318,7 @@ class ProcessWatchdog(threading.Thread):
     def run(self):
         try:
             monfile = self.resource.associateddir+'hltd.jsn'
-            logging.info('watchdog for process '+str(self.resource.process.pid)) 
+            logging.info('watchdog for process '+str(self.resource.process.pid))
             self.resource.process.wait()
             returncode = self.resource.process.returncode
             pid = self.resource.process.pid
@@ -323,7 +326,7 @@ class ProcessWatchdog(threading.Thread):
             used = conf.resource_base+'/online/'
             broken = conf.resource_base+'/except/'
             quarantined = conf.resource_base+'/quarantined/'
-            
+
             #update json process monitoring file
             self.resource.processstate=returncode
             logging.debug('ProcessWatchdog: acquire lock thread '+str(pid))
@@ -357,7 +360,7 @@ class ProcessWatchdog(threading.Thread):
                               +" restart is enabled ? "
                               +str(self.retry_enabled)
                               )
-                
+
                 oldpid = pid
 
                 if self.resource.retry_attempts < self.retry_limit and self.retry_enabled:
@@ -397,9 +400,9 @@ class ProcessWatchdog(threading.Thread):
                     fp.close()
                 # wait until the request to end has been handled
                 while not os.path.exists(stoppingmarker):
-                    if os.path.exists(completemarker): break 
+                    if os.path.exists(completemarker): break
                     time.sleep(.1)
-                # move back the resource now that it's safe since the run is marked as ended 
+                # move back the resource now that it's safe since the run is marked as ended
                 os.rename(used+self.resource.cpu,idles+self.resource.cpu)
                 #self.resource.process=None
 
@@ -409,7 +412,7 @@ class ProcessWatchdog(threading.Thread):
             logging.info("OnlineResource watchdog: exception")
             logging.exception(ex)
         return
-        
+
     def disableRestart(self):
         self.retry_enabled = False
 
@@ -420,7 +423,7 @@ class Run:
     STOPPING = 'stopping'
     ABORTED = 'aborted'
     COMPLETE = 'complete'
-    
+
     VALID_MARKERS = [STARTING,ACTIVE,STOPPING,COMPLETE,ABORTED]
 
     def __init__(self,nr,dirname):
@@ -473,7 +476,7 @@ class Run:
             logging.debug("Trying to acquire resource "
                           +resourcename
                           +" from "+fromstate)
-            
+
             os.rename(idles+resourcename,used+resourcename)
             if not filter(lambda x: x.cpu==resourcename,self.online_resource_list):
                 logging.debug("resource "+resourcename
@@ -495,11 +498,11 @@ class Run:
         idles = conf.resource_base+'/idle/'
         used = conf.resource_base+'/online/'
         self.online_resource_list.remove(res)
-        
+
     def AcquireResources(self,mode):
         logging.info("acquiring resources from "+conf.resource_base)
         idles = conf.resource_base
-        idles += '/idle/' if conf.role == 'fu' else '/boxes/' 
+        idles += '/idle/' if conf.role == 'fu' else '/boxes/'
         try:
             dirlist = os.listdir(idles)
         except Exception as ex:
@@ -515,7 +518,7 @@ class Run:
             else:
                 if age < 10:
                     self.ContactResource(cpu)
-                
+
     def Start(self):
         for resource in self.online_resource_list:
             logging.info('start run '+str(self.runnumber)+' on cpu '+resource.cpu)
@@ -523,7 +526,7 @@ class Run:
             else: resource.NotifyNewRun(self.runnumber)
         if conf.role == 'fu':
             self.changeMarkerMaybe(Run.ACTIVE)
-            
+
     def StartOnResource(self, resource):
         mondir = conf.watch_directory+'/run'+str(self.runnumber).zfill(RUNNUMBER_PADDING)+'/mon/'
         logging.debug("StartOnResource called")
@@ -540,7 +543,7 @@ class Run:
         if not os.path.exists(mondir):
             os.makedirs(mondir)
         monfile = mondir+'hltd.jsn'
-        
+
         fp=None
         stat = []
         if not os.path.exists(monfile):
@@ -557,16 +560,16 @@ class Run:
                 me[0][1]=resource.process.pid
                 me[0][2]=resource.processstate
             else:
-                stat.append([resource.cpu,resource.process.pid,resource.processstate]) 
+                stat.append([resource.cpu,resource.process.pid,resource.processstate])
         fp.seek(0)
         fp.truncate()
         json.dump(stat,fp)
-        
+
         fp.flush()
         fp.close()
         self.lock.release()
         logging.debug("StartOnResource lock released")
-        
+
     def Shutdown(self):
         logging.debug("Run:Shutdown called")
         self.is_active_run = False
@@ -602,7 +605,7 @@ class Run:
             logging.info("exception encountered in shutting down resources")
             logging.info(ex)
         logging.info('Shutdown of run '+str(self.runnumber).zfill(RUNNUMBER_PADDING)+' completed')
-        
+
     def WaitForEnd(self):
         self.is_active_run = False
         if conf.role == 'fu':
@@ -639,8 +642,8 @@ class Run:
 
         current = filter(lambda x: x in Run.VALID_MARKERS, os.listdir(mondir))
         if (len(current)==1 and current[0] != marker) or len(current)==0:
-            if len(current)==1: os.remove(mondir+'/'+current[0]) 
-            fp = open(mondir+'/'+marker,'w+') 
+            if len(current)==1: os.remove(mondir+'/'+current[0])
+            fp = open(mondir+'/'+marker,'w+')
             fp.close()
         else:
             logging.error("There are more than one markers for run "
@@ -659,7 +662,7 @@ class RunRanger(pyinotify.ProcessEvent):
             nr=int(dirname[3:])
             if nr!=0:
                 try:
-                    logging.info('new run '+str(nr)) 
+                    logging.info('new run '+str(nr))
                     if len(bu_disk_list):
                         os.symlink(bu_disk_list[0]+'/'+dirname+'/jsd',event.pathname+'/jsd')
                     run_list.append(Run(nr,event.pathname))
@@ -679,7 +682,7 @@ class RunRanger(pyinotify.ProcessEvent):
                     start a new BU emulator run here - this will trigger the start of the HLT run
                     """
                     bu_emulator.startNewRun(nr)
-                    
+
                 except Exception as ex:
                     logging.info("exception encountered in starting BU emulator run")
                     logging.info(ex)
@@ -695,13 +698,13 @@ class RunRanger(pyinotify.ProcessEvent):
                     try:
                         runtoend = filter(lambda x: x.runnumber==nr,run_list)
                         if len(runtoend)==1:
-                            logging.info('end run '+str(nr)) 
+                            logging.info('end run '+str(nr))
                             if conf.role == 'fu':
                                 runtoend[0].WaitForEnd()
                             elif bu_emulator:
                                 bu_emulator.stop()
-                                
-                            logging.info('run '+str(nr)+' removing end-of-run marker') 
+
+                            logging.info('run '+str(nr)+' removing end-of-run marker')
                             os.remove(event.pathname)
                             run_list.remove(runtoend[0])
                         elif len(runtoend)==0:
@@ -711,7 +714,7 @@ class RunRanger(pyinotify.ProcessEvent):
                             logging.error('request to end run '+str(nr)
                                           +' has more than one run object - this should '
                                           +'*never* happen')
-                    
+
                     except Exception as ex:
                         logging.info("exception encountered when waiting hltrun to end")
                         logging.info(ex)
@@ -753,15 +756,15 @@ class RunRanger(pyinotify.ProcessEvent):
                 logging.error("exception in committing harakiri - the blade is not sharp enough...")
                 msg = str(ex)
                 logging.error(msg)
-                
+
         logging.debug("RunRanger completed handling of event "
                       +event.pathname)
-        
+
     def process_default(self, event):
         logging.info('RunRanger: event '+event.pathname+' type '+event.maskname)
         filename=event.pathname[event.pathname.rfind("/")+1:]
-        
-        
+
+
 class ResourceRanger(pyinotify.ProcessEvent):
 
     def __init__(self,s):
@@ -783,7 +786,7 @@ class ResourceRanger(pyinotify.ProcessEvent):
             resourcestate=resourcepath[resourcepath.rfind("/")+1:]
             resourcename=event.pathname[event.pathname.rfind("/")+1:]
             if not (resourcestate == 'online' or resourcestate == 'offline'
-                    or resourcestate == 'quarantined'): 
+                    or resourcestate == 'quarantined'):
                 logging.debug('ResourceNotifier: new resource '
                               +resourcename
                               +' in '
@@ -795,7 +798,7 @@ class ResourceRanger(pyinotify.ProcessEvent):
                 if activeruns:
                     activerun = activeruns[0]
                     logging.info("ResourceRanger: found active run "+str(activerun.runnumber))
-                    """grab resources that become available 
+                    """grab resources that become available
                     #@@EM implement threaded acquisition of resources here
                     """
                     res = activerun.AcquireResource(resourcename,resourcestate)
@@ -826,7 +829,7 @@ class ResourceRanger(pyinotify.ProcessEvent):
             logging.error("exception in ResourceRanger")
             msg = str(ex)
 
-            
+
     def process_default(self, event):
         logging.debug('ResourceRanger: event '+event.pathname+' type '+event.maskname)
         filename=event.pathname[event.pathname.rfind("/")+1:]
@@ -854,14 +857,14 @@ class hltd(Daemon2,object):
             except OSError, err:
                 pass
         super(hltd,self).stop()
-        
+
     def run(self):
         """
         if role is not defined in the configuration (which it shouldn't)
         infer it from the name of the machine
         """
 
-        if not conf.role and 'bu' in os.uname()[1]: 
+        if not conf.role and 'bu' in os.uname()[1]:
             conf.role = 'bu'
         else:
             conf.role = 'fu'
@@ -877,13 +880,13 @@ class hltd(Daemon2,object):
             recheck mount points
             this is done at start and whenever the file /etc/appliance/resources/bus.config is modified
             mount points depend on configuration which may be updated (by runcontrol)
-            (notice that hltd does not NEED to be restarted since it is watching the file all the time) 
+            (notice that hltd does not NEED to be restarted since it is watching the file all the time)
             """
-            
+
             cleanup_mountpoints()
 
         """
-        the line below is a VERY DIRTY trick to address the fact that 
+        the line below is a VERY DIRTY trick to address the fact that
         BU resources are dynamic hence they should not be under /etc
         """
         conf.resource_base = conf.watch_directory+'/appliance' if conf.role == 'bu' else conf.resource_base
@@ -925,7 +928,7 @@ class hltd(Daemon2,object):
             if os.path.exists(conf.watch_directory+'/cgi-bin'):
                 os.remove(conf.watch_directory+'/cgi-bin')
             os.symlink('/opt/hltd/cgi',conf.watch_directory+'/cgi-bin')
-            
+
             handler.cgi_directories = ['/cgi-bin']
             logging.info("starting http server on port "+str(conf.cgi_port))
             httpd = BaseHTTPServer.HTTPServer(("", conf.cgi_port), handler)
@@ -950,7 +953,7 @@ class hltd(Daemon2,object):
             logging.info("shutdown of service completed")
         except Exception as ex:
             logging.info("exception encountered in operating hltd")
-            logging.info(ex)       
+            logging.info(ex)
             notifier1.stop()
             notifier2.stop()
             rr.stop_managed_monitor()
