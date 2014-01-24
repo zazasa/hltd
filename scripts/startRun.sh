@@ -7,8 +7,8 @@ echo startRun invoked $TODAY with arguments $1 $2 $3 $4 $5 $6 $7 >| $logname
 dir=$1
 export SCRAM_ARCH=$2
 source $dir/cmsset_default.sh >> $logname
-#dir+=/$2/cms/cmssw/$3/src
-dir+=/$3/src
+dir+=/$2/cms/cmssw/$3/src
+#dir+=/$3/src
 cd $dir;
 pwd >> $logname 2>&1
 eval `scram runtime -sh`;
