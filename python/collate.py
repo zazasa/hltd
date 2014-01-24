@@ -83,6 +83,7 @@ class Query:
             "query" : ""
             }
             }
+        
         if filtered:
             self.generic_query["query"]["constant_score"] = {
                 "filter" : {
@@ -164,6 +165,9 @@ class Collation:
         retval = dict((k,v.value()) for k,v in self.action(doctype).items())
         for v in self.action(doctype).values(): v.reset()
         return retval
+
+    def refresh(self,ind):
+        self.server.refresh(ind)
 
     def stash(self,ind,doctype,doc):
         result=self.server.index(ind,doctype,doc)
