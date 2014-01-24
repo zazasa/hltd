@@ -15,18 +15,17 @@ class hltdConf:
         self.exec_directory = cfg.get('General','exec_directory')
         self.user = cfg.get('General','user')
         self.watch_directory = cfg.get('General','watch_directory')
-        self.output_directory = cfg.get('General','output_directory')
         self.micromerge_output = cfg.get('General','micromerge_output')
         self.watch_prefix = cfg.get('General','watch_prefix')
         self.watch_emu_prefix = cfg.get('General','watch_emu_prefix')
         self.watch_end_prefix = cfg.get('General','watch_end_prefix')
         self.bu_base_dir = cfg.get('General','bu_base_dir')
         self.run_number_padding = cfg.getint('General','run_number_padding')
-        
+
         self.mount_command = cfg.get('General','mount_command')
         self.mount_type = cfg.get('General','mount_type')
         self.mount_options = cfg.get('General','mount_options')
-        
+
         self.role = None
         if cfg.has_option('General','role'):
             self.role = cfg.get('General','role')
@@ -60,11 +59,10 @@ class hltdConf:
         self.hlt_log = cfg.get('Logs','hlt_log')
 
     def dump(self):
-        
+
         logging.info( 'self.exec_directory '+self.exec_directory)
         logging.info( 'self.user '+self.user)
         logging.info( 'self.watch_directory '+ self.watch_directory)
-        logging.info( 'self.output_directory '+ self.output_directory)
         logging.info( 'self.watch_prefix '+ self.watch_prefix)
         logging.info( 'self.watch_emu_prefix '+ self.watch_emu_prefix)
         logging.info( 'self.watch_end_prefix '+ self.watch_end_prefix)
