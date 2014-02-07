@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 # numArgs=$#
 # if [ $numArgs -lt 4 ]; then
 #     echo "Usage: patch-cmssw-build.sh CMSSW_X_Y_Z patchId {dev|pro|...} patchdir"
@@ -179,7 +179,7 @@ cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > hltd.spec <<EOF
 Name: hltd
-Version: 1.1
+Version: 1.2
 Release: 0
 Summary: hlt daemon
 License: gpl
