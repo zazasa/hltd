@@ -5,5 +5,8 @@ for line in fp:
     if line.startswith('processor'):
         open(conf.resource_base+'/idle/core'+str(resource_count),'a').close()
         resource_count+=1
-        
-if not os.path.exists(conf.watch_directory): os.makedirs(conf.watch_directory)
+
+try:
+    os.makedirs(conf.watch_directory)
+except OSError:
+    pass

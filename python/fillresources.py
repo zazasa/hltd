@@ -22,13 +22,15 @@ if role=='fu':
             open(conf.resource_base+'/idle/core'+str(resource_count),'a').close()
             resource_count+=1
 
-    if not os.path.exists(conf.watch_directory): os.makedirs(conf.watch_directory)
+    try:
+        os.makedirs(conf.watch_directory)
+    except OSError:
+        pass
 
 elif role=='bu':
 
-    if not os.path.exists(conf.watch_directory):
-        os.symlink('/dev/shm',conf.watch_directory)
-    if not os.path.exists(conf.watch_directory+'/appliance'):
+    try:
         os.makedirs(conf.watch_directory+'/appliance')
-
+    except OSError:
+        pass
 

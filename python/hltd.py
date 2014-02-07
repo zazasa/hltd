@@ -89,8 +89,10 @@ def cleanup_mountpoints():
         if os.path.exists(conf.resource_base+'/bus.config'):
             for line in open(conf.resource_base+'/bus.config'):
                 logging.info("found BU to mount at "+line.strip())
-                if not os.path.exists('/'+conf.bu_base_dir+str(i)):
+                try:
                     os.makedirs('/'+conf.bu_base_dir+str(i))
+                except OSError:
+                    pass
                 logging.info("trying to mount "+line.strip()+':/ '+'/'+conf.bu_base_dir+str(i))
                 try:
                     subprocess.check_call(
@@ -127,8 +129,10 @@ class system_monitor(threading.Thread):
         self.directory = ['/'+x+'/ramdisk/appliance/boxes/' for x in bu_disk_list]
         self.file = [x+self.hostname for x in self.directory]
         for dir in self.directory:
-            if not os.path.exists(dir):
+            try:
                 os.makedirs(dir)
+            except OSError:
+                pass
         logging.info("system_monitor: rehash found the following BU disks")
         for disk in self.file:
             logging.info(disk)
@@ -540,8 +544,10 @@ class Run:
         logging.debug("StartOnResource going to acquire lock")
         self.lock.acquire()
         logging.debug("StartOnResource lock acquired")
-        if not os.path.exists(mondir):
+        try:
             os.makedirs(mondir)
+        except OSError:
+            pass
         monfile = mondir+'hltd.jsn'
 
         fp=None
@@ -637,8 +643,10 @@ class Run:
 
     def changeMarkerMaybe(self,marker):
         mondir = self.dirname+'/mon'
-        if not os.path.exists(mondir):
+        try:
             os.makedirs(mondir)
+        except OSError:
+            pass
 
         current = filter(lambda x: x in Run.VALID_MARKERS, os.listdir(mondir))
         if (len(current)==1 and current[0] != marker) or len(current)==0:
