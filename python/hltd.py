@@ -35,7 +35,7 @@ RUNNUMBER_PADDING=conf.run_number_padding
 
 idles = conf.resource_base+'/idle/'
 used = conf.resource_base+'/online/'
-abused = conf.resource_base+'/except/'
+broken = conf.resource_base+'/except/'
 quarantined = conf.resource_base+'/quarantined/'
 
 run_list=[]
@@ -56,9 +56,9 @@ def preexec_function():
 
 def cleanup_resources():
 
-    dirlist = os.listdir(abused)
+    dirlist = os.listdir(broken)
     for cpu in dirlist:
-        os.rename(abused+cpu,idles+cpu)
+        os.rename(broken+cpu,idles+cpu)
     dirlist = os.listdir(used)
     for cpu in dirlist:
         os.rename(used+cpu,idles+cpu)
@@ -147,9 +147,11 @@ class system_monitor(threading.Thread):
                 fp = None
                 for mfile in self.file:
                         fp=open(mfile,'w+')
-                        fp.write(tstring)
-                        fp.write('\n')
-                        fp.write('ires='+str(len(os.listdir(idles))))
+                        fp.write(tstring+'\n')
+                        fp.write('idles='+str(len(os.listdir(idles)))+'\n')
+                        fp.write('used='+str(len(os.listdir(used)))+'\n')
+                        fp.write('broken='+str(len(os.listdir(broken)))+'\n')
+                        fp.write('quarantined='+str(len(os.listdir(quarantined)))+'\n')
                         fp.close()
                 if conf.role == 'bu':
                     mfile = conf.resource_base+'/disk.jsn'
@@ -266,6 +268,7 @@ class OnlineResource:
         """
 
         input_disk = bu_disk_list[startindex%len(bu_disk_list)]+'/ramdisk'
+        run_dir = input_disk + '/run' + str(self.runnumber).zfill(RUNNUMBER_PADDING)
 
         logging.info("starting process with "+version+" and run number "+str(runnumber))
 
@@ -326,10 +329,6 @@ class ProcessWatchdog(threading.Thread):
             self.resource.process.wait()
             returncode = self.resource.process.returncode
             pid = self.resource.process.pid
-            idles = conf.resource_base+'/idle/'
-            used = conf.resource_base+'/online/'
-            broken = conf.resource_base+'/except/'
-            quarantined = conf.resource_base+'/quarantined/'
 
             #update json process monitoring file
             self.resource.processstate=returncode
