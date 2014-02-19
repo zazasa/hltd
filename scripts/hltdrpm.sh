@@ -12,6 +12,8 @@ alias python=python2.6
 # set the RPM build architecture
 #BUILD_ARCH=$(uname -i)      # "i386" for SLC4, "x86_64" for SLC5
 BUILD_ARCH=x86_64
+SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd $SCRIPTDIR/..
 BASEDIR=$PWD
 
 # create a build area
