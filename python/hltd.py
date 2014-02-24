@@ -478,7 +478,6 @@ class Run:
 
     def AcquireResource(self,resourcename,fromstate):
         idles = conf.resource_base+'/'+fromstate+'/'
-        used = conf.resource_base+'/online/'
         try:
             logging.debug("Trying to acquire resource "
                           +resourcename
@@ -583,8 +582,6 @@ class Run:
         self.is_active_run = False
         if conf.role == 'fu':
             self.changeMarkerMaybe(Run.ABORTED)
-        idles = conf.resource_base+'/idle/'
-        used = conf.resource_base+'/online/'
 
         try:
             for resource in self.online_resource_list:
@@ -618,9 +615,6 @@ class Run:
         self.is_active_run = False
         if conf.role == 'fu':
             self.changeMarkerMaybe(Run.STOPPING)
-
-        idles = conf.resource_base+'/idle/'
-        used = conf.resource_base+'/online/'
 
         try:
             for resource in self.online_resource_list:
