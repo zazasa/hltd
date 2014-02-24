@@ -29,10 +29,6 @@ import hltdconf
 
 conf=hltdconf.hltdConf('/etc/hltd.conf')
 
-
-#put this in the configuration !!!
-RUNNUMBER_PADDING=conf.run_number_padding
-
 idles = conf.resource_base+'/idle/'
 used = conf.resource_base+'/online/'
 broken = conf.resource_base+'/except/'
@@ -270,7 +266,7 @@ class OnlineResource:
         IFF it is necessary, it should address "any" number of mounts, not just 2
         """
         input_disk = bu_disk_list[startindex%len(bu_disk_list)]+'/ramdisk'
-        run_dir = input_disk + '/run' + str(self.runnumber).zfill(RUNNUMBER_PADDING)
+        run_dir = input_disk + '/run' + str(self.runnumber).zfill(conf.run_number_padding)
 
         logging.info("starting process with "+version+" and run number "+str(runnumber))
 
@@ -533,7 +529,7 @@ class Run:
             self.changeMarkerMaybe(Run.ACTIVE)
 
     def StartOnResource(self, resource):
-        mondir = conf.watch_directory+'/run'+str(self.runnumber).zfill(RUNNUMBER_PADDING)+'/mon/'
+        mondir = conf.watch_directory+'/run'+str(self.runnumber).zfill(conf.run_number_padding)+'/mon/'
         logging.debug("StartOnResource called")
         resource.associateddir=mondir
         resource.StartNewProcess(self.runnumber,
@@ -609,7 +605,7 @@ class Run:
         except Exception as ex:
             logging.info("exception encountered in shutting down resources")
             logging.info(ex)
-        logging.info('Shutdown of run '+str(self.runnumber).zfill(RUNNUMBER_PADDING)+' completed')
+        logging.info('Shutdown of run '+str(self.runnumber).zfill(conf.run_number_padding)+' completed')
 
     def WaitForEnd(self):
         self.is_active_run = False
