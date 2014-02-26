@@ -495,7 +495,6 @@ class Run:
     def ContactResource(self,resourcename):
         self.online_resource_list.append(OnlineResource(resourcename,self.lock))
         self.online_resource_list[-1].ping() #@@MO this is not doing anything useful, afaikt
-        return online_resource
 
     def ReleaseResource(self,res):
         self.online_resource_list.remove(res)
@@ -663,8 +662,11 @@ class RunRanger(pyinotify.ProcessEvent):
             if nr!=0:
                 try:
                     logging.info('new run '+str(nr))
-                    bu_dir = bu_disk_list[0]+'/ramdisk/'+dirname
-                    os.symlink(bu_dir+'/jsd',event.pathname+'/jsd')
+                    if conf.role == 'fu':
+                        bu_dir = bu_disk_list[0]+'/ramdisk/'+dirname
+                        os.symlink(bu_dir+'/jsd',event.pathname+'/jsd')
+                    else:
+                        bu_dir = ''
                     run_list.append(Run(nr,event.pathname,bu_dir)) #@@MO in case of the BU, the run_list grows until the hltd is stopped
                     run_list[-1].AcquireResources(mode='greedy')
                     run_list[-1].Start()
