@@ -213,9 +213,12 @@ class elasticBand():
         datadict['ls'] = int(tokens[1][2:])
         datadict['process'] = tokens[2]
 #        print list(document['data'][0])
-        datadict['macro']   = [int(f) for f in document['data'][0].strip('[]').split(',')]
-        datadict['mini']    = [int(f) for f in document['data'][1].strip('[]').split(',')]
-        datadict['micro']   = [int(f) for f in document['data'][2].strip('[]').split(',')]
+        if document['data'][1] is not "N/A":
+          datadict['macro']   = [int(f) for f in document['data'][0].strip('[]').split(',')]
+        if document['data'][2] is not "N/A":
+          datadict['mini']    = [int(f) for f in document['data'][1].strip('[]').split(',')]
+        if document['data'][3] is not "N/A":
+          datadict['micro']   = [int(f) for f in document['data'][2].strip('[]').split(',')]
         datadict['tp']      = float(document['data'][4]) if not math.isnan(float(document['data'][4])) and not  math.isinf(float(document['data'][4])) else 0.
         datadict['lead']    = float(document['data'][5]) if not math.isnan(float(document['data'][5])) and not  math.isinf(float(document['data'][5])) else 0.
         datadict['nfiles']  = int(document['data'][6])
