@@ -222,9 +222,9 @@ bu_emulator=BUEmu()
 
 class OnlineResource:
 
-    def __init__(self,resourcename,lock):
+    def __init__(self,resourcenames,lock):
         self.hoststate = 0 #@@MO what is this used for?
-        self.cpu = resourcename
+        self.cpu = resourcenames
         self.process = None
         self.processstate = None
         self.watchdog = None
@@ -235,12 +235,12 @@ class OnlineResource:
 
     def ping(self):
         if conf.role == 'bu':
-            if not os.system("ping -c 1 "+self.cpu)==0: self.hoststate = 0
+            if not os.system("ping -c 1 "+self.cpu[0])==0: self.hoststate = 0
 
     def NotifyNewRun(self,runnumber):
         self.runnumber = runnumber
-        logging.info("calling start of run on "+self.cpu);
-        connection = httplib.HTTPConnection(self.cpu, 8000)
+        logging.info("calling start of run on "+self.cpu[0]);
+        connection = httplib.HTTPConnection(self.cpu[0], 8000)
         connection.request("GET",'cgi-bin/start_cgi.py?run='+str(runnumber))
         response = connection.getresponse()
         #do something intelligent with the response code
@@ -250,13 +250,13 @@ class OnlineResource:
             logging.info(response.read())
 
     def NotifyShutdown(self):
-        connection = httplib.HTTPConnection(self.cpu, 8000)
+        connection = httplib.HTTPConnection(self.cpu[0], 8000)
         connection.request("GET",'cgi-bin/stop_cgi.py?run='+str(self.runnumber))
         response = connection.getresponse()
 #do something intelligent with the response code
         if response.status > 300: self.hoststate = 0
 
-    def StartNewProcess(self ,runnumber, startindex, arch, version, menu):
+    def StartNewProcess(self ,runnumber, startindex, arch, version, menu,num_threads):
         logging.debug("OnlineResource: StartNewProcess called")
         self.runnumber = runnumber
 
@@ -277,7 +277,8 @@ class OnlineResource:
                         conf.exec_directory,
                         menu,
                         str(runnumber),
-                        input_disk]
+                        input_disk,
+                        str(num_threads)]
         logging.info("arg array "+str(new_run_args).translate(None, "'"))
         try:
 #            dem = demote.demote(conf.user)
@@ -308,7 +309,7 @@ class OnlineResource:
         self.watchdog.join()
 
     def disableRestart(self):
-        logging.debug("OnlineResource "+self.cpu+" restart is now disabled")
+        logging.debug("OnlineResource "+str(self.cpu)+" restart is now disabled")
         if self.watchdog:
             self.watchdog.disableRestart()
 
@@ -355,7 +356,7 @@ class ProcessWatchdog(threading.Thread):
             if returncode < 0:
                 logging.error("process "+str(pid)
                               +" for run "+str(self.resource.runnumber)
-                              +" on resource " + self.resource.cpu
+                              +" on resource(s) " + str(self.resource.cpu)
                               +" exited with signal "
                               +str(returncode)
                               +" restart is enabled ? "
@@ -374,24 +375,26 @@ class ProcessWatchdog(threading.Thread):
                     self.resource.process = None
                     self.resource.retry_attempts += 1
 
-                    logging.info("try to restart process for resource "
-                                 +self.resource.cpu
+                    logging.info("try to restart process for resource(s) "
+                                 +str(self.resource.cpu)
                                  +" attempt "
                                  + str(self.resource.retry_attempts))
-                    os.rename(used+self.resource.cpu,broken+self.resource.cpu)
-                    logging.debug("resource " +self.resource.cpu+
+                    for cpu in self.resource.cpu:
+                      os.rename(used+cpu,broken+cpu)
+                    logging.debug("resource(s) " +str(self.resource.cpu)+
                                   " successfully moved to except")
                 elif self.resource.retry_attempts >= self.retry_limit:
                     logging.error("process for run "
                                   +str(self.resource.runnumber)
-                                  +" on resource " + self.resource.cpu
+                                  +" on resources " + str(self.resource.cpu)
                                   +" reached max retry limit "
                                   )
-                    os.rename(used+self.resource.cpu,quarantined+self.resource.cpu)
+                    for cpu in self.resource.cpu:
+                      os.rename(used+cpu,quarantined+cpu)
             #successful end= release resource
             elif returncode == 0:
 
-                logging.info('releasing resource, exit0 meaning end of run '+self.resource.cpu)
+                logging.info('releasing resource, exit0 meaning end of run '+str(self.resource.cpu))
                 # generate an end-of-run marker if it isn't already there - it will be picked up by the RunRanger
                 endmarker = conf.watch_directory+'/'+conf.watch_end_prefix+str(self.resource.runnumber)
                 stoppingmarker = self.resource.associateddir+'/'+Run.STOPPING
@@ -404,7 +407,8 @@ class ProcessWatchdog(threading.Thread):
                     if os.path.exists(completemarker): break
                     time.sleep(.1)
                 # move back the resource now that it's safe since the run is marked as ended
-                os.rename(used+self.resource.cpu,idles+self.resource.cpu)
+                for cpu in self.resource.cpu:
+                  os.rename(used+cpu,idles+cpu)
                 #self.resource.process=None
 
             #        logging.info('exiting thread '+str(self.resource.process.pid))
@@ -472,22 +476,23 @@ class Run:
 
 
 
-    def AcquireResource(self,resourcename,fromstate):
+    def AcquireResource(self,resourcenames,fromstate):
         idles = conf.resource_base+'/'+fromstate+'/'
         try:
             logging.debug("Trying to acquire resource "
-                          +resourcename
+                          +str(resourcenames)
                           +" from "+fromstate)
 
-            os.rename(idles+resourcename,used+resourcename)
-            if not filter(lambda x: x.cpu==resourcename,self.online_resource_list):
-                logging.debug("resource "+resourcename
+            for resourcename in resourcenames:
+              os.rename(idles+resourcename,used+resourcename)
+            if not filter(lambda x: x.cpu==resourcenames,self.online_resource_list):
+                logging.debug("resource(s) "+str(resourcenames)
                               +" not found in online_resource_list, creating new")
-                self.online_resource_list.append(OnlineResource(resourcename,self.lock))
+                self.online_resource_list.append(OnlineResource(resourcenames,self.lock))#
                 return self.online_resource_list[-1]
-            logging.debug("resource "+resourcename
+            logging.debug("resource(s) "+str(resourcenames)
                           +" found in online_resource_list")
-            return filter(lambda x: x.cpu==resourcename,self.online_resource_list)[0]
+            return filter(lambda x: x.cpu==resourcenames,self.online_resource_list)[0]
         except Exception as ex:
             logging.info("exception encountered in looking for resources")
             logging.info(ex)
@@ -510,18 +515,28 @@ class Run:
             logging.info(ex)
         logging.info(dirlist)
         current_time = time.time()
+        count = 0
+        cpu_group=[]
+        self.lock.acquire()
         for cpu in dirlist:
+            count = count+1
+            cpu_group.append(cpu)
             age = current_time - os.path.getmtime(idles+cpu)
             logging.info("found resource "+cpu+" which is "+str(age)+" seconds old")
             if conf.role == 'fu':
-                self.AcquireResource(cpu,'idle')
+                if count == conf.cmssw_threads:
+                  self.AcquireResource(cpu_group,'idle')
+                  cpu_group=[]
+                  count=0
             else:
                 if age < 10:
-                    self.ContactResource(cpu)
+                    cpus = [cpu]
+                    self.ContactResource(cpus)
+        self.lock.release()
 
     def Start(self):
         for resource in self.online_resource_list:
-            logging.info('start run '+str(self.runnumber)+' on cpu '+resource.cpu)
+            logging.info('start run '+str(self.runnumber)+' on cpu(s) '+str(resource.cpu))
             if conf.role == 'fu': self.StartOnResource(resource)
             else: resource.NotifyNewRun(self.runnumber)
         if conf.role == 'fu':
@@ -535,7 +550,8 @@ class Run:
                                  self.online_resource_list.index(resource),
                                  self.arch,
                                  self.version,
-                                 self.menu)
+                                 self.menu,
+                                 len(resource.cpu))
         logging.debug("StartOnResource process started")
         logging.debug("StartOnResource going to acquire lock")
         self.lock.acquire()
@@ -591,8 +607,9 @@ class Run:
                         #                    time.sleep(.1)
                         resource.join()
                         logging.info('process '+str(resource.process.pid)+' terminated')
-                    logging.info('releasing resource '+resource.cpu)
-                    os.rename(used+resource.cpu,idles+resource.cpu)
+                    logging.info('releasing resource(s) '+str(resource.cpu))
+                    for cpu in resource.cpu:
+                      os.rename(used+cpu,idles+cpu)
                     resource.process=None
                 elif conf.role == 'bu':
                     resource.NotifyShutdown()
@@ -802,11 +819,42 @@ class ResourceRanger(pyinotify.ProcessEvent):
                     """grab resources that become available
                     #@@EM implement threaded acquisition of resources here
                     """
-                    res = activerun.AcquireResource(resourcename,resourcestate)
-                    logging.info("ResourceRanger: acquired resource "+res.cpu)
-                    activerun.StartOnResource(res)
-                    logging.info("ResourceRanger: started process on resource "
-                                 +res.cpu)
+                    #find all idle cores
+                    activerun.lock.acquire()
+
+                    idles = conf.resource_base+'/idle'
+		    try:
+                        reslist = os.listdir(idles)
+                    except Exception as ex:
+                        logging.info("exception encountered in looking for resources")
+                        logging.info(ex)
+                    #put inotify-ed resource as the first item
+                    for resindex,resname in enumerate(reslist):
+                        if resname == resourcename:
+                            if resindex != 0:
+                                firstitem = reslist[0]
+                                reslist[0] = resourcename
+                                reslist[resindex] = firstitem
+                        break
+                    #acquire sufficient cores for a multithreaded process start 
+                    resourcenames = []
+                    for resname in reslist:
+                        if len(resourcenames) < conf.cmssw_threads:
+                            resourcenames.append(resname)
+                        else:
+                            break
+
+                    acquired_sufficient = False
+                    if len(resourcenames) == conf.cmssw_threads:
+                        acquired_sufficient = True
+                        res = activerun.AcquireResource(resourcenames,resourcestate)
+                    activerun.lock.release()
+
+                    if acquired_sufficient:
+                        logging.info("ResourceRanger: acquired resource(s) "+res.cpu)
+                        activerun.StartOnResource(res)
+                        logging.info("ResourceRanger: started process on resource "
+                                     +res.cpu)
 
         except Exception as ex:
             logging.error("exception in ResourceRanger")
