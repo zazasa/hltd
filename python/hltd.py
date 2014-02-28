@@ -851,10 +851,10 @@ class ResourceRanger(pyinotify.ProcessEvent):
                     activerun.lock.release()
 
                     if acquired_sufficient:
-                        logging.info("ResourceRanger: acquired resource(s) "+res.cpu)
+                        logging.info("ResourceRanger: acquired resource(s) "+str(res.cpu))
                         activerun.StartOnResource(res)
                         logging.info("ResourceRanger: started process on resource "
-                                     +res.cpu)
+                                     +str(res.cpu))
 
         except Exception as ex:
             logging.error("exception in ResourceRanger")
