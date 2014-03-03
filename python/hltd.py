@@ -29,10 +29,6 @@ import hltdconf
 
 conf=hltdconf.hltdConf('/etc/hltd.conf')
 
-
-#put this in the configuration !!!
-RUNNUMBER_PADDING=conf.run_number_padding
-
 idles = conf.resource_base+'/idle/'
 used = conf.resource_base+'/online/'
 broken = conf.resource_base+'/except/'
@@ -93,22 +89,25 @@ def cleanup_mountpoints():
                     os.makedirs('/'+conf.bu_base_dir+str(i))
                 except OSError:
                     pass
-                logging.info("trying to mount "+line.strip()+':/ '+'/'+conf.bu_base_dir+str(i))
-                try:
-                    subprocess.check_call(
-                        [conf.mount_command,
-                         '-t',
-                         conf.mount_type,
-                         '-o',
-                         conf.mount_options,
-                         line.strip()+':/',
-                         '/'+conf.bu_base_dir+str(i)]
-                        )
-                    bu_disk_list.append('/'+conf.bu_base_dir+str(i))
-                except subprocess.CalledProcessError, err2:
-                    logging.error("Error calling mount in cleanup_mountpoints for "+line.strip()+':/',
-                         '/'+conf.bu_base_dir+str(i))
-                    logging.error(str(err2.returncode))
+                if os.system("ping -c 1 "+line.strip())==0:
+                    logging.info("trying to mount "+line.strip()+':/ '+'/'+conf.bu_base_dir+str(i))
+                    try:
+                        subprocess.check_call(
+                            [conf.mount_command,
+                             '-t',
+                             conf.mount_type,
+                             '-o',
+                             conf.mount_options,
+                             line.strip()+':/',
+                             '/'+conf.bu_base_dir+str(i)]
+                            )
+                        bu_disk_list.append('/'+conf.bu_base_dir+str(i))
+                    except subprocess.CalledProcessError, err2:
+                        logging.error("Error calling mount in cleanup_mountpoints for "+line.strip()+':/',
+                             '/'+conf.bu_base_dir+str(i))
+                        logging.error(str(err2.returncode))
+                else:
+                    logging.error("Cannot ping BU "+line.strip())
 
                 i+=1
     except Exception as ex:
@@ -170,10 +169,15 @@ class system_monitor(threading.Thread):
                     fp.truncate()
                     json.dump(stat,fp)
                     fp.close()
-
-
         except Exception as ex:
             logging.error(ex)
+
+        for mfile in self.file:
+            try:
+                os.remove(mfile)
+            except OSError:
+                pass
+
         logging.debug('exiting system monitor thread ')
 
     def stop(self):
@@ -219,7 +223,7 @@ bu_emulator=BUEmu()
 class OnlineResource:
 
     def __init__(self,resourcename,lock):
-        self.hoststate = 0
+        self.hoststate = 0 #@@MO what is this used for?
         self.cpu = resourcename
         self.process = None
         self.processstate = None
@@ -255,20 +259,14 @@ class OnlineResource:
     def StartNewProcess(self ,runnumber, startindex, arch, version, menu):
         logging.debug("OnlineResource: StartNewProcess called")
         self.runnumber = runnumber
-        """
-        @@EM here - get the config and cmssw version from the BU run directory
-        fall back to test config only if those are not found
-        """
-        pass
 
         """
         this is just a trick to be able to use two
         independent mounts of the BU - it should not be necessary in due course
         IFF it is necessary, it should address "any" number of mounts, not just 2
         """
-
         input_disk = bu_disk_list[startindex%len(bu_disk_list)]+'/ramdisk'
-        run_dir = input_disk + '/run' + str(self.runnumber).zfill(RUNNUMBER_PADDING)
+        run_dir = input_disk + '/run' + str(self.runnumber).zfill(conf.run_number_padding)
 
         logging.info("starting process with "+version+" and run number "+str(runnumber))
 
@@ -429,7 +427,7 @@ class Run:
 
     VALID_MARKERS = [STARTING,ACTIVE,STOPPING,COMPLETE,ABORTED]
 
-    def __init__(self,nr,dirname):
+    def __init__(self,nr,dirname,bu_dir):
         self.runnumber = nr
         self.dirname = dirname
         self.online_resource_list = []
@@ -440,21 +438,23 @@ class Run:
         self.menu = None
         if conf.role == 'fu':
             self.changeMarkerMaybe(Run.STARTING)
-        self.menu_directory = dirname+conf.menu_directory
+        self.menu_directory = bu_dir+'/'+conf.menu_directory
         if os.path.exists(self.menu_directory):
             self.menu = self.menu_directory+'/'+conf.menu_name
             if os.path.exists(self.menu_directory+'/'+conf.arch_file):
                 fp = open(self.menu_directory+'/'+conf.arch_file,'r')
-                self.arch = fp.readline()
+                self.arch = fp.readline().strip()
                 fp.close()
             if os.path.exists(self.menu_directory+'/'+conf.version_file):
                 fp = open(self.menu_directory+'/'+conf.version_file,'r')
-                self.version = fp.readline()
+                self.version = fp.readline().strip()
                 fp.close()
+            logging.info("Run "+str(self.runnumber)+" uses "+self.version+" ("+self.arch+") with "+self.menu)
         else:
             self.arch = conf.cmssw_arch
             self.version = conf.cmssw_default_version
             self.menu = conf.test_hlt_config1
+            logging.warn("Using default values for run "+str(self.runnumber)+": "+self.version+" ("+self.arch+") with "+self.menu)
 
         self.lock = threading.Lock()
         if conf.use_elasticsearch:
@@ -474,7 +474,6 @@ class Run:
 
     def AcquireResource(self,resourcename,fromstate):
         idles = conf.resource_base+'/'+fromstate+'/'
-        used = conf.resource_base+'/online/'
         try:
             logging.debug("Trying to acquire resource "
                           +resourcename
@@ -495,11 +494,9 @@ class Run:
 
     def ContactResource(self,resourcename):
         self.online_resource_list.append(OnlineResource(resourcename,self.lock))
-        self.online_resource_list[-1].ping()
+        self.online_resource_list[-1].ping() #@@MO this is not doing anything useful, afaikt
 
     def ReleaseResource(self,res):
-        idles = conf.resource_base+'/idle/'
-        used = conf.resource_base+'/online/'
         self.online_resource_list.remove(res)
 
     def AcquireResources(self,mode):
@@ -531,7 +528,7 @@ class Run:
             self.changeMarkerMaybe(Run.ACTIVE)
 
     def StartOnResource(self, resource):
-        mondir = conf.watch_directory+'/run'+str(self.runnumber).zfill(RUNNUMBER_PADDING)+'/mon/'
+        mondir = conf.watch_directory+'/run'+str(self.runnumber).zfill(conf.run_number_padding)+'/mon/'
         logging.debug("StartOnResource called")
         resource.associateddir=mondir
         resource.StartNewProcess(self.runnumber,
@@ -580,8 +577,6 @@ class Run:
         self.is_active_run = False
         if conf.role == 'fu':
             self.changeMarkerMaybe(Run.ABORTED)
-        idles = conf.resource_base+'/idle/'
-        used = conf.resource_base+'/online/'
 
         try:
             for resource in self.online_resource_list:
@@ -609,15 +604,12 @@ class Run:
         except Exception as ex:
             logging.info("exception encountered in shutting down resources")
             logging.info(ex)
-        logging.info('Shutdown of run '+str(self.runnumber).zfill(RUNNUMBER_PADDING)+' completed')
+        logging.info('Shutdown of run '+str(self.runnumber).zfill(conf.run_number_padding)+' completed')
 
     def WaitForEnd(self):
         self.is_active_run = False
         if conf.role == 'fu':
             self.changeMarkerMaybe(Run.STOPPING)
-
-        idles = conf.resource_base+'/idle/'
-        used = conf.resource_base+'/online/'
 
         try:
             for resource in self.online_resource_list:
@@ -670,9 +662,12 @@ class RunRanger(pyinotify.ProcessEvent):
             if nr!=0:
                 try:
                     logging.info('new run '+str(nr))
-                    if len(bu_disk_list):
-                        os.symlink(bu_disk_list[0]+'/ramdisk/'+dirname+'/jsd',event.pathname+'/jsd')
-                    run_list.append(Run(nr,event.pathname))
+                    if conf.role == 'fu':
+                        bu_dir = bu_disk_list[0]+'/ramdisk/'+dirname
+                        os.symlink(bu_dir+'/jsd',event.pathname+'/jsd')
+                    else:
+                        bu_dir = ''
+                    run_list.append(Run(nr,event.pathname,bu_dir)) #@@MO in case of the BU, the run_list grows until the hltd is stopped
                     run_list[-1].AcquireResources(mode='greedy')
                     run_list[-1].Start()
                 except OSError as ex:
@@ -681,7 +676,7 @@ class RunRanger(pyinotify.ProcessEvent):
                     logging.exception("RunRanger: unexpected exception encountered in forking hlt slave")
                     logging.error(ex)
 
-        if dirname.startswith(conf.watch_emu_prefix):
+        elif dirname.startswith(conf.watch_emu_prefix):
             nr=int(dirname[3:])
             if nr!=0:
                 try:
@@ -761,8 +756,7 @@ class RunRanger(pyinotify.ProcessEvent):
                 logging.info('got return '+str(retval)+'waiting to die...and hope for the best')
             except Exception as ex:
                 logging.error("exception in committing harakiri - the blade is not sharp enough...")
-                msg = str(ex)
-                logging.error(msg)
+                logging.error(ex)
 
         logging.debug("RunRanger completed handling of event "
                       +event.pathname)
@@ -816,8 +810,7 @@ class ResourceRanger(pyinotify.ProcessEvent):
 
         except Exception as ex:
             logging.error("exception in ResourceRanger")
-            msg = str(ex)
-            logging.error(msg)
+            logging.error(ex)
 
     def process_IN_MODIFY(self, event):
 
@@ -834,8 +827,7 @@ class ResourceRanger(pyinotify.ProcessEvent):
                     logging.info("ResouceRanger: managed monitor is "+str(self.managed_monitor))
         except Exception as ex:
             logging.error("exception in ResourceRanger")
-            msg = str(ex)
-
+            logging.error(ex)
 
     def process_default(self, event):
         logging.debug('ResourceRanger: event '+event.pathname+' type '+event.maskname)
@@ -909,14 +901,14 @@ class hltd(Daemon2,object):
                       pyinotify.IN_CREATE,
                       rec=False,
                       auto_add=False)
-        wm2 = pyinotify.WatchManager()
 
         s2 = pyinotify.Stats() # Stats is a subclass of ProcessEvent
+        rr = ResourceRanger(s2)
 
         try:
-            rr = ResourceRanger(s2)
+            wm2 = pyinotify.WatchManager()
             notifier2 = pyinotify.ThreadedNotifier(wm2, default_proc_fun=rr)
-            logging.info("starting notifier - watch_directory "+resource_base)
+            logging.info("starting notifier2 - watch_directory "+resource_base)
             notifier2.start()
             wm2.add_watch(resource_base,
                           pyinotify.IN_CREATE | pyinotify.IN_DELETE | pyinotify.IN_MODIFY | pyinotify.IN_MOVED_TO,
