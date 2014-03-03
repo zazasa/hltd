@@ -841,7 +841,7 @@ class ResourceRanger(pyinotify.ProcessEvent):
                     #find all idle cores
                     #activerun.lock.acquire()
 
-                    idles = conf.resource_base+'/idle'
+                    idles = '/'+resourcepath
 		    try:
                         reslist = os.listdir(idles)
                     except Exception as ex:
