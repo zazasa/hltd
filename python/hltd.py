@@ -383,6 +383,10 @@ class ProcessWatchdog(threading.Thread):
                       os.rename(used+cpu,broken+cpu)
                     logging.debug("resource(s) " +str(self.resource.cpu)+
                                   " successfully moved to except")
+                elif not self.retry_enabled:
+                    #moving to idle if restart is disabled
+                    for cpu in self.resource.cpu:
+                        os.rename(used+cpu,idles+cpu)
                 elif self.resource.retry_attempts >= self.retry_limit:
                     logging.error("process for run "
                                   +str(self.resource.runnumber)
@@ -390,7 +394,8 @@ class ProcessWatchdog(threading.Thread):
                                   +" reached max retry limit "
                                   )
                     for cpu in self.resource.cpu:
-                      os.rename(used+cpu,quarantined+cpu)
+                        os.rename(used+cpu,quarantined+cpu)
+
             #successful end= release resource
             elif returncode == 0:
 
@@ -435,11 +440,12 @@ class Run:
         self.runnumber = nr
         self.dirname = dirname
         self.online_resource_list = []
-        self.is_active_run = True
+        self.is_active_run = False
         self.managed_monitor = None
         self.arch = None
         self.version = None
         self.menu = None
+        self.waitForEndThread = None
         if conf.role == 'fu':
             self.changeMarkerMaybe(Run.STARTING)
         self.menu_directory = bu_dir+'/'+conf.menu_directory
@@ -517,7 +523,7 @@ class Run:
         current_time = time.time()
         count = 0
         cpu_group=[]
-        self.lock.acquire()
+        #self.lock.acquire()
         for cpu in dirlist:
             count = count+1
             cpu_group.append(cpu)
@@ -532,9 +538,10 @@ class Run:
                 if age < 10:
                     cpus = [cpu]
                     self.ContactResource(cpus)
-        self.lock.release()
+        #self.lock.release()
 
     def Start(self):
+        self.is_active_run = True
         for resource in self.online_resource_list:
             logging.info('start run '+str(self.runnumber)+' on cpu(s) '+str(resource.cpu))
             if conf.role == 'fu': self.StartOnResource(resource)
@@ -597,6 +604,7 @@ class Run:
         try:
             for resource in self.online_resource_list:
                 resource.disableRestart()
+            for resource in self.online_resource_list:
                 if conf.role == 'fu':
                     if resource.processstate==100:
                         logging.info('terminating process '+str(resource.process.pid)+
@@ -618,19 +626,30 @@ class Run:
             if conf.use_elasticsearch:
                 if self.managed_monitor:
                     self.managed_monitor.terminate()
+            if self.waitForEndThread is not none:
+                self.waitForEndThread.join()
         except Exception as ex:
             logging.info("exception encountered in shutting down resources")
             logging.info(ex)
         logging.info('Shutdown of run '+str(self.runnumber).zfill(conf.run_number_padding)+' completed')
 
-    def WaitForEnd(self):
+    def StartWaitForEnd(self):
         self.is_active_run = False
         if conf.role == 'fu':
             self.changeMarkerMaybe(Run.STOPPING)
+        try:
+            self.waitForEndThread = threading.Thread(target = self.WaitForEnd)
+            self.waitForEndThread.start()
+        except Exception as ex:
+            logging.info("exception encountered in starting run end thread")
+            logging.info(ex)
 
+    def WaitForEnd(self):
+        print "wait for end thread!"
         try:
             for resource in self.online_resource_list:
-
+                resource.disableRestart()
+            for resource in self.online_resource_list:
                 if resource.processstate==100:
                     logging.info('waiting for process '+str(resource.process.pid)+
                                  ' in state '+str(resource.processstate) +
@@ -719,7 +738,7 @@ class RunRanger(pyinotify.ProcessEvent):
                         if len(runtoend)==1:
                             logging.info('end run '+str(nr))
                             if conf.role == 'fu':
-                                runtoend[0].WaitForEnd()
+                                runtoend[0].StartWaitForEnd()
                             elif bu_emulator:
                                 bu_emulator.stop()
 
@@ -820,7 +839,7 @@ class ResourceRanger(pyinotify.ProcessEvent):
                     #@@EM implement threaded acquisition of resources here
                     """
                     #find all idle cores
-                    activerun.lock.acquire()
+                    #activerun.lock.acquire()
 
                     idles = conf.resource_base+'/idle'
 		    try:
@@ -848,7 +867,7 @@ class ResourceRanger(pyinotify.ProcessEvent):
                     if len(resourcenames) == conf.cmssw_threads:
                         acquired_sufficient = True
                         res = activerun.AcquireResource(resourcenames,resourcestate)
-                    activerun.lock.release()
+                    #activerun.lock.release()
 
                     if acquired_sufficient:
                         logging.info("ResourceRanger: acquired resource(s) "+str(res.cpu))
