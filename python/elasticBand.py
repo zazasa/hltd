@@ -240,6 +240,20 @@ class elasticBand():
         self.es.index(self.run,'prc-out',document)
         return int(ls[2:])
 
+    def elasticize_fu_out(self,path,file):
+        document = self.imbue_jsn(path,file)
+        tokens=file.split('.')[0].split('_')
+        run=tokens[0]
+        ls=tokens[1]
+        stream=tokens[2]
+        document['data'] = [int(f) if f.isdigit() else str(f) for f in document['data']]
+        datadict = {'in':document['data'][0],'out':document['data'][1],'file':document['data'][2]}
+        document['data']=datadict
+        document['ls']=int(ls[2:])
+        document['stream']=stream
+        self.es.index(self.run,'fu-out',document)
+        return int(ls[2:])
+
     def elasticize_prc_in(self,path,file):
         document = self.imbue_jsn(path,file)
         tokens=file.split('.')[0].split('_')
