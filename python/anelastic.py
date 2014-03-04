@@ -15,8 +15,10 @@ import hltdconf
 
 import itertools as itools
 
+import signal
 
-UNKNOWN,STREAM,INDEX,EOLS,EOR = 0,1,2,3,4             #file types 
+
+UNKNOWN,STREAM,INDEX,FAST,SLOW,OUTPUT,INI,EOLS,EOR,DAT = 0,1,2,3,4,5,6,7,8,9             #file types :
 RUN,LS,STR,PID,DATA = 0,1,2,3,4                      #file infos runnumber,ls number,stream name,pid number, json data
 
 
@@ -42,30 +44,25 @@ class MonitorRanger(pyinotify.ProcessEvent):
     def __init__(self):
         super(MonitorRanger, self).__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.fileQueue = False
-
-    def process_IN_CREATE(self, event):
-        pass
-
-    def process_IN_CLOSE_WRITE(self, event):
-        self.logger.info("filepath: %s" %event.pathname) 
-        if self.fileQueue:
-            self.fileQueue.put(event.pathname) 
+        self.eventQueue = False
 
     def process_default(self, event):
-        pass
+        self.logger.info("filepath: %s" %event.pathname) 
+        if self.eventQueue:
+            self.eventQueue.put(event)
 
-    def setFileQueue(self,queue):
-        self.fileQueue = queue
+    def setEventQueue(self,queue):
+        self.eventQueue = queue
 
 
 class LumiSectionHandler(object):
-    def __init__(self,run,ls,temp_folder,output_folder):
+    def __init__(self,run,ls,tempDir,outputDir):
         super(LumiSectionHandler, self).__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
-        self.output_folder = output_folder
-        self.temp_folder = temp_folder
+
+        self.outputDir = outputDir
+        self.tempDir = tempDir
 
 
         self.host = os.uname()[1]
@@ -77,7 +74,7 @@ class LumiSectionHandler(object):
         self.filename = ""
         self.fileExt = ""
         self.fileType = -1
-        self.EOLS = threading.Event()
+        self.EOLS = Queue.Queue()
         self.outputFile = ""
         self.jsdfilePath = ""
         self.jsd = {}
@@ -87,6 +84,7 @@ class LumiSectionHandler(object):
 
         self.closed = threading.Event() #True if all files are closed/moved
     
+        self.logger.info("run,ls: %s,%s" %(self.run,self.ls))
         self.istanceDump()
 
     def istanceDump(self):
@@ -101,7 +99,7 @@ class LumiSectionHandler(object):
             self.logger.debug("self.buffer: %s" %repr(self.buffer))
             self.logger.debug("self.outputFileList: %s" %repr(self.outputFileList))
             self.logger.debug("self.counterList: %s" %repr(self.totalEvent))
-            self.logger.debug("self.EOLS: %s" %repr(self.EOLS.isSet()))
+            self.logger.debug("self.EOLS: %s" %repr(self.EOLS.empty()))
 
 
     def processFile(self,filepath,fileType):
@@ -131,7 +129,7 @@ class LumiSectionHandler(object):
             try:
                 self.totalEvent+=int(self.counterValue)
             except Exception,e:
-                self.logger.error("error: %s" %e)
+                self.logger.error(e)
                 return False
         return False 
 
@@ -153,34 +151,27 @@ class LumiSectionHandler(object):
 
     def processEOLSFile(self):
         self.logger.info("%s" %self.infilepath)
-        if self.EOLS.isSet():
+        if not self.EOLS.empty():
             self.logger.error("LS %s already closed" %repr(key))
             return False
-        self.EOLS.set()
+        self.EOLS.put(self.infilepath)
         return True 
 
 
     def processStreamFile(self):
         self.logger.info("%s" %self.infilepath)
-
         if self.closed.isSet(): self.closed.clear()
-
         if self.getStreamFileInfo():
             if self.getDefinitions():
                 self.calcOutFilePath()
-
                 self.merge()
-
                 if self.writeout():
-
                     if self.outputFile in self.outputFileList:
                         self.outputFileList[self.outputFile] += self.counterValue
                     else: 
                         self.outputFileList[self.outputFile] = self.counterValue
-
-
-                    self.closeFile()
-
+                    self.logger.info("events %s / %s " %(self.outputFileList[self.outputFile],self.totalEvent))
+                    self.close()
                     return True
         return False
 
@@ -193,7 +184,6 @@ class LumiSectionHandler(object):
         ls      = splitFile[1]
         stream  = splitFile[2]
         pid     = splitFile[3]
-
         if self.getJsonData(self.infilepath):
             self.buffer =  (run,ls,stream,pid,self.tempdata)
             self.counterValue = int(self.tempdata["data"][0])
@@ -204,7 +194,7 @@ class LumiSectionHandler(object):
         #generate the name of the output file
     def calcOutFilePath(self):
         filename = "_".join([self.buffer[RUN],self.buffer[LS],self.buffer[STR],self.host])
-        filepath = os.path.join(self.temp_folder,filename+".jsn")
+        filepath = os.path.join(self.tempDir,filename+".jsn")
         self.outputFile = filepath
 
         #get definitions from jsd file
@@ -221,7 +211,7 @@ class LumiSectionHandler(object):
             with open(filepath) as fi:
                 self.tempdata = json.load(fi)
         except StandardError,e:
-            self.logger.error("error: %s with filepath: %s" %(e,filepath))
+            self.logger.error(e)
             self.tempdata = {}
             return False
         return True
@@ -245,53 +235,45 @@ class LumiSectionHandler(object):
     def writeout(self):
         filepath = self.outputFile
         outputData = self.outputData
+        self.logger.info("ouputFile: %s" %self.outputFile)
         try:
             with open(filepath,"w") as fi: 
                 json.dump(outputData,fi)
         except Exception,e:
-            self.logger.error("error: %s with filepath: %s" %(e,filepath))
+            self.logger.error(e)
             return False
         return True
 
-
-    def closeFile(self):
-        if self.EOLS.isSet() and self.outputFileList[self.outputFile] == self.totalEvent:
-            if self.moveFile():
-                self.outputFileList.pop(self.outputFile,None)
-                if not self.outputFileList:
-                    self.closed.set()
-
-    def moveFile(self):
-        self.istanceDump()
-        run = self.run
-        oldpath = self.outputFile
-        filename = os.path.basename(self.outputFile)
-        runfolder = os.path.join(self.output_folder,run)
-        newpath = os.path.join(runfolder,filename)
-        self.logger.info("moving file from : %s to: %s" %(oldpath,newpath))
+    def deleteEOLS(self):
+        filepath = self.EOLS.get()
         try:
-            if not os.path.isdir(runfolder): os.makedirs(runfolder)
-            shutil.move(oldpath,newpath)
-        except OSError:
-            raise genericException("moveFile error creating folder: %s" %runfolder)
-            return False
-        return True            
+            os.remove(filepath)
+        except Exception,e:
+            self.logger.error(e)
+
+    def close(self):
+        if not self.EOLS.empty() and self.outputFileList[self.outputFile] == self.totalEvent:
+            self.outputFileList.pop(self.outputFile,None)
+            if not self.outputFileList:
+                self.deleteEOLS():
+                self.closed.set()
+  
 
 
 class LumiSectionRanger(threading.Thread):
 
-    def __init__(self,runNumber,temp_folder,output_folder):
+    def __init__(self,runNumber,tempDir,outputDir):
         super(LumiSectionRanger, self).__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
-        self.logger.debug("init with runNumber: %s, tempfolder: %s, outputfolder: %s" %(runNumber,temp_folder,output_folder))
+        self.logger.debug("runNumber: %s, tempfolder: %s, outputfolder: %s" %(runNumber,tempDir,outputDir))
 
         self.stoprequest = threading.Event()
         self.emptyQueue = threading.Event()
 
         
-        self.output_folder = output_folder
-        self.temp_folder = temp_folder
+        self.outputDir = outputDir
+        self.tempDir = tempDir
         self.source = False
 
         self.runNumber = runNumber
@@ -313,7 +295,9 @@ class LumiSectionRanger(threading.Thread):
         while not self.stoprequest.isSet() or not self.emptyQueue.isSet() :
             if self.source:
                 try:
-                    self.infilepath = self.source.get(True,0.5) #blocking with timeout
+                    event = self.source.get(True,0.5) #blocking with timeout
+                    self.eventType = event.maskname
+                    self.infilepath = event.pathname
                     self.emptyQueue.clear()
                     self.process()  
                 except Queue.Empty as e:
@@ -325,32 +309,38 @@ class LumiSectionRanger(threading.Thread):
 
     def process(self):
         self.logger.debug("RECEIVED FILE: %s " %(self.infilepath))
-        filebasename = os.path.basename(self.infilepath)
-        fileType = self.getFileType(filebasename)
+        fileType = self.getFileType(self.infilepath)
         if fileType in [STREAM,INDEX,EOLS]:
             run,ls = self.getRUNandLS(filebasename,fileType)
             key = (run,ls)
             if key not in self.LSHandlerList:
-                self.LSHandlerList[key] = LumiSectionHandler(run,ls,self.temp_folder,self.output_folder)
+                self.LSHandlerList[key] = LumiSectionHandler(run,ls,self.tempDir,self.outputDir)
             self.LSHandlerList[key].processFile(self.infilepath,fileType)
         elif fileType == EOR:
             self.processEORFile()
 
 
-    def getFileType(self,filebasename):
+    def getFileType(self,filepath):
+        filebasename = os.path.basename(filepath)
         name,ext = os.path.splitext(filebasename)
         name = name.upper()
-        if ext == ".jsn":
-            if "STREAM" in name and "PID" in name: return STREAM
-            elif "INDEX" in name and  "PID" in name: return INDEX
-            elif "EOLS" in name: return EOLS
-            elif "EOR" in name: return EOR
-            else: return UNKNOWN
+        if "mon" not in filepath:
+            if ext == ".dat": return DAT
+            if ext == ".ini": return INI
+            if ".fast" in filebasename: return FAST
+            if "slow" in filebasename: return SLOW
+            if ext == ".jsn":
+                if "STREAM" in name and "PID" in name: return STREAM
+                if "STREAM" in name and "PID" not in name: return OUTPUT
+                elif "INDEX" in name and  "PID" in name: return INDEX
+                elif "EOLS" in name: return EOLS
+                elif "EOR" in name: return EOR
+        return UNKNOWN
 
     def getRUNandLS(self,filebasename,fileType):
         name,ext = os.path.splitext(filebasename)
         splitname = name.split("_")
-        if fileType in [STREAM,INDEX]:
+        if fileType in [STREAM,INDEX,OUTPUT]:
             run,ls = splitname[0],splitname[1]
         elif fileType == EOLS:
             run,ls = self.runNumber,"ls"+splitname[1]
@@ -388,14 +378,14 @@ class Aggregator(object):
             else: 
                 return getattr(self,actionName)(data1)
         except AttributeError,e:
-            self.logger.error("error: %s performing action: %s" %(e,actionName))
+            self.logger.error(e)
             return None
 
     def action_sum(self,data1,data2 = 0):
         try:
             res =  int(data1) + int(data2)
         except TypeError,e:
-            self.logger.error("error %s with data1,data2 : %s" %(e,data1,data2))
+            self.logger.error(e)
             return 0
         return res
 
@@ -411,6 +401,11 @@ class Aggregator(object):
 
 
 
+def signalHandler(signum,frame):
+    logger.info("Signal: %s" %repr(signum))
+    sys.exit(1)
+
+
 
 logging.basicConfig(filename="/tmp/anelastic.log",
                     level=logging.INFO,
@@ -418,42 +413,45 @@ logging.basicConfig(filename="/tmp/anelastic.log",
                     datefmt='%Y-%m-%d %H:%M:%S')
 
 
-fileQueue = Queue.Queue()
+
+
 
 if __name__ == "__main__":
+    #STDOUT AND ERR REDIRECTIONS
+    sys.stderr = stdErrorLog()
+    sys.stdout = stdOutLog()
 
     logger = logging.getLogger(__name__)
+    signal.signal(signal.SIGKILL, signalHandler)
 
-    #STDOUT AND ERR REDIRECTIONS
-    #sys.stderr = stdErrorLog()
-    #sys.stdout = stdOutLog()
-
+    eventQueue = Queue.Queue()
     conf=hltdconf.hltdConf('/etc/hltd.conf')
     dirname = sys.argv[1]
     dirname = dirname[dirname.rfind("/")+1:]
-    watch_folder = conf.watch_directory+'/'+dirname
-    output_folder = conf.micromerge_output
+    watchDir = conf.watch_directory+'/'+dirname
+    outputDir = conf.micromerge_output
 
-    #watch_folder = "data" #for testing
-    #output_folder = "data/output"
+    #watchDir = "data" #for testing
+    #outputDir = "data/output"
     #dirname = "run000002"
+    #mask = pyinotify.IN_CLOSE_WRITE | pyinotify.IN_CREATE   # watched events
+    mask = pyinotify.IN_CLOSE_WRITE   # watched events
 
+    logger.info("starting anelastic for "+dirname)
     try:
         #starting inotify thread
-        mask = pyinotify.IN_CLOSE_WRITE | pyinotify.IN_CREATE   # watched events
-
         wm = pyinotify.WatchManager()
         mr = MonitorRanger()
-        mr.setFileQueue(fileQueue)
+        mr.setEventQueue(eventQueue)
         notifier = pyinotify.ThreadedNotifier(wm, mr)
         notifier.start()
 
-        wdd = wm.add_watch(watch_folder, mask, rec=True)
+        wdd = wm.add_watch(watchDir, mask, rec=False)
 
 
         #starting lsRanger thread
-        ls = LumiSectionRanger(dirname,watch_folder,output_folder)
-        ls.setSource(fileQueue)
+        ls = LumiSectionRanger(dirname,watchDir,outputDir)
+        ls.setSource(eventQueue)
         ls.start()
     except Exception,e:
         logging.error("error: %s" %e)
