@@ -462,7 +462,7 @@ class Run:
         if conf.use_elasticsearch:
             try:
                 logging.info("starting anelastic.py with arguments:"+self.dirname)
-                elastic_args = ['/opt/hltd/python/elastic.py',self.dirname]
+                elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname]
                 self.anelastic_monitor = subprocess.Popen(elastic_args,
                                                         preexec_fn=preexec_function,
                                                         close_fds=True
