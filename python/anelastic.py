@@ -255,7 +255,7 @@ class LumiSectionHandler(object):
         if not self.EOLS.empty() and self.outputFileList[self.outputFile] == self.totalEvent:
             self.outputFileList.pop(self.outputFile,None)
             if not self.outputFileList:
-                self.deleteEOLS():
+                self.deleteEOLS()
                 self.closed.set()
   
 
@@ -401,9 +401,9 @@ class Aggregator(object):
 
 
 
-def signalHandler(signum,frame):
-    logger.info("Signal: %s" %repr(signum))
-    sys.exit(1)
+#def signalHandler(signum,frame):
+#    logger.info("Signal: %s" %repr(signum))
+#    sys.exit(1)
 
 
 
@@ -418,11 +418,11 @@ logging.basicConfig(filename="/tmp/anelastic.log",
 
 if __name__ == "__main__":
     #STDOUT AND ERR REDIRECTIONS
-    sys.stderr = stdErrorLog()
-    sys.stdout = stdOutLog()
+    #sys.stderr = stdErrorLog()
+    #sys.stdout = stdOutLog()
 
     logger = logging.getLogger(__name__)
-    signal.signal(signal.SIGKILL, signalHandler)
+
 
     eventQueue = Queue.Queue()
     conf=hltdconf.hltdConf('/etc/hltd.conf')
