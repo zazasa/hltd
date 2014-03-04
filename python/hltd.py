@@ -432,7 +432,9 @@ class Run:
         self.dirname = dirname
         self.online_resource_list = []
         self.is_active_run = True
-        self.managed_monitor = None
+        self.anelastic_monitor = None
+        self.elastic_monitor = None   
+        
         self.arch = None
         self.version = None
         self.menu = None
@@ -459,9 +461,15 @@ class Run:
         self.lock = threading.Lock()
         if conf.use_elasticsearch:
             try:
+                logging.info("starting anelastic.py with arguments:"+self.dirname)
+                elastic_args = ['/opt/hltd/python/elastic.py',self.dirname]
+                self.anelastic_monitor = subprocess.Popen(elastic_args,
+                                                        preexec_fn=preexec_function,
+                                                        close_fds=True
+                                                        )
                 logging.info("starting elastic.py with arguments:"+self.dirname)
                 elastic_args = ['/opt/hltd/python/elastic.py',self.dirname]
-                self.managed_monitor = subprocess.Popen(elastic_args,
+                self.elastic_monitor = subprocess.Popen(elastic_args,
                                                         preexec_fn=preexec_function,
                                                         close_fds=True
                                                         )
