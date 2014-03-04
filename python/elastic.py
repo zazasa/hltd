@@ -16,247 +16,134 @@ import hltdconf
 import collate
 import logging
 
-logging.basicConfig(filename='/tmp/elastic2.log',
-                    level=logging.ERROR,
-                    format='%(levelname)s:%(asctime)s-%(name)s - %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
-logging.getLogger('pyelasticsearch').setLevel(logging.ERROR)
-logging.getLogger('requests').setLevel(logging.ERROR)
+from anelastic import *
 
-lslogger = logging.getLogger('LumiSectionRanger')
-mologger = logging.getLogger('MonitorRanger')
-mainlogger = logging.getLogger('elastic')
-lslogger.setLevel(logging.DEBUG)
-mologger.setLevel(logging.DEBUG)
-mainlogger.setLevel(logging.DEBUG)
 
-es = None
-
-conf=hltdconf.hltdConf('/etc/hltd.conf')
-es_url = 'http://localhost:9200'
-hostname = os.uname()[1]
 
 class BadIniFile(Exception):
     pass
 
-class LumiSectionRanger(threading.Thread):
-    def __init__(self,es_url,run_index,streams,ls):
-        threading.Thread.__init__(self)
-        self.coll = collate.Collation(es_url)
-        self.target = 0
-        self.index = run_index
-        self.ls=ls
-        self.active_streams = streams
 
-    def filestem(self,stream):
-        return self.index+'_ls'+str(self.ls).zfill(4)+'_'+stream+'_'+os.uname()[1]
-    def inpath(self):
-        return conf.watch_directory+'/'+self.index+'/'
+class elasticCollector(LumiSectionRanger):
     
-    def outpath(self):
-        return conf.micromerge_output+'/'+self.index+'/'
+    def __init__(self,runNumber, outputDir):
+        self.logger = logging.getLogger(self.__class__.__name__)
 
-    def writeout(self,res,stream):
-        stem = self.filestem(stream)
-        outname = stem+'.dat'
-        fp = open(self.inpath()+stem+'.jsn','w')
-        document = {}
-        document['data'] = [res['data']['in'],res['data']['out'],outname]
-        document['definition'] = ""
-        document['source'] = os.uname()[1]
-        document['infiles'] = res['data']['file']
-        lslogger.info(self.index+" Writing document "+self.inpath()+stem+'.jsn')
-        json.dump(document,fp)
-        fp.close()
+        self.run = runNumber
+        self.outputDir = outputDir
 
-    def filemover(self,stream):
-        #check once more that files are there
-        datafile = self.inpath()+self.filestem(stream)+'.dat'
-        jsonfile = self.inpath()+self.filestem(stream)+'.jsn'
-        if not os.path.exists(datafile): return False
-        if not os.path.exists(jsonfile): return False
-        datadest = self.outpath()+self.filestem(stream)+'.dat'
-        jsondest = self.outpath()+self.filestem(stream)+'.jsn'
+        self.source = False
+        self.completeLS = []
+        self.LSfileList = {}    #{(run,ls):[file1,file2,...]}
+
+    def deleteFile(self,filepath):
+        pass
+
+    def moveFile(self,oldpath):
+        run = self.run
+        filename = os.path.basename(oldpath)
+        runDir = os.path.join(self.outputDir,run)
+        newpath = os.path.join(runDir,filename)
+        self.logger.info("moving file from : %s to: %s" %(oldpath,newpath))
         try:
-             os.makedirs(self.outpath())
-        except OSError:
-            pass
-            
-        shutil.move(datafile,datadest)
-        shutil.move(jsonfile,jsondest)
-        return True
+            if not os.path.isdir(runDir): os.makedirs(runDir)
+            shutil.move(oldpath,newpath)
+        except OSError,e:
+            self.logger(e)
+            return False
+        return True          
 
-    def run(self):
-        #find all streams
-        complete = False
-        prev_in = 0
-        iterations = 0
-        total_out = {}
-        complete_streams = []
-        try:
-            while not complete:
-                if iterations%4==0:
-                    self.coll.refresh(self.index)
-                iterations+=1
-                lslogger.info(self.index+" ls "+str(self.ls)+" running ")
-                time.sleep(2.)
-                cres = self.coll.collate(self.index,'prc-in',self.ls)
-                lslogger.info("collate of prc-in for ls "+str(self.ls)+" returned "+str(cres))
-                total_in = cres['data']['out']
-                
-                if prev_in != total_in:
-                    lslogger.info(self.index+" "+str(self.ls)+'/still updating...'+str(total_in)+
-                              '/'+str(prev_in)+" iterations:",str(iterations))
-                    prev_in = total_in
-                else:
-                    if total_in == None: break;
-                    complete = True
+    def elasticize(self,filepath,fileType):
+        path = os.path.dirname(filepath)
+        name = os.path.basename(filepath)
+        if es and os.path.isfile(filepath):
+            if fileType == "FAST": es.elasticize_prc_istate(path,name)
+            elif fileType == "SLOW": es.elasticize_prc_sstate(path,name) 
+            elif fileType == "INDEX": 
+                self.logger.info(name+" going into prc-in")
+                es.elasticize_prc_in(path,name)
+            elif fileType == "STREAM"
+                self.logger.info(name+" going into prc-out")
+                es.elasticize_prc_out(path,name)
+            elif fileType == "OUTPUT"
+                self.logger.info(name+" going into prc-out")
+                es.elasticize_fu_out(path,name)
 
-                    lslogger.info(self.index+" ls "+str(self.ls)+" looking for streams "+
-                                  str(self.active_streams)+" iterations "+str(iterations))
-                    if len(self.active_streams) != 0:
-                        for x in self.active_streams:
-                            if x not in complete_streams:
-                                res = self.coll.collate(self.index,'prc-out',self.ls,x)
-                                lslogger.info("collate of prc-out for ls "+str(self.ls)+" returned "+str(res))
-                                total_out[x] = res['data']['in']
-                                lslogger.info(self.index+" "+str(self.ls)+'/'+x+
-                                          "********totals "+ str(total_out[x]) + ","+str(total_in))
-                                if total_out[x] == total_in:
-                                    lslogger.info(self.index+" "+str(self.ls)+" going to write for "+x )
-                                    self.writeout(res,x)
-                                    self.coll.stash(self.index,'fu-out',res)
-                                    self.filemover(x)
-                                    complete_streams.append(x)
-                                else:
-                                    complete = False
-                    else:
-                        complete = False
+    def cleanLS(self,key):
+        pass
 
-                    if iterations > 60: 
-                        lslogger.error(self.index+" lumisection "+str(self.ls)+" timed out")
-                        break
+    def process(self):
+        self.logger.debug("RECEIVED FILE: %s " %(self.infilepath))
+        fileType = self.getFileType(self.infilepath)
+        eventType = self.eventType
 
-        except Exception as ex:
-            lslogger.exception(ex)
-        lslogger.info("Collation of run "+self.index+" ls "+ str(self.ls)+" completed")
-
-class MonitorRanger(pyinotify.ProcessEvent):
-    
-    def __init__(self,s,dirname):
-        pyinotify.ProcessEvent.__init__(self,s)
-#        print 'MonitorRanger constructor'
-        self.streams = []
-        self.thread_history = {}
-        self.dirname = dirname
-
-    def process_IN_MOVED_TO(self, event):
-        if 'open' in event.pathname:
-            return
-        if event.pathname.endswith('.dat'):
-            return
-
-        #mologger.info('MonitorRanger-MOVEDTO: event '+event.pathname)
-        if es:
-            try:
-                path=event.pathname[0:event.pathname.rfind("/")+1]
-                name=event.pathname[event.pathname.rfind("/")+1:]
-                if '.jsn' in name and 'stream' not in name:
-                    mologger.info(name+" going into prc-in")
-                    es.elasticize_prc_in(path,name)
-                elif ('stream' in name) and not ('pid' in name):
-                    es.elasticize_fu_out(path,name)
-                
-            except Exception as ex:
-                mologger.exception(ex)
-
-    def process_IN_CLOSE_WRITE(self, event):
-
-        if 'open' in event.pathname:
-            return
-        if event.pathname.endswith('.dat'):
-            return
-        #mologger.info('MonitorRanger-CLOSE_WRITE: event '+event.pathname)
-        if event.pathname.endswith('.ini'):
-            path=event.pathname[0:event.pathname.rfind("/")+1]
-            in_name=event.pathname[event.pathname.rfind("/")+1:]
-            out_name=in_name[0:in_name.rfind("_")+1]+hostname+'.ini'
-            stream_name=in_name[in_name.find("_")+1:in_name.rfind("_")]
-            # Keep a local copy to compare later ini messages
-            # Thus, we do not rely on what happens on the remote version
-            local_out_path = path+out_name
-            if not os.path.exists(local_out_path):
-                self.streams.append(stream_name)
-                shutil.move(event.pathname,local_out_path)
-                remote_out_path = conf.micromerge_output+'/'+self.dirname
-                try:
-                    os.makedirs(remote_out_path)
-                except OSError:
-                    pass
-                shutil.copy(local_out_path,remote_out_path)
+        if fileType in [STREAM,INDEX]:
+            self.elasticize(self.infilepath,fileType)
+            run,ls = self.getRUNandLS(filebasename,fileType)
+            key = (run,ls)
+            if key in self.completeLS:
+                self.deleteFile(self.infilepath)
             else:
-                if not filecmp.cmp(local_out_path,event.pathname,False):
-                    # Where shall this exception be handled?
-                    raise BadIniFile("Found a bad ini file "+event.pathname)
-                else:
-                    os.remove(event.pathname)
-            return
+                self.LSfileList.setDefault(key, list).append(self.infilepath)
 
-        if 'complete' in event.pathname:
-            mologger.info("exiting because run "+self.dirname+" is complete")
-            sys.exit(0) 
+        elif fileType in [EOLS] and eventType == "IN_DELETE":
+            run,ls = self.getRUNandLS(filebasename,fileType)
+            key = (run,ls)
+            self.completeLS.append(key)
+            self.cleanLS(key)
 
-        if es:
+        elif fileType in [FAST,SLOW]:
+            self.elasticize(self.infilepath,fileType)
+            self.moveFile(self.infilepath)
 
-            try:
-                path=event.pathname[0:event.pathname.rfind("/")+1]
-                name=event.pathname[event.pathname.rfind("/")+1:]
-                if '.fast' in name:
-                    es.elasticize_prc_istate(path,name)
-                elif 'slow' in name:
-                    es.elasticize_prc_sstate(path,name) 
-                if '.jsn' in name and 'mon' not in path:
-                    if 'stream' not in name and 'EoLS' not in name :
-                        mologger.info(name+" going into prc-in")
-                        es.elasticize_prc_in(path,name)
-                    elif 'EoLS' in name:
-                        mologger.info(self.dirname+" "+name+" seen")
-                        ls = int(name.split('.')[0][name.split('.')[0].rfind('_')+1:])
-                        if ls not in self.thread_history:
-                            self.thread_history[ls] = LumiSectionRanger(es_url,
-                                                                        dirname,
-                                                                        self.streams,
-                                                                        ls)
-                            self.thread_history[ls].start()
+        elif fileType in [OUTPUT]:
+            run,ls = self.getRUNandLS(filebasename,fileType)
+            key = (run,ls)
+            if key in self.completeLS:
+                self.elasticize(self.infilepath,fileType)
+                self.moveFile(self.infilepath)
+            else:
+                self.LSfileList.setDefault(key, list).append(self.infilepath)                
 
-                    elif ('stream' in name) and ('pid' in name):
-                        mologger.info(name+" going into prc-out")
-                        ls = es.elasticize_prc_out(path,name)
-            except Exception as ex:
-                mologger.exception(ex)
-                mologger.error("when processing event "+name)
-            
-    def process_default(self, event):
-        #mologger.info('MonitorRanger: event '+event.pathname+' type '+event.maskname)
-        filename=event.pathname[event.pathname.rfind("/")+1:]
+        elif fileType in [DAT,INI]:
+            self.moveFile(self.infilepath)
+
+
 
 
 
 if __name__ == "__main__":
+    #STDOUT AND ERR REDIRECTIONS
+    sys.stderr = stdErrorLog()
+    sys.stdout = stdOutLog()
+
+    logger = logging.getLogger(__name__)
+    #signal.signal(signal.SIGINT, signalHandler)
+    
+    eventQueue = Queue.Queue()
+
+    conf=hltdconf.hltdConf('/etc/hltd.conf')
     dirname = sys.argv[1]
     dirname = dirname[dirname.rfind("/")+1:]
+    watchDir = conf.watch_directory+'/'+dirname
+    outputDir = conf.micromerge_output
+
     es = elasticBand.elasticBand('http://localhost:9200',dirname)
-    mainlogger.info("starting elastic for "+dirname)
+
+    mask = pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MOVED_TO | pyinotify.IN_DELETE
+    logger.info("starting elastic for "+dirname)
+
+
+
     try:
-        wm3 = pyinotify.WatchManager()
-        s3 = pyinotify.Stats() # Stats is a subclass of ProcessEvent
-        monranger = MonitorRanger(s3,dirname)
-        notifier = pyinotify.ThreadedNotifier(wm3, default_proc_fun=monranger)
+        wm = pyinotify.WatchManager()
+        mr = MonitorRanger()
+        mr.setEventQueue(eventQueue)
+        notifier = pyinotify.ThreadedNotifier(wm, mr)
         notifier.start()
-        wm3.add_watch(conf.watch_directory+'/'+dirname,
-                           pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MOVED_TO,
-                           rec=True,
-                           auto_add=True)
+        wdd = wm.add_watch(watchDir, mask, rec=True, auto_add =True)
+
+
     except Exception as ex:
-        mainlogger.exception(ex)
-        mainlogger.error("when processing files from directory "+dirname)
+        logger.exception(ex)
+        logger.error("when processing files from directory "+dirname)
