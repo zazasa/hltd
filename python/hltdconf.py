@@ -44,7 +44,7 @@ class hltdConf:
         self.cmssw_base = cfg.get('CMSSW','cmssw_base')
         self.cmssw_arch = cfg.get('CMSSW','cmssw_arch')
         self.cmssw_default_version = cfg.get('CMSSW','cmssw_default_version')
-        self.cmssw_threads = cfg.getint('CMSSW','cmssw_num_threads')
+        self.cmssw_threads = cfg.getint('CMSSW','cmssw_threads')
         self.cmssw_script_location = cfg.get('CMSSW','cmssw_script_location')
         self.test_hlt_config1 = cfg.get('CMSSW','test_hlt_config1')
         self.test_hlt_config2 = cfg.get('CMSSW','test_hlt_config2')
