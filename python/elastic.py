@@ -108,7 +108,7 @@ class LumiSectionRanger(threading.Thread):
             lslogger.exception(ex)
             moveAttempts-=1
             if moveAttempts == 0:
-              print lslogger.error("giving up trying to move " + jsonfile + " to "+ jsondest)
+              lslogger.error("giving up trying to move " + jsonfile + " to "+ jsondest)
               break
             time.sleep(1)
 
