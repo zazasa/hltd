@@ -81,9 +81,37 @@ class LumiSectionRanger(threading.Thread):
              os.makedirs(self.outpath())
         except OSError:
             pass
-            
-        shutil.move(datafile,datadest)
-        shutil.move(jsonfile,jsondest)
+
+        #move data file
+        successfullyMoved=False
+        moveAttempts=10
+        while not successfullyMoved:
+          try:    
+            shutil.move(datafile,datadest)
+            successfullyMoved = True
+          except OSError as ex:
+            lslogger.exception(ex)
+            moveAttempts-=1
+            if moveAttempts == 0:
+              print "giving up trying to move " + datafile + " to "+ datadest
+              break
+            time.sleep(1)
+     
+        #move json file
+        successfullyMoved=False
+        moveAttempts=10
+        while not successfullyMoved:
+          try:    
+            shutil.move(jsonfile,jsondest)
+            successfullyMoved = True
+          except OSError as ex:
+            lslogger.exception(ex)
+            moveAttempts-=1
+            if moveAttempts == 0:
+              print "giving up trying to move " + jsonfile + " to "+ jsondest
+              break
+            time.sleep(1)
+
         return True
 
     def run(self):
