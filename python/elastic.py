@@ -84,7 +84,7 @@ class LumiSectionRanger(threading.Thread):
 
         #move data file
         successfullyMoved=False
-        moveAttempts=10
+        moveAttempts=5
         while not successfullyMoved:
           try:    
             shutil.move(datafile,datadest)
@@ -93,13 +93,13 @@ class LumiSectionRanger(threading.Thread):
             lslogger.exception(ex)
             moveAttempts-=1
             if moveAttempts == 0:
-              print "giving up trying to move " + datafile + " to "+ datadest
+              lslogger.error("giving up trying to move " + datafile + " to "+ datadest)
               break
             time.sleep(1)
      
         #move json file
         successfullyMoved=False
-        moveAttempts=10
+        moveAttempts=5
         while not successfullyMoved:
           try:    
             shutil.move(jsonfile,jsondest)
@@ -108,7 +108,7 @@ class LumiSectionRanger(threading.Thread):
             lslogger.exception(ex)
             moveAttempts-=1
             if moveAttempts == 0:
-              print "giving up trying to move " + jsonfile + " to "+ jsondest
+              print lslogger.error("giving up trying to move " + jsonfile + " to "+ jsondest)
               break
             time.sleep(1)
 
