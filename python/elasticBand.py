@@ -215,15 +215,15 @@ class elasticBand():
         datadict['ls'] = int(tokens[1][2:])
         datadict['process'] = tokens[2]
 #        print list(document['data'][0])
-        if document['data'][1] is not "N/A":
+        if document['data'][0] != "N/A":
           datadict['macro']   = [int(f) for f in document['data'][0].strip('[]').split(',')]
         else:
           datadict['macro'] = 0
-        if document['data'][2] is not "N/A":
+        if document['data'][1] != "N/A":
           datadict['mini']    = [int(f) for f in document['data'][1].strip('[]').split(',')]
         else:
           datadict['mini'] = 0
-        if document['data'][3] is not "N/A":
+        if document['data'][2] != "N/A":
           datadict['micro']   = [int(f) for f in document['data'][2].strip('[]').split(',')]
         else:
           datadict['micro'] = 0
