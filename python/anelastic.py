@@ -416,7 +416,7 @@ class LumiSectionHandler():
                 if item.stream == stream: item.moveFile()
                 #delete all index files
             for item in self.indexFileList:
-                if ite.stream == stream: item.deleteFile()
+                if item.stream == stream: item.deleteFile()
                 #close lumisection if all streams are closed
             if not self.outFileList:
                 self.closed.set()
