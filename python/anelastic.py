@@ -324,6 +324,7 @@ class LumiSectionHandler():
 
         self.outFileList = {} #{"filepath":eventCounter}
         self.datFileList = []
+        self.indexFileList = []
 
         self.EOLS = threading.Event()
         self.closed = threading.Event() #True if all files are closed/moved
@@ -413,6 +414,9 @@ class LumiSectionHandler():
                 #move all dat files in rundir
             for item in self.datFileList:
                 if item.stream == stream: item.moveFile()
+                #delete all index files
+            for item in self.indexFileList:
+                if ite.stream == stream: item.deleteFile()
                 #close lumisection if all streams are closed
             if not self.outFileList:
                 self.closed.set()
@@ -426,9 +430,12 @@ class LumiSectionHandler():
 
     def processIndexFile(self):
         self.logger.info(self.infile.basename)
+
         if self.getInfo():
             self.totalEvent+=self.counterValue
-            self.infile.deleteFile()
+            if self.infile not in self.indexFileList:
+                self.indexFileList.append(self.infile)
+            #self.infile.deleteFile()
             return True
         return False
 
@@ -441,9 +448,6 @@ class LumiSectionHandler():
         self.EOLS.set()
         #self.infile.deleteFile()   #cmsRUN create another eols if it will be delete too early
         return True 
-
-
-
 
 
 class Aggregator(object):
@@ -485,19 +489,6 @@ class Aggregator(object):
         
     def action_cat(self,data1,data2 = ""):
         return str(data1)+","+str(data2)
-
-
-
-#def signalHandler(signum,frame):
-#    logger.info("Signal: %s" %repr(signum))
-#    sys.exit(1)
-
-
-
-
-
-
-
 
 
 if __name__ == "__main__":
