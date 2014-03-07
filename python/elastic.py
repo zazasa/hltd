@@ -37,10 +37,11 @@ class elasticCollector(LumiSectionRanger):
         eventType = self.eventType
         if eventType == "IN_CLOSE_WRITE":
             if self.esDirName in self.infile.path:
-                self.elasticize(filepath,fileType)
-                os.remove(filepath)
+                if fileType in [INDEX,STREAM,OUTPUT]:   self.elasticize(filepath,fileType)
+                if fileType in [EOR]: self.stop()
+                self.infile.deleteFile()
                 #self.infile.deleteFile()- DISABLED cause null jsn files
-            elif self.infile.fileType in [FAST,SLOW]:
+            elif fileType in [FAST,SLOW]:
                 return
                 #self.elasticize(filepath,fileType)
 
