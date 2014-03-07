@@ -89,12 +89,11 @@ if __name__ == "__main__":
     watchDir = os.path.join(conf.watch_directory,dirname)
     outputDir = conf.micromerge_output
 
-    es = elasticBand.elasticBand('http://localhost:9200',dirname)
+    
 
     mask = pyinotify.IN_CLOSE_WRITE | pyinotify.IN_DELETE
     logger.info("starting elastic for "+dirname)
     try:
-        os.makedirs(os.path.join(watchDir,ES_DIR_NAME))
         #starting inotify thread
         wm = pyinotify.WatchManager()
         mr = MonitorRanger()
@@ -103,6 +102,8 @@ if __name__ == "__main__":
         notifier.start()
         wdd = wm.add_watch(watchDir, mask, rec=True, auto_add =True)
 
+        es = elasticBand.elasticBand('http://localhost:9200',dirname)
+        os.makedirs(os.path.join(watchDir,ES_DIR_NAME))
 
         #starting elasticCollector thread
         ec = elasticCollector(ES_DIR_NAME)
