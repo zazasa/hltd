@@ -414,11 +414,12 @@ class LumiSectionHandler():
                 #move all dat files in rundir
             for item in self.datFileList:
                 if item.stream == stream: item.moveFile()
-                #delete all index files
-            for item in self.indexFileList:
-                if item.stream == stream: item.deleteFile()
-                #close lumisection if all streams are closed
+                
             if not self.outFileList:
+                #delete all index files
+                for item in self.indexFileList:
+                    item.deleteFile()
+                #close lumisection if all streams are closed
                 self.closed.set()
 
 
@@ -529,8 +530,7 @@ if __name__ == "__main__":
         ls.setSource(eventQueue)
         ls.start()
     except Exception,e:
-        logging.error("error: %s" %e)
-        print traceback.format_exc()
+        logger.exception("error: ")
         sys.exit(1)
 
     
