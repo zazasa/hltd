@@ -185,12 +185,12 @@ class elasticBand():
             pass
 
     def imbue_jsn(self,path,file):
-        with open(path+file,'r') as fp:
+        with open(os.path.join(path,file),'r') as fp:
             document = json.load(fp)
             return document
 
     def imbue_csv(self,path,file):
-        with open(path+file,'r') as fp:
+        with open(os.path.join(path,file),'r') as fp:
             fp.readline()
             row = fp.readline().split(',')
             return row
