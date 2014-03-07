@@ -296,7 +296,7 @@ class LumiSectionRanger():
             self.logger.debug("compare %s , %s " %(localfilepath,filepath))
             if not filecmp.cmp(localfilepath,filepath,False):
                         # Where shall this exception be handled?
-                raise BadIniFile("Found a bad ini file %s" %filepath)
+                self.logger.warning("Found a bad ini file %s" %filepath)
             else:
                 self.infile.deleteFile()
 
