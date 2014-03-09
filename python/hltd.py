@@ -365,7 +365,7 @@ class ProcessWatchdog(threading.Thread):
 
                 oldpid = pid
 
-                if self.resource.retry_attempts < self.retry_limit and self.retry_enabled:
+                if self.resource.retry_attempts < self.retry_limit:
                     """
                     sleep a configurable amount of seconds before
                     trying a restart. This is to avoid 'crash storms'
@@ -383,10 +383,6 @@ class ProcessWatchdog(threading.Thread):
                       os.rename(used+cpu,broken+cpu)
                     logging.debug("resource(s) " +str(self.resource.cpu)+
                                   " successfully moved to except")
-                elif not self.retry_enabled:
-                    #moving to idle if restart is disabled
-                    for cpu in self.resource.cpu:
-                        os.rename(used+cpu,idles+cpu)
                 elif self.resource.retry_attempts >= self.retry_limit:
                     logging.error("process for run "
                                   +str(self.resource.runnumber)
@@ -841,20 +837,25 @@ class ResourceRanger(pyinotify.ProcessEvent):
                     #find all idle cores
                     #activerun.lock.acquire()
 
-                    idles = '/'+resourcepath
+                    idlesdir = '/'+resourcepath
 		    try:
-                        reslist = os.listdir(idles)
+                        reslist = os.listdir(idlesdir)
                     except Exception as ex:
                         logging.info("exception encountered in looking for resources")
                         logging.info(ex)
                     #put inotify-ed resource as the first item
                     for resindex,resname in enumerate(reslist):
+                        fileFound=False
                         if resname == resourcename:
+                            fileFound=True
                             if resindex != 0:
                                 firstitem = reslist[0]
                                 reslist[0] = resourcename
                                 reslist[resindex] = firstitem
                         break
+                        if fileFound==False:
+                            #inotified file was already moved earlier
+                            return                    
                     #acquire sufficient cores for a multithreaded process start 
                     resourcenames = []
                     for resname in reslist:
@@ -874,6 +875,39 @@ class ResourceRanger(pyinotify.ProcessEvent):
                         activerun.StartOnResource(res)
                         logging.info("ResourceRanger: started process on resource "
                                      +str(res.cpu))
+                else:
+                    #if no run is active, move (x N threads) files from except to idle to be picked up for the next run
+                    #TODO:debug,write test
+                    if resourcestate == 'except':
+                        idlesdir = '/'+resourcepath
+		        try:
+                            reslist = os.listdir(idlesdir)
+                            #put inotify-ed resource as the first item
+                            fileFound=False
+                            for resindex,resname in enumerate(reslist):
+                                if resname == resourcename:
+                                    fileFound=True
+                                    if resindex != 0:
+                                        firstitem = reslist[0]
+                                        reslist[0] = resourcename
+                                        reslist[resindex] = firstitem
+                                    break
+                                if fileFound==False:
+                                    #inotified file was already moved earlier
+                                    return
+                            resourcenames = []
+                            for resname in reslist:
+                                if len(resourcenames) < conf.cmssw_threads:
+                                    resourcenames.append(resname)
+                                else:
+                                    break
+                            if len(resourcenames) == conf.cmssw_threads:
+                                for resname in resourcenames:
+                                    os.rename(broken+resname,idles+resname)
+
+                        except Exception as ex:
+                            logging.info("exception encountered in looking for resources in except")
+                            logging.info(ex)
 
         except Exception as ex:
             logging.error("exception in ResourceRanger")
