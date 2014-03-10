@@ -437,7 +437,8 @@ class Run:
         self.dirname = dirname
         self.online_resource_list = []
         self.is_active_run = False
-        self.managed_monitor = None
+        self.anelastic_monitor = None
+        self.elastic_monitor = None   
         self.arch = None
         self.version = None
         self.menu = None
@@ -463,14 +464,25 @@ class Run:
             logging.warn("Using default values for run "+str(self.runnumber)+": "+self.version+" ("+self.arch+") with "+self.menu)
 
         self.lock = threading.Lock()
+        #conf.use_elasticsearch = False
+            #note: start elastic.py first!
         if conf.use_elasticsearch:
             try:
+
                 logging.info("starting elastic.py with arguments:"+self.dirname)
                 elastic_args = ['/opt/hltd/python/elastic.py',self.dirname]
-                self.managed_monitor = subprocess.Popen(elastic_args,
+                self.elastic_monitor = subprocess.Popen(elastic_args,
                                                         preexec_fn=preexec_function,
                                                         close_fds=True
                                                         )
+
+                logging.info("starting anelastic.py with arguments:"+self.dirname)
+                elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname]
+                self.anelastic_monitor = subprocess.Popen(elastic_args,
+                                                        preexec_fn=preexec_function,
+                                                        close_fds=True
+                                                        )
+
             except OSError as ex:
                 logging.error("failed to start elasticsearch client")
                 logging.error(ex)
