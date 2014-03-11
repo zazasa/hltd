@@ -343,7 +343,7 @@ class LumiSectionHandler():
 
         self.EOLS = threading.Event()
         self.closed = threading.Event() #True if all files are closed/moved
-        
+        self.logger.info("%r with %r" %(self.ls,self.streamList))
 
 
     def processDump(self):
