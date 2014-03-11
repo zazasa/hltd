@@ -269,6 +269,8 @@ class LumiSectionRanger():
                 if key not in self.LSHandlerList:
                     self.LSHandlerList[key] = LumiSectionHandler(run,ls,self.streamList[:])
                 self.LSHandlerList[key].processFile(self.infile)
+                if self.LSHandlerList[key].closed.isSet():
+                    self.LSHandlerList.pop(key,None)
             elif fileType == INI:
                 self.processINIfile()
             elif fileType == EOR:
@@ -341,16 +343,17 @@ class LumiSectionHandler():
 
         self.EOLS = threading.Event()
         self.closed = threading.Event() #True if all files are closed/moved
-        self.logger.info("sl: %r ls: %r" %(self.streamList,self.ls))
+        
 
 
     def processDump(self):
         if not self.infile.fileType == UNKNOWN:
-            self.logger.debug("self.ls: %s" %repr(self.run))
-            self.logger.debug("self.infile: %s" %repr(self.infile))
-            self.logger.debug("self.outFileList: %s" %repr(self.outFileList))
-            self.logger.debug("self.totalEvent: %s" %repr(self.totalEvent))
-            self.logger.debug("self.EOLS: %s" %repr(self.EOLS.isSet()))
+            self.logger.debug("self.ls: %r" %self.run)
+            self.logger.debug("self.infile: %r" %self.infile)
+            self.logger.debug("self.outFileList: %r" %self.outFileList)
+            self.logger.debug("self.totalEvent: %r" %self.totalEvent)
+            self.logger.debug("self.EOLS: %r" %self.EOLS.isSet())
+            self.logger.debug("self.streamList: %r" %self.streamList)
 
     def addStream(self,stream):
         self.logger.info("%r for ls %r" %(stream,self.ls))
