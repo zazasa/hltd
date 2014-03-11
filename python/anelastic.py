@@ -220,6 +220,7 @@ class LumiSectionRanger():
         self.runNumber = runNumber
 
         self.LSHandlerList = {} #{(run,ls): LumiSectionHandler()}
+        self.streamList = []
 
     def join(self, stop=False, timeout=None):
         if stop: self.stop()
@@ -266,7 +267,7 @@ class LumiSectionRanger():
                 run,ls = (self.infile.run,self.infile.ls)
                 key = (run,ls)
                 if key not in self.LSHandlerList:
-                    self.LSHandlerList[key] = LumiSectionHandler(run,ls)
+                    self.LSHandlerList[key] = LumiSectionHandler(run,ls,self.streamList[:])
                 self.LSHandlerList[key].processFile(self.infile)
             elif fileType == INI:
                 self.processINIfile()
@@ -288,6 +289,7 @@ class LumiSectionRanger():
         localfilepath = os.path.join(path,localfilename)
             #check and move/delete ini file
         if not os.path.exists(localfilepath):
+            self.addStream(stream)
             self.infile.moveFile(newpath = localfilepath)
             self.infile.moveFile(copy = True)
         else:
@@ -298,6 +300,17 @@ class LumiSectionRanger():
             else:
                 self.infile.deleteFile()
 
+    def addStream(self,stream):
+        if stream not in self.streamList:
+            self.streamList.append(stream)
+            for item in self.LSHandlerList.itervalues():
+                item.addStream(stream)
+        else:
+            self.logger.warning("stream already in list")
+
+
+
+
     def processEORFile(self):
         self.logger.info("CLOSING RUN")
         self.checkClosure()
@@ -307,12 +320,12 @@ class LumiSectionRanger():
     def checkClosure(self):
         for key in self.LSHandlerList.keys():
             if not self.LSHandlerList[key].closed.isSet():
-                self.logger.warning("%s not closed " %repr(key))
+                self.logger.warning("%r not closed " %repr(key))
 
 
 
 class LumiSectionHandler():
-    def __init__(self,run,ls):
+    def __init__(self,run,ls,streamList):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.run = run
         self.ls = ls
@@ -323,9 +336,12 @@ class LumiSectionHandler():
         self.outFileList = {} #{"filepath":eventCounter}
         self.datFileList = []
         self.indexFileList = []
+        self.streamList = streamList
+
 
         self.EOLS = threading.Event()
         self.closed = threading.Event() #True if all files are closed/moved
+        self.logger.info("sl: %r ls: %r" %(self.streamList,self.ls))
 
 
     def processDump(self):
@@ -336,6 +352,10 @@ class LumiSectionHandler():
             self.logger.debug("self.totalEvent: %s" %repr(self.totalEvent))
             self.logger.debug("self.EOLS: %s" %repr(self.EOLS.isSet()))
 
+    def addStream(self,stream):
+        self.logger.info("%r for ls %r" %(stream,self.ls))
+        if stream not in self.streamList: self.streamList.append(stream)
+        else: self.logger.warning("stream already in list for ls %r" %self.ls)
 
     def processFile(self,infile):
         self.infile = infile
@@ -405,15 +425,16 @@ class LumiSectionHandler():
         stream = self.outfile.stream
 
         if self.EOLS.isSet() and self.outFileList[basename] == self.totalEvent:
-            self.logger.info(stream)
+            self.logger.info("%r for ls %r" %(stream,self.ls))
                 #move output file in rundir
             if self.outfile.moveFile():
                 self.outFileList.pop(basename,None)
+                self.streamList.remove(stream)
                 #move all dat files in rundir
             for item in self.datFileList:
                 if item.stream == stream: item.moveFile()
                 
-            if not self.outFileList:
+            if not self.outFileList and not self.streamList:
                 #delete all index files
                 for item in self.indexFileList:
                     item.deleteFile()
