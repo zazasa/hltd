@@ -268,8 +268,6 @@ class LumiSectionRanger():
                 if key not in self.LSHandlerList:
                     self.LSHandlerList[key] = LumiSectionHandler(run,ls)
                 self.LSHandlerList[key].processFile(self.infile)
-                if self.LSHandlerList[key].closed.isSet():
-                    self.LSHandlerList.pop(key,None)
             elif fileType == INI:
                 self.processINIfile()
             elif fileType == EOR:
