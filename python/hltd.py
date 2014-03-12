@@ -20,12 +20,13 @@ import demote
 import re
 
 #modules distributed with hltd
-import pyinotify
 import prctl
 
 #modules which are part of hltd
 from daemon2 import Daemon2
 import hltdconf
+from inotifywrapper import InotifyWrapper
+import _inotify as inotify
 
 conf=hltdconf.hltdConf('/etc/hltd.conf')
 
@@ -694,11 +695,28 @@ class Run:
             return
 
 
-class RunRanger(pyinotify.ProcessEvent):
+class RunRanger:
+
+    def __init__(self):
+        self.inotifyWrapper = InotifyWrapper(self,logging)
+
+    def register_inotify_path(self,path,mask):
+        self.inotifyWrapper.registerPath(path,mask)
+
+    def start_inotify(self):
+        self.inotifyWrapper.start()
+
+    def stop_inotify(self):
+        logging.info("RunRanger: Stop inotify wrapper")
+        self.inotifyWrapper.stop()
+        logging.info("RunRanger: Join inotify wrapper")
+        self.inotifyWrapper.join()
+        logging.info("RunRanger: Inotify wrapper returned")
+
     def process_IN_CREATE(self, event):
         nr=0
-        logging.info('RunRanger: event '+event.pathname)
-        dirname=event.pathname[event.pathname.rfind("/")+1:]
+        logging.info('RunRanger: event '+event.fullpath)
+        dirname=event.fullpath[event.fullpath.rfind("/")+1:]
         #@@EM
         logging.info('RunRanger: new filename '+dirname)
         if dirname.startswith(conf.watch_prefix):
@@ -708,10 +726,10 @@ class RunRanger(pyinotify.ProcessEvent):
                     logging.info('new run '+str(nr))
                     if conf.role == 'fu':
                         bu_dir = bu_disk_list[0]+'/ramdisk/'+dirname
-                        os.symlink(bu_dir+'/jsd',event.pathname+'/jsd')
+                        os.symlink(bu_dir+'/jsd',event.fullpath+'/jsd')
                     else:
                         bu_dir = ''
-                    run_list.append(Run(nr,event.pathname,bu_dir)) #@@MO in case of the BU, the run_list grows until the hltd is stopped
+                    run_list.append(Run(nr,event.fullpath,bu_dir)) #@@MO in case of the BU, the run_list grows until the hltd is stopped
                     run_list[-1].AcquireResources(mode='greedy')
                     run_list[-1].Start()
                 except OSError as ex:
@@ -733,7 +751,7 @@ class RunRanger(pyinotify.ProcessEvent):
                     logging.info("exception encountered in starting BU emulator run")
                     logging.info(ex)
 
-                os.remove(event.pathname)
+                os.remove(event.fullpath)
 
         elif dirname.startswith(conf.watch_end_prefix):
             # need to check is stripped name is actually an integer to serve
@@ -751,7 +769,7 @@ class RunRanger(pyinotify.ProcessEvent):
                                 bu_emulator.stop()
 
                             logging.info('run '+str(nr)+' removing end-of-run marker')
-                            os.remove(event.pathname)
+                            os.remove(event.fullpath)
                             run_list.remove(runtoend[0])
                         elif len(runtoend)==0:
                             logging.error('request to end run '+str(nr)
@@ -774,7 +792,7 @@ class RunRanger(pyinotify.ProcessEvent):
                               +'*never* happen')
 
         elif dirname.startswith('herod') and conf.role == 'fu':
-            os.remove(event.pathname)
+            os.remove(event.fullpath)
             logging.info("killing all child processes")
             for run in run_list:
                 for resource in run.online_resource_list:
@@ -787,10 +805,10 @@ class RunRanger(pyinotify.ProcessEvent):
                 run.Shutdown()
             run_list[:] = []
             logging.info("terminated all ongoing runs via cgi interface")
-            os.remove(event.pathname)
+            os.remove(event.fullpath)
 
         elif dirname.startswith('harakiri') and conf.role == 'fu':
-            os.remove(event.pathname)
+            os.remove(event.fullpath)
             pid=os.getpid()
             logging.info('asked to commit seppuku:'+str(pid))
             try:
@@ -803,19 +821,25 @@ class RunRanger(pyinotify.ProcessEvent):
                 logging.error(ex)
 
         logging.debug("RunRanger completed handling of event "
-                      +event.pathname)
+                      +event.fullpath)
 
     def process_default(self, event):
-        logging.info('RunRanger: event '+event.pathname+' type '+event.maskname)
-        filename=event.pathname[event.pathname.rfind("/")+1:]
+        logging.info('RunRanger: event '+event.fullpath+' type '+str(event.mask))
+        filename=event.fullpath[event.fullpath.rfind("/")+1:]
 
+class ResourceRanger:
 
-class ResourceRanger(pyinotify.ProcessEvent):
+    def __init__(self):
+        self.inotifyWrapper = InotifyWrapper(self,logging)
 
-    def __init__(self,s):
-        pyinotify.ProcessEvent.__init__(self,s)
         self.managed_monitor = system_monitor()
         self.managed_monitor.start()
+
+    def register_inotify_path(self,path,mask):
+        self.inotifyWrapper.registerPath(path,mask)
+
+    def start_inotify(self):
+        self.inotifyWrapper.start()
 
     def stop_managed_monitor(self):
         logging.info("ResourceRanger: Stop managed monitor")
@@ -824,12 +848,19 @@ class ResourceRanger(pyinotify.ProcessEvent):
         self.managed_monitor.join()
         logging.info("ResourceRanger: managed monitor returned")
 
+    def stop_inotify(self):
+        logging.info("ResourceRanger: Stop inotify wrapper")
+        self.inotifyWrapper.stop()
+        logging.info("ResourceRanger: Join inotify wrapper")
+        self.inotifyWrapper.join()
+        logging.info("ResourceRanger: Inotify wrapper returned")
+
     def process_IN_MOVED_TO(self, event):
-        logging.debug('ResourceRanger-MOVEDTO: event '+event.pathname)
+        logging.debug('ResourceRanger-MOVEDTO: event '+event.fullpath)
         try:
-            resourcepath=event.pathname[1:event.pathname.rfind("/")]
+            resourcepath=event.fullpath[1:event.fullpath.rfind("/")]
             resourcestate=resourcepath[resourcepath.rfind("/")+1:]
-            resourcename=event.pathname[event.pathname.rfind("/")+1:]
+            resourcename=event.fullpath[event.fullpath.rfind("/")+1:]
             if not (resourcestate == 'online' or resourcestate == 'offline'
                     or resourcestate == 'quarantined'):
                 logging.debug('ResourceNotifier: new resource '
@@ -927,9 +958,9 @@ class ResourceRanger(pyinotify.ProcessEvent):
 
     def process_IN_MODIFY(self, event):
 
-        logging.debug('ResourceRanger-MODIFY: event '+event.pathname)
+        logging.debug('ResourceRanger-MODIFY: event '+event.fullpath)
         try:
-            if event.pathname == conf.resource_base+'/bus.config':
+            if event.fullpath == conf.resource_base+'/bus.config':
                 if self.managed_monitor:
                     self.managed_monitor.stop()
                     self.managed_monitor.join()
@@ -943,11 +974,8 @@ class ResourceRanger(pyinotify.ProcessEvent):
             logging.error(ex)
 
     def process_default(self, event):
-        logging.debug('ResourceRanger: event '+event.pathname+' type '+event.maskname)
-        filename=event.pathname[event.pathname.rfind("/")+1:]
-
-
-
+        logging.debug('ResourceRanger: event '+event.fullpath +' type '+ str(event.mask))
+        filename=event.fullpath[event.fullpath.rfind("/")+1:]
 
 
 class hltd(Daemon2,object):
@@ -1005,28 +1033,25 @@ class hltd(Daemon2,object):
 
         watch_directory = os.readlink(conf.watch_directory) if os.path.islink(conf.watch_directory) else conf.watch_directory
         resource_base = os.readlink(conf.resource_base) if os.path.islink(conf.resource_base) else conf.resource_base
-        wm1 = pyinotify.WatchManager()
-        s1 = pyinotify.Stats() # Stats is a subclass of ProcessEvent
-        notifier1 = pyinotify.ThreadedNotifier(wm1, default_proc_fun=RunRanger(s1))
-        logging.info("starting notifier - watch_directory "+watch_directory)
-        notifier1.start()
-        wm1.add_watch(watch_directory,
-                      pyinotify.IN_CREATE,
-                      rec=False,
-                      auto_add=False)
 
-        s2 = pyinotify.Stats() # Stats is a subclass of ProcessEvent
-        rr = ResourceRanger(s2)
+        runRanger = RunRanger()
+        runRanger.register_inotify_path(watch_directory,inotify.IN_CREATE)
+        runRanger.start_inotify()
+        logging.info("started RunRanger  - watch_directory " + watch_directory)
 
+        rr = ResourceRanger()
         try:
-            wm2 = pyinotify.WatchManager()
-            notifier2 = pyinotify.ThreadedNotifier(wm2, default_proc_fun=rr)
-            logging.info("starting notifier2 - watch_directory "+resource_base)
-            notifier2.start()
-            wm2.add_watch(resource_base,
-                          pyinotify.IN_CREATE | pyinotify.IN_DELETE | pyinotify.IN_MODIFY | pyinotify.IN_MOVED_TO,
-                          rec=True,
-                          auto_add=True)
+            imask  = inotify.IN_MOVED_TO | inotify.IN_CREATE | inotify.IN_DELETE | inotify.IN_MODIFY
+            if conf.role == 'bu':
+                #currently does nothing on bu
+                rr.register_inotify_path(resource_base, imask)
+                rr.register_inotify_path(resource_base+'/boxes', imask)
+            else:
+                rr.register_inotify_path(resource_base, imask)
+                rr.register_inotify_path(resource_base+'/idle', imask)
+                rr.register_inotify_path(resource_base+'/except', imask)
+            rr.start_inotify()
+            logging.info("started ResourceRanger - watch_directory "+resource_base)
         except Exception as ex:
             logging.error("Exception caught in starting notifier2")
             logging.error(ex)
@@ -1053,10 +1078,10 @@ class hltd(Daemon2,object):
             for run in run_list:
                 run.Shutdown()
             logging.info("terminated all ongoing runs")
-            logging.info("terminating notifier 1")
-            notifier1.stop()
-            logging.info("terminating notifier 2")
-            notifier2.stop()
+            logging.info("stopping run ranger inotify helper")
+            runRanger.stop_inotify()
+            logging.info("stopping resource ranger inotify helper")
+            rr.stop_inotify()
             logging.info("stopping system monitor")
             rr.stop_managed_monitor()
             logging.info("closing httpd socket")
@@ -1066,8 +1091,8 @@ class hltd(Daemon2,object):
         except Exception as ex:
             logging.info("exception encountered in operating hltd")
             logging.info(ex)
-            notifier1.stop()
-            notifier2.stop()
+            runRanger.stop_inotify()
+            rr.stop_inotify()
             rr.stop_managed_monitor()
             raise
 

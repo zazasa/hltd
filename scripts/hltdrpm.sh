@@ -178,6 +178,46 @@ Classifier: Topic :: System :: Monitoring
 EOF
 
 cd $TOPDIR
+cd opt/hltd/lib/python-inotify-0.5/
+./setup.py -q build
+cp build/lib.linux-x86_64-2.6/inotify/_inotify.so $TOPDIR/usr/lib64/python2.6/site-packages
+cp build/lib.linux-x86_64-2.6/inotify/watcher.py $TOPDIR/usr/lib64/python2.6/site-packages
+python - <<'EOF'
+import py_compile
+py_compile.compile("build/lib.linux-x86_64-2.6/inotify/watcher.py")
+EOF
+cp build/lib.linux-x86_64-2.6/inotify/watcher.pyc $TOPDIR/usr/lib64/python2.6/site-packages/
+cat > $TOPDIR/usr/lib64/python2.6/site-packages/python_inotify-0.5.egg-info <<EOF
+Metadata-Version: 1.0
+Name: python-inotify
+Version: 0.5
+Summary: Interface to Linux inotify subsystem
+Home-page: 'http://www.serpentine.com/
+Author: Bryan O'Sullivan
+Author-email: bos@serpentine.com
+License: LGPL
+Platform: Linux
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: LGPL
+Classifier: Natural Language :: English
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 2.4
+Classifier: Programming Language :: Python :: 2.5
+Classifier: Programming Language :: Python :: 2.6
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.0
+Classifier: Programming Language :: Python :: 3.1
+Classifier: Programming Language :: Python :: 3.2
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: System :: Filesystems
+Classifier: Topic :: System :: Monitoring
+EOF
+
+cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > hltd.spec <<EOF
 Name: hltd
@@ -226,6 +266,9 @@ rm -rf /etc/appliance/except/*
 /usr/lib64/python2.6/site-packages/*prctl*
 /usr/lib64/python2.6/site-packages/*simplejson*
 /usr/lib64/python2.6/site-packages/*pyinotify*
+/usr/lib64/python2.6/site-packages/*watcher*
+/usr/lib64/python2.6/site-packages/*_inotify.so*
+/usr/lib64/python2.6/site-packages/*python_inotify*
 /usr/lib64/python2.6/site-packages/pyelasticsearch
 EOF
 mkdir -p RPMBUILD/{RPMS/{noarch},SPECS,BUILD,SOURCES,SRPMS}
