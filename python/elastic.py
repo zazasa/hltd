@@ -106,7 +106,8 @@ if __name__ == "__main__":
         ec.start()
 
     except Exception as e:
-        logger.exception("error")
+        logger.exception(e)
+        print traceback.format_exc()
         logger.error("when processing files from directory "+dirname)
 
     logging.info("Closing notifier")

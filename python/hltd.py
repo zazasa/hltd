@@ -364,7 +364,23 @@ class ProcessWatchdog(threading.Thread):
                               +str(self.retry_enabled)
                               )
 
-                oldpid = pid
+
+                #generate crashed pid json file like: run000001_ls0000_crash_pid12345.jsn
+                oldpid = "pid"+str(pid).zfill(5)
+                outdir = os.path.dirname(self.resource.associateddir[:-1])
+                runnumber = "run"+str(self.resource.runnumber).zfill(conf.run_number_padding)
+                ls = "ls0000"
+                filename = "_".join([runnumber,ls,"crash",oldpid])+".jsn"
+                filepath = os.path.join(outdir,filename)
+                document = {"errorCode":returncode}
+                try: 
+                    with open(filepath,"w") as fi: 
+                        json.dump(document,fi)
+                except: logging.exception("unable to create %r" %filename)
+                logging.info("pid crash file: %r" %filename)
+
+
+
 
                 if self.resource.retry_attempts < self.retry_limit:
                     """
