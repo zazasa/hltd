@@ -364,7 +364,7 @@ class ProcessWatchdog(threading.Thread):
 
 
                 #generate crashed pid json file like: run000001_ls0000_crash_pid12345.jsn
-                oldpid = "pid"+str(pid)
+                oldpid = "pid"+str(pid).zfill(5)
                 outdir = os.path.dirname(self.resource.associateddir[:-1])
                 runnumber = "run"+str(self.resource.runnumber).zfill(conf.run_number_padding)
                 ls = "ls0000"

@@ -295,21 +295,22 @@ class LumiSectionRanger():
 
         #merge ouput data for each key found
         for key in hungKeyList:
-            eventsNum = lsList[key].pidEvents(pid)
+            eventsNum,streams = lsList[key].getPidInfo(pid)
             run,ls = key
 
-            errFilename = "_".join([run,ls,"error"])+".jsn"
-            errFilepath = os.path.join(dirname,errFilename)
-            outfile = fileHandler(errFilepath,run,dirname)
-            definitions = [ { "name":"notProcessed",  "operation":"sum",  "type":"integer"},
-                            { "name":"errorCodes",    "operation":"cat",  "type":"string" }]
+            for stream in streams:
+                errFilename = "_".join([run,ls,"error",stream])+".jsn"
+                errFilepath = os.path.join(dirname,errFilename)
+                outfile = fileHandler(errFilepath,run,dirname)
+                definitions = [ { "name":"notProcessed",  "operation":"sum",  "type":"integer"},
+                                { "name":"errorCodes",    "operation":"cat",  "type":"string" }]
 
-            newData = [str(eventsNum),str(errcode)]
-            oldData = outfile.data["data"][:] if outfile.exists() else [None]
+                newData = [str(eventsNum),str(errcode)]
+                oldData = outfile.data["data"][:] if outfile.exists() else [None]
 
-            result=Aggregator(definitions,newData,oldData).output()
-            outfile.data = {"data":result}
-            outfile.writeout()
+                result=Aggregator(definitions,newData,oldData).output()
+                outfile.data = {"data":result}
+                outfile.writeout()
 
 
     def processINIfile(self):
@@ -497,12 +498,13 @@ class LumiSectionHandler():
 
         # return TRUE if the streamList of the pid doesnt present all activeStreams
     def checkHungPid(self,pid):
-        self.logger.info("%r in activeStreams %r" %(pid,self.activeStreams))
         if pid in self.pidList: return not sorted(self.pidList[pid]["streamList"]) == sorted(self.activeStreams)
         else: return False
 
-    def pidEvents(self,pid):
-        return self.pidList[pid]["numEvents"]
+    def getPidInfo(self,pid):
+        streamDiff = list(set(self.activeStreams)-set(self.pidList[pid]["streamList"]))
+        numEvents = self.pidList[pid]["numEvents"]
+        return numEvents,streamDiff
 
 
 
