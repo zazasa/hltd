@@ -544,8 +544,9 @@ class Aggregator(object):
         else:
             return "N/A"
         
-    def action_cat(self,data1,data2 = ""):
-        return str(data1)+","+str(data2)
+    def action_cat(self,data1,data2 = None):
+        if data2: return str(data1)+","+str(data2)
+        else: return str(data1)
 
 
 if __name__ == "__main__":
