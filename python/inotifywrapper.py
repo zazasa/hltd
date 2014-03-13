@@ -3,8 +3,6 @@
 #
 
 import threading
-#from inotify import watcher
-#import inotify
 import watcher
 import _inotify as inotify
 #import select
@@ -39,33 +37,46 @@ class InotifyWrapper(threading.Thread):
             else:
                 self.w.add(path,mask)
         except OSError, err:
-            self.logging.error("inotify wrapper exception: " + err.strerror)
+            self.logging_.error('inotify wrapper exception: ' + err.strerror)
 
     def reportError(self,err):
-        self.logging.error("error registering inotify path " + err.strerror +", continuing")
+        self.logging_.error('error registering inotify path ' + err.strerror +', continuing')
 
     def run(self):
 	while self.quit == False:
-	    for event in self.w.read():
-                #note:add more events in case needed
-	        if event.mask & inotify.IN_CREATE:
-	            self.parent_.process_IN_CREATE(event)
-	        elif event.mask & inotify.IN_MODIFY:
-	            self.parent_.process_IN_MODIFY(event)
-	        elif event.mask & inotify.IN_MOVED_TO:
-	            self.parent_.process_IN_MOVED_TO(event)
-	        elif event.mask & inotify.IN_DELETE:
-	            self.parent_.process_IN_DELETE(event)
-	        elif event.mask & inotify.IN_CLOSE_WRITE:
-	            self.parent_.process_IN_CLOSE_WRITE(event)
-                else:
-                    parent_.process_default(event)
-                if self.quit == True:
-                    break
+          try:
+	      for event in self.w.read():
+                  if self.quit == True:
+                      break
+                  #note:add more events in case needed
+                  try:
+	              if event.mask & inotify.IN_CREATE:
+	                  self.parent_.process_IN_CREATE(event)
+	              elif event.mask & inotify.IN_MODIFY:
+	                  self.parent_.process_IN_MODIFY(event)
+	              elif event.mask & inotify.IN_MOVED_TO:
+	                  self.parent_.process_IN_MOVED_TO(event)
+	              elif event.mask & inotify.IN_DELETE:
+	                  self.parent_.process_IN_DELETE(event)
+	              elif event.mask & inotify.IN_CLOSE_WRITE:
+	                  self.parent_.process_IN_CLOSE_WRITE(event)
+                      else:
+                          self.parent_.process_default(event)
+                  except AttributeError, err:
+                      #parent does not implement the function
+                      self.parent_.process_default(event)
+          except Exception, ex:
+              self.logging_.info("exception in inotify run thread: "+ str(ex))
 
     def stop(self):
         self.quit = True
+        try:
+          for wd in self.w._wds:
+            inotify.remove_watch(self.w.fd, wd)
+        except Exception, ex:
+            pass
         self.w.close()
+        self.logging_.info('closed inotify fd')
 
 #more advanced use
 #    def run(self):

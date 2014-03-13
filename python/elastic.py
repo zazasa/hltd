@@ -8,7 +8,7 @@ import time
 import shutil
 
 import logging
-import pyinotify
+import _inotify as inotify
 import threading
 import Queue
 
@@ -87,16 +87,15 @@ if __name__ == "__main__":
 
     
 
-    mask = pyinotify.IN_CLOSE_WRITE | pyinotify.IN_DELETE
+    mask = inotify.IN_CLOSE_WRITE | inotify.IN_DELETE
     logger.info("starting elastic for "+dirname)
+    mr = None
     try:
         #starting inotify thread
-        wm = pyinotify.WatchManager()
         mr = MonitorRanger()
         mr.setEventQueue(eventQueue)
-        notifier = pyinotify.ThreadedNotifier(wm, mr)
-        notifier.start()
-        wdd = wm.add_watch(watchDir, mask, rec=True, auto_add =True)
+        mr.register_inotify_path(watchDir,mask)
+        mr.start_inotify()
 
         es = elasticBand.elasticBand('http://localhost:9200',dirname)
         os.makedirs(os.path.join(watchDir,ES_DIR_NAME))
@@ -111,7 +110,8 @@ if __name__ == "__main__":
         logger.error("when processing files from directory "+dirname)
 
     logging.info("Closing notifier")
-    notifier.stop()
+    if mr is not None:
+      mr.stop_inotify()
 
     logging.info("Quit")
     sys.exit(0)

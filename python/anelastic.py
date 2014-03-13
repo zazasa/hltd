@@ -6,7 +6,8 @@ import time
 import shutil
 
 import filecmp
-import pyinotify
+import watcher
+import _inotify as inotify
 import threading
 import Queue
 import json
@@ -36,15 +37,29 @@ class stdErrorLog:
         self.logger.error(message)
 
     #on notify, put the event file in a queue
-class MonitorRanger(pyinotify.ProcessEvent):
+class MonitorRanger:
 
     def __init__(self):
         super(MonitorRanger, self).__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
         self.eventQueue = False
+        self.inotifyWrapper = InotifyWrapper(self,logging)
+
+    def register_inotify_path(self,path,mask):
+        self.inotifyWrapper.registerPath(path,mask)
+
+    def start_inotify(self):
+        self.inotifyWrapper.start()
+
+    def stop_inotify(self):
+        logging.info("MonitorRanger: Stop inotify wrapper")
+        self.inotifyWrapper.stop()
+        logging.info("MonitorRanger: Join inotify wrapper")
+        self.inotifyWrapper.join()
+        logging.info("MonitorRanger: Inotify wrapper returned")
 
     def process_default(self, event):
-        self.logger.debug("event: %s on: %s" %(event.maskname,event.pathname))
+        self.logger.debug("event: %s on: %s" %(str(event.mask),event.fullpath))
         if self.eventQueue:
             self.eventQueue.put(event)
 
@@ -243,8 +258,8 @@ class LumiSectionRanger():
             if self.source:
                 try:
                     event = self.source.get(True,0.5) #blocking with timeout
-                    self.eventType = event.maskname
-                    self.infile = fileHandler(event.pathname,self.runNumber,self.outputDir)
+                    self.eventType = event.mask
+                    self.infile = fileHandler(event.fullpath,self.runNumber,self.outputDir)
                     self.emptyQueue.clear()
                     self.process()  
                 except (KeyboardInterrupt,Queue.Empty) as e:
@@ -261,7 +276,7 @@ class LumiSectionRanger():
         fileType = self.infile.fileType
         eventType = self.eventType
 
-        if eventType == "IN_CLOSE_WRITE":
+        if eventType & "IN_CLOSE_WRITE":
             if fileType in [STREAM,INDEX,EOLS,DAT]:
                 run,ls = (self.infile.run,self.infile.ls)
                 key = (run,ls)
@@ -511,22 +526,21 @@ if __name__ == "__main__":
     watchDir = os.path.join(conf.watch_directory,dirname)
     outputDir = conf.micromerge_output
 
-    mask = pyinotify.IN_CLOSE_WRITE   # watched events
+    mask = inotify.IN_CLOSE_WRITE   # watched events
     logger.info("starting anelastic for "+dirname)
+    mr = None
     try:
         #starting inotify thread
-        wm = pyinotify.WatchManager()
         mr = MonitorRanger()
         mr.setEventQueue(eventQueue)
-        notifier = pyinotify.ThreadedNotifier(wm, mr)
-        notifier.start()
-        wdd = wm.add_watch(watchDir, mask, rec=False)
-
+        mr.register_inotify_path(watchDir,mask)
+        mr.start_inotify()
 
         #starting lsRanger thread
         ls = LumiSectionRanger(dirname,watchDir,outputDir)
         ls.setSource(eventQueue)
         ls.start()
+
     except Exception,e:
         logger.exception("error: ")
         sys.exit(1)
@@ -543,7 +557,8 @@ if __name__ == "__main__":
 #    ls.join()
 
     logging.info("Closing notifier")
-    notifier.stop()
+    if mr is not None:
+        mr.stop_inotify()
 
     logging.info("Quit")
     sys.exit(0)
