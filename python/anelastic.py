@@ -66,10 +66,9 @@ class fileHandler(object):
             elif name in ["outfilepath"]: self.calcOutfilepath()
         return self.__dict__[name]
 
-    def __init__(self,filepath,runNumber,outputDir):
+    def __init__(self,filepath,outputDir):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.filepath = filepath
-        self.run = runNumber
         self.outputDir = outputDir
         
     def getFileInfo(self):
@@ -101,10 +100,9 @@ class fileHandler(object):
         fileType = self.fileType
         name,ext = self.name,self.ext
         splitname = name.split("_")
-        if fileType in [STREAM,OUTPUT,DAT,CRASH]: self.run,self.ls,self.stream,self.pid = splitname
+        if fileType in [STREAM,INI,OUTPUT,DAT,CRASH]: self.run,self.ls,self.stream,self.pid = splitname
         elif fileType == INDEX: self.run,self.ls,self.index,self.pid = splitname
-        elif fileType == EOLS: self.ls = "ls"+splitname[1]
-        elif fileType == INI: self.run,self.stream,self.pid = splitname
+        elif fileType == EOLS: self.run,self.ls,self.eols = splitname
         else: 
             self.logger.warning("Bad filetype: %s" %self.filepath)
             self.run,self.ls,self.stream = [None]*3
@@ -126,7 +124,7 @@ class fileHandler(object):
         data = self.data
         if data: 
             self.jsdfile = self.data["definition"]
-            self.definitions = self.getJsonData(self.jsdfile)["legend"]
+            self.definitions = self.getJsonData(self.jsdfile)["data"]
         else:
             self.jsdfile,self.definitions = "",{}
 
@@ -174,7 +172,7 @@ class fileHandler(object):
         return True
 
     def getOutfile(self):
-        return self.__class__(self.outfilepath,self.run,self.outputDir)
+        return self.__class__(self.outfilepath,self.outputDir)
 
     def exists(self):
         return os.path.exists(self.filepath)
@@ -207,17 +205,14 @@ class LumiSectionRanger():
     source = False
     eventType = False
     infile = False
-    runNumber = None
     outputDir = None
 
-    def __init__(self,runNumber,tempDir,outputDir):
+    def __init__(self,tempDir,outputDir):
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.logger.debug("runNumber: %s, tempfolder: %s, outputfolder: %s" %(runNumber,tempDir,outputDir))
 
         self.host = os.uname()[1]        
         self.outputDir = outputDir
         self.tempDir = tempDir
-        self.runNumber = runNumber
 
         self.LSHandlerList = {} # {(run,ls): LumiSectionHandler()}
         self.activeStreams = [] # updated by the ini files
@@ -243,7 +238,7 @@ class LumiSectionRanger():
                 try:
                     event = self.source.get(True,0.5) #blocking with timeout
                     self.eventType = event.maskname
-                    self.infile = fileHandler(event.pathname,self.runNumber,self.outputDir)
+                    self.infile = fileHandler(event.pathname,self.outputDir)
                     self.emptyQueue.clear()
                     self.process()  
                 except (KeyboardInterrupt,Queue.Empty) as e:
@@ -266,7 +261,7 @@ class LumiSectionRanger():
                 run,ls = (self.infile.run,self.infile.ls)
                 key = (run,ls)
                 if key not in self.LSHandlerList:
-                    self.LSHandlerList[key] = LumiSectionHandler(run,ls,self.activeStreams)
+                    self.LSHandlerList[key] = LumiSectionHandler(ls,self.activeStreams)
                 self.LSHandlerList[key].processFile(self.infile)
                 if self.LSHandlerList[key].closed.isSet():
                     self.LSHandlerList.pop(key,None)
@@ -295,22 +290,30 @@ class LumiSectionRanger():
 
         #merge ouput data for each key found
         for key in hungKeyList:
-            eventsNum,streams = lsList[key].getPidInfo(pid)
+            eventsNum = lsList[key].pidEvents(pid)
             run,ls = key
 
+<<<<<<< HEAD
             for stream in streams:
                 errFilename = "_".join([run,ls,"error",stream])+".jsn"
                 errFilepath = os.path.join(dirname,errFilename)
-                outfile = fileHandler(errFilepath,run,dirname)
+                outfile = fileHandler(errFilepath,dirname)
                 definitions = [ { "name":"notProcessed",  "operation":"sum",  "type":"integer"},
                                 { "name":"errorCodes",    "operation":"cat",  "type":"string" }]
+=======
+            errFilename = "_".join([run,ls,"error"])+".jsn"
+            errFilepath = os.path.join(dirname,errFilename)
+            outfile = fileHandler(errFilepath,run,dirname)
+            definitions = [ { "name":"notProcessed",  "operation":"sum",  "type":"integer"},
+                            { "name":"errorCodes",    "operation":"cat",  "type":"string" }]
+>>>>>>> parent of 304f4fc... working version tested in my env
 
-                newData = [str(eventsNum),str(errcode)]
-                oldData = outfile.data["data"][:] if outfile.exists() else [None]
+            newData = [str(eventsNum),str(errcode)]
+            oldData = outfile.data["data"][:] if outfile.exists() else [None]
 
-                result=Aggregator(definitions,newData,oldData).output()
-                outfile.data = {"data":result}
-                outfile.writeout()
+            result=Aggregator(definitions,newData,oldData).output()
+            outfile.data = {"data":result}
+            outfile.writeout()
 
 
     def processINIfile(self):
@@ -352,9 +355,8 @@ class LumiSectionRanger():
 
 
 class LumiSectionHandler():
-    def __init__(self,run,ls,activeStreams):
+    def __init__(self,ls,activeStreams):
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.run = run
         self.ls = ls
         self.activeStreams = activeStreams
         self.closedStreams = []
@@ -498,13 +500,12 @@ class LumiSectionHandler():
 
         # return TRUE if the streamList of the pid doesnt present all activeStreams
     def checkHungPid(self,pid):
+        self.logger.info("%r in activeStreams %r" %(pid,self.activeStreams))
         if pid in self.pidList: return not sorted(self.pidList[pid]["streamList"]) == sorted(self.activeStreams)
         else: return False
 
-    def getPidInfo(self,pid):
-        streamDiff = list(set(self.activeStreams)-set(self.pidList[pid]["streamList"]))
-        numEvents = self.pidList[pid]["numEvents"]
-        return numEvents,streamDiff
+    def pidEvents(self,pid):
+        return self.pidList[pid]["numEvents"]
 
 
 
@@ -521,14 +522,18 @@ class Aggregator(object):
         return self.result
 
     def action(self,definition,data1,data2=None):
-        actionName = "action_"+definition["operation"]        
-        try:
-            if data2 : 
-                return getattr(self,actionName)(data1,data2)
-            else: 
-                return getattr(self,actionName)(data1)
-        except AttributeError,e:
-            self.logger.error(e)
+        actionName = "action_"+definition["operation"] 
+        if hasattr(self,actionName):
+            try:
+                if data2 : 
+                    return getattr(self,actionName)(data1,data2)
+                else: 
+                    return getattr(self,actionName)(data1)
+            except AttributeError,e:
+                self.logger.error(e)
+                return None
+        else:
+            self.logger.warning("bad operation: %r" %actionName)
             return None
 
     def action_sum(self,data1,data2 = 0):
@@ -582,7 +587,7 @@ if __name__ == "__main__":
 
 
         #starting lsRanger thread
-        ls = LumiSectionRanger(dirname,watchDir,outputDir)
+        ls = LumiSectionRanger(watchDir,outputDir)
         ls.setSource(eventQueue)
         ls.start()
     except Exception,e:
