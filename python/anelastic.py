@@ -66,7 +66,7 @@ class fileHandler(object):
             elif name in ["outfilepath"]: self.calcOutfilepath()
         return self.__dict__[name]
 
-    def __init__(self,filepath,outputDir):
+    def __init__(self,filepath,outputDir = ""):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.filepath = filepath
         self.outputDir = outputDir
@@ -166,7 +166,7 @@ class fileHandler(object):
 
         #generate the name of the output file
     def calcOutfilepath(self):
-        filename = "_".join([self.run,self.ls,self.stream,self.host])+".jsn"
+        filename = "_".join([self.run,self.ls,self.stream,self.host])+self.ext
         filename = os.path.join(self.dir,filename)
         self.outfilepath = filename
         return True
@@ -536,11 +536,21 @@ class Aggregator(object):
             self.logger.warning("bad operation: %r" %actionName)
             return None
 
-    def action_binaryOr(self,data1,data2):
-        pass
+    def action_binaryOr(self,data1,data2 = 0):
+        try:
+            res =  int(data1) | int(data2)
+        except TypeError,e:
+            self.logger.error(e)
+            res = 0
+        return str(res)
 
-    def action_merge(self,data1,data2):
-        pass
+    def action_merge(self,data1,data2 = None):
+        file1 = fileHandler(data1).getOutfile()
+        file2 = fileHandler(data2)
+        if file2 and file1 != file2:
+            self.logger.warning("found different files: %r,%r" %(file1.basename,file2.basename))
+        return file1.basename
+
 
     def action_sum(self,data1,data2 = 0):
         try:
