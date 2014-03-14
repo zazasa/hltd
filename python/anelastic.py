@@ -536,6 +536,12 @@ class Aggregator(object):
             self.logger.warning("bad operation: %r" %actionName)
             return None
 
+    def action_binaryOr(self,data1,data2):
+        pass
+
+    def action_merge(self,data1,data2):
+        pass
+
     def action_sum(self,data1,data2 = 0):
         try:
             res =  int(data1) + int(data2)
