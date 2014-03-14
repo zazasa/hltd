@@ -319,9 +319,10 @@ class LumiSectionRanger():
         basename = self.infile.basename
         name,ext = self.infile.name,self.infile.ext
         run = self.infile.run
+        ls = self.infile.ls
         stream = self.infile.stream
             #calc generic local ini path
-        localfilename = "_".join([run,stream,self.host])+ext
+        localfilename = "_".join([run,self.ls,stream,self.host])+ext
         localfilepath = os.path.join(path,localfilename)
             #check and move/delete ini file
         if not os.path.exists(localfilepath):
