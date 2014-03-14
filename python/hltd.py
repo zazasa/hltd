@@ -124,6 +124,7 @@ class system_monitor(threading.Thread):
         self.directory = []
         self.file = []
         self.rehash()
+        self.threadEvent = threading.Event()
 
     def rehash(self):
         self.directory = ['/'+x+'/ramdisk/appliance/boxes/' for x in bu_disk_list]
@@ -142,7 +143,7 @@ class system_monitor(threading.Thread):
             logging.debug('entered system monitor thread ')
             while self.running:
 #                logging.info('system monitor - running '+str(self.running))
-                time.sleep(5.)
+                self.threadEvent.wait(5)
                 tstring = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
                 fp = None
                 for mfile in self.file:
@@ -184,6 +185,7 @@ class system_monitor(threading.Thread):
     def stop(self):
         logging.debug("system_monitor: request to stop")
         self.running = False
+        self.threadEvent.set()
 
 class BUEmu:
     def __init__(self):
@@ -649,6 +651,9 @@ class Run:
 
             self.online_resource_list = []
             if conf.use_elasticsearch:
+
+                if self.elastic_monitor:
+                    self.managed_monitor.terminate()
                 if self.managed_monitor:
                     self.managed_monitor.terminate()
             if self.waitForEndThread is not none:
