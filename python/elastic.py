@@ -3,10 +3,6 @@
 import sys,traceback
 import os
 
-import filecmp
-import time
-import shutil
-
 import logging
 import _inotify as inotify
 import threading
@@ -14,7 +10,6 @@ import Queue
 
 import elasticBand
 import hltdconf
-import collate
 
 from anelastic import *
 
@@ -32,22 +27,21 @@ class elasticCollector(LumiSectionRanger):
     
     def process(self):
         self.logger.debug("RECEIVED FILE: %s " %(self.infile.basename))
-        filepath = self.infile.infilepath
+        filepath = self.infile.filepath
         fileType = self.infile.fileType
         eventType = self.eventType
         if eventType == "IN_CLOSE_WRITE":
-            if self.esDirName in self.infile.path:
+            if self.esDirName in self.infile.dir:
                 if fileType in [INDEX,STREAM,OUTPUT]:   self.elasticize(filepath,fileType)
                 if fileType in [EOR]: self.stop()
                 self.infile.deleteFile()
-                #self.infile.deleteFile()- DISABLED cause null jsn files
             elif fileType in [FAST,SLOW]:
                 return
                 #self.elasticize(filepath,fileType)
 
 
     def elasticize(self,filepath,fileType):
-        self.logger.info(filepath)
+        self.logger.debug(filepath)
         path = os.path.dirname(filepath)
         name = os.path.basename(filepath)
         if es and os.path.isfile(filepath):

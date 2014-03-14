@@ -19,7 +19,7 @@ import itertools as itools
 import signal
 
 
-UNKNOWN,STREAM,INDEX,FAST,SLOW,OUTPUT,INI,EOLS,EOR,DAT,CRASH = range(11)            #file types :
+UNKNOWN,STREAM,INDEX,FAST,SLOW,OUTPUT,INI,EOLS,EOR,DAT,PDAT,CRASH = range(12)            #file types :
 
 ES_DIR_NAME = "TEMP_ES_DIRECTORY"
 TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,EOR]
@@ -81,10 +81,9 @@ class fileHandler(object):
             elif name in ["outfilepath"]: self.calcOutfilepath()
         return self.__dict__[name]
 
-    def __init__(self,filepath,runNumber,outputDir):
+    def __init__(self,filepath,outputDir = ""):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.filepath = filepath
-        self.run = runNumber
         self.outputDir = outputDir
         
     def getFileInfo(self):
@@ -99,6 +98,7 @@ class fileHandler(object):
         name = name.upper()
         if "mon" not in filepath:
             if ext == ".dat" and "PID" not in name: return DAT
+            if ext == ".dat" and "PID" in name: return PDAT
             if ext == ".ini" and "PID" in name: return INI
             if ext == ".jsn":
                 if "STREAM" in name and "PID" in name: return STREAM
@@ -116,10 +116,10 @@ class fileHandler(object):
         fileType = self.fileType
         name,ext = self.name,self.ext
         splitname = name.split("_")
-        if fileType in [STREAM,OUTPUT,DAT,CRASH]: self.run,self.ls,self.stream,self.pid = splitname
+        if fileType in [STREAM,INI,OUTPUT,PDAT,CRASH]: self.run,self.ls,self.stream,self.pid = splitname
+        elif fileType == DAT: self.run,self.ls,self.stream,self.host = splitname
         elif fileType == INDEX: self.run,self.ls,self.index,self.pid = splitname
-        elif fileType == EOLS: self.ls = "ls"+splitname[1]
-        elif fileType == INI: self.run,self.stream,self.pid = splitname
+        elif fileType == EOLS: self.run,self.ls,self.eols = splitname
         else: 
             self.logger.warning("Bad filetype: %s" %self.filepath)
             self.run,self.ls,self.stream = [None]*3
@@ -141,7 +141,7 @@ class fileHandler(object):
         data = self.data
         if data: 
             self.jsdfile = self.data["definition"]
-            self.definitions = self.getJsonData(self.jsdfile)["legend"]
+            self.definitions = self.getJsonData(self.jsdfile)["data"]
         else:
             self.jsdfile,self.definitions = "",{}
 
@@ -183,13 +183,14 @@ class fileHandler(object):
 
         #generate the name of the output file
     def calcOutfilepath(self):
-        filename = "_".join([self.run,self.ls,self.stream,self.host])+".jsn"
-        filename = os.path.join(self.dir,filename)
-        self.outfilepath = filename
-        return True
+        if self.run:
+            filename = "_".join([self.run,self.ls,self.stream,self.host])+self.ext
+            filename = os.path.join(self.dir,filename)
+            self.outfilepath = filename
+        else: self.outfilepath = ""
 
     def getOutfile(self):
-        return self.__class__(self.outfilepath,self.run,self.outputDir)
+        return self.__class__(self.outfilepath,self.outputDir)
 
     def exists(self):
         return os.path.exists(self.filepath)
@@ -222,17 +223,14 @@ class LumiSectionRanger():
     source = False
     eventType = False
     infile = False
-    runNumber = None
     outputDir = None
 
-    def __init__(self,runNumber,tempDir,outputDir):
+    def __init__(self,tempDir,outputDir):
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.logger.debug("runNumber: %s, tempfolder: %s, outputfolder: %s" %(runNumber,tempDir,outputDir))
 
         self.host = os.uname()[1]        
         self.outputDir = outputDir
         self.tempDir = tempDir
-        self.runNumber = runNumber
 
         self.LSHandlerList = {} # {(run,ls): LumiSectionHandler()}
         self.activeStreams = [] # updated by the ini files
@@ -258,7 +256,7 @@ class LumiSectionRanger():
                 try:
                     event = self.source.get(True,0.5) #blocking with timeout
                     self.eventType = event.mask
-                    self.infile = fileHandler(event.fullpath,self.runNumber,self.outputDir)
+                    self.infile = fileHandler(event.fullpath,self.outputDir)
                     self.emptyQueue.clear()
                     self.process()  
                 except (KeyboardInterrupt,Queue.Empty) as e:
@@ -281,7 +279,7 @@ class LumiSectionRanger():
                 run,ls = (self.infile.run,self.infile.ls)
                 key = (run,ls)
                 if key not in self.LSHandlerList:
-                    self.LSHandlerList[key] = LumiSectionHandler(run,ls,self.activeStreams)
+                    self.LSHandlerList[key] = LumiSectionHandler(ls,self.activeStreams)
                 self.LSHandlerList[key].processFile(self.infile)
                 if self.LSHandlerList[key].closed.isSet():
                     self.LSHandlerList.pop(key,None)
@@ -316,7 +314,7 @@ class LumiSectionRanger():
             for stream in streams:
                 errFilename = "_".join([run,ls,"error",stream])+".jsn"
                 errFilepath = os.path.join(dirname,errFilename)
-                outfile = fileHandler(errFilepath,run,dirname)
+                outfile = fileHandler(errFilepath,dirname)
                 definitions = [ { "name":"notProcessed",  "operation":"sum",  "type":"integer"},
                                 { "name":"errorCodes",    "operation":"cat",  "type":"string" }]
 
@@ -336,9 +334,10 @@ class LumiSectionRanger():
         basename = self.infile.basename
         name,ext = self.infile.name,self.infile.ext
         run = self.infile.run
+        ls = self.infile.ls
         stream = self.infile.stream
             #calc generic local ini path
-        localfilename = "_".join([run,stream,self.host])+ext
+        localfilename = "_".join([run,ls,stream,self.host])+ext
         localfilepath = os.path.join(path,localfilename)
             #check and move/delete ini file
         if not os.path.exists(localfilepath):
@@ -367,9 +366,8 @@ class LumiSectionRanger():
 
 
 class LumiSectionHandler():
-    def __init__(self,run,ls,activeStreams):
+    def __init__(self,ls,activeStreams):
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.run = run
         self.ls = ls
         self.activeStreams = activeStreams
         self.closedStreams = []
@@ -513,6 +511,7 @@ class LumiSectionHandler():
 
         # return TRUE if the streamList of the pid doesnt present all activeStreams
     def checkHungPid(self,pid):
+        self.logger.info("%r in activeStreams %r" %(pid,self.activeStreams))
         if pid in self.pidList: return not sorted(self.pidList[pid]["streamList"]) == sorted(self.activeStreams)
         else: return False
 
@@ -536,15 +535,36 @@ class Aggregator(object):
         return self.result
 
     def action(self,definition,data1,data2=None):
-        actionName = "action_"+definition["operation"]        
-        try:
-            if data2 : 
-                return getattr(self,actionName)(data1,data2)
-            else: 
-                return getattr(self,actionName)(data1)
-        except AttributeError,e:
-            self.logger.error(e)
+        actionName = "action_"+definition["operation"] 
+        if hasattr(self,actionName):
+            try:
+                if data2 : 
+                    return getattr(self,actionName)(data1,data2)
+                else: 
+                    return getattr(self,actionName)(data1)
+            except AttributeError,e:
+                self.logger.error(e)
+                return None
+        else:
+            self.logger.warning("bad operation: %r" %actionName)
             return None
+
+    def action_binaryOr(self,data1,data2 = 0):
+        try:
+            res =  int(data1) | int(data2)
+        except TypeError,e:
+            self.logger.error(e)
+            res = 0
+        return str(res)
+
+    def action_merge(self,data1,data2 = ""):
+        file1 = fileHandler(data1).getOutfile()
+        file2 = fileHandler(data2)
+
+        if file2.basename and not file1 == file2:
+            self.logger.warning("found different files: %r,%r" %(file1.filepath,file2.filepath))
+        return file1.basename
+
 
     def action_sum(self,data1,data2 = 0):
         try:
@@ -595,7 +615,7 @@ if __name__ == "__main__":
         mr.start_inotify()
 
         #starting lsRanger thread
-        ls = LumiSectionRanger(dirname,watchDir,outputDir)
+        ls = LumiSectionRanger(watchDir,outputDir)
         ls.setSource(eventQueue)
         ls.start()
 
