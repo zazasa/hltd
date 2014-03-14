@@ -18,7 +18,7 @@ import itertools as itools
 import signal
 
 
-UNKNOWN,STREAM,INDEX,FAST,SLOW,OUTPUT,INI,EOLS,EOR,DAT,CRASH = range(11)            #file types :
+UNKNOWN,STREAM,INDEX,FAST,SLOW,OUTPUT,INI,EOLS,EOR,DAT,PDAT,CRASH = range(12)            #file types :
 
 ES_DIR_NAME = "TEMP_ES_DIRECTORY"
 TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,EOR]
@@ -83,6 +83,7 @@ class fileHandler(object):
         name = name.upper()
         if "mon" not in filepath:
             if ext == ".dat" and "PID" not in name: return DAT
+            if ext == ".dat" and "PID" in name: return PDAT
             if ext == ".ini" and "PID" in name: return INI
             if ext == ".jsn":
                 if "STREAM" in name and "PID" in name: return STREAM
@@ -100,7 +101,8 @@ class fileHandler(object):
         fileType = self.fileType
         name,ext = self.name,self.ext
         splitname = name.split("_")
-        if fileType in [STREAM,INI,OUTPUT,DAT,CRASH]: self.run,self.ls,self.stream,self.pid = splitname
+        if fileType in [STREAM,INI,OUTPUT,PDAT,CRASH]: self.run,self.ls,self.stream,self.pid = splitname
+        elif fileType == DAT: self.run,self.ls,self.stream,self.host = splitname
         elif fileType == INDEX: self.run,self.ls,self.index,self.pid = splitname
         elif fileType == EOLS: self.run,self.ls,self.eols = splitname
         else: 
@@ -166,10 +168,11 @@ class fileHandler(object):
 
         #generate the name of the output file
     def calcOutfilepath(self):
-        filename = "_".join([self.run,self.ls,self.stream,self.host])+self.ext
-        filename = os.path.join(self.dir,filename)
-        self.outfilepath = filename
-        return True
+        if self.run:
+            filename = "_".join([self.run,self.ls,self.stream,self.host])+self.ext
+            filename = os.path.join(self.dir,filename)
+            self.outfilepath = filename
+        else: self.outfilepath = ""
 
     def getOutfile(self):
         return self.__class__(self.outfilepath,self.outputDir)
@@ -290,30 +293,22 @@ class LumiSectionRanger():
 
         #merge ouput data for each key found
         for key in hungKeyList:
-            eventsNum = lsList[key].pidEvents(pid)
+            eventsNum,streams = lsList[key].getPidInfo(pid)
             run,ls = key
 
-<<<<<<< HEAD
             for stream in streams:
                 errFilename = "_".join([run,ls,"error",stream])+".jsn"
                 errFilepath = os.path.join(dirname,errFilename)
-                outfile = fileHandler(errFilepath,dirname)
+                outfile = fileHandler(errFilepath,run,dirname)
                 definitions = [ { "name":"notProcessed",  "operation":"sum",  "type":"integer"},
                                 { "name":"errorCodes",    "operation":"cat",  "type":"string" }]
-=======
-            errFilename = "_".join([run,ls,"error"])+".jsn"
-            errFilepath = os.path.join(dirname,errFilename)
-            outfile = fileHandler(errFilepath,run,dirname)
-            definitions = [ { "name":"notProcessed",  "operation":"sum",  "type":"integer"},
-                            { "name":"errorCodes",    "operation":"cat",  "type":"string" }]
->>>>>>> parent of 304f4fc... working version tested in my env
 
-            newData = [str(eventsNum),str(errcode)]
-            oldData = outfile.data["data"][:] if outfile.exists() else [None]
+                newData = [str(eventsNum),str(errcode)]
+                oldData = outfile.data["data"][:] if outfile.exists() else [None]
 
-            result=Aggregator(definitions,newData,oldData).output()
-            outfile.data = {"data":result}
-            outfile.writeout()
+                result=Aggregator(definitions,newData,oldData).output()
+                outfile.data = {"data":result}
+                outfile.writeout()
 
 
     def processINIfile(self):
@@ -544,11 +539,12 @@ class Aggregator(object):
             res = 0
         return str(res)
 
-    def action_merge(self,data1,data2 = None):
+    def action_merge(self,data1,data2 = ""):
         file1 = fileHandler(data1).getOutfile()
         file2 = fileHandler(data2)
-        if file2 and file1 != file2:
-            self.logger.warning("found different files: %r,%r" %(file1.basename,file2.basename))
+
+        if file2.basename and not file1 == file2:
+            self.logger.warning("found different files: %r,%r" %(file1.filepath,file2.filepath))
         return file1.basename
 
 
