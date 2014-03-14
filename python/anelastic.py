@@ -299,7 +299,7 @@ class LumiSectionRanger():
             for stream in streams:
                 errFilename = "_".join([run,ls,"error",stream])+".jsn"
                 errFilepath = os.path.join(dirname,errFilename)
-                outfile = fileHandler(errFilepath,run,dirname)
+                outfile = fileHandler(errFilepath,dirname)
                 definitions = [ { "name":"notProcessed",  "operation":"sum",  "type":"integer"},
                                 { "name":"errorCodes",    "operation":"cat",  "type":"string" }]
 
@@ -499,8 +499,10 @@ class LumiSectionHandler():
         if pid in self.pidList: return not sorted(self.pidList[pid]["streamList"]) == sorted(self.activeStreams)
         else: return False
 
-    def pidEvents(self,pid):
-        return self.pidList[pid]["numEvents"]
+    def getPidInfo(self,pid):
+        streamDiff = list(set(self.activeStreams)-set(self.pidList[pid]["streamList"]))
+        numEvents = self.pidList[pid]["numEvents"]
+        return numEvents,streamDiff
 
 
 

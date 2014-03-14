@@ -233,7 +233,11 @@ class elasticBand():
         ls=tokens[1]
         stream=tokens[2]
         document['data'] = [int(f) if f.isdigit() else str(f) for f in document['data']]
-        datadict = {'in':document['data'][0],'out':document['data'][1],'file':document['data'][2]}
+        
+        values = document["data"]
+        keys = ["in","out","errorEvents","ReturnCodeMask","Filelist","InputFiles"]
+        datadict = dict(zip(keys, values))
+
         document['data']=datadict
         document['ls']=int(ls[2:])
         document['stream']=stream
@@ -247,7 +251,11 @@ class elasticBand():
         ls=tokens[1]
         stream=tokens[2]
         document['data'] = [int(f) if f.isdigit() else str(f) for f in document['data']]
-        datadict = {'in':document['data'][0],'out':document['data'][1],'file':document['data'][2]}
+
+        values = document["data"]
+        keys = ["in","out","errorEvents","ReturnCodeMask","Filelist","InputFiles"]
+        datadict = dict(zip(keys, values))
+        
         document['data']=datadict
         document['ls']=int(ls[2:])
         document['stream']=stream
