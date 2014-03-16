@@ -2,6 +2,7 @@
 # wrapper around the python-inotify library
 #
 
+import logging
 import threading
 import watcher
 import _inotify as inotify
@@ -11,18 +12,27 @@ import _inotify as inotify
 
 class InotifyWrapper(threading.Thread):
 
-    def __init__(self, parent, logging):
+    def __init__(self, parent, recursive = False):
 
         threading.Thread.__init__(self)
 
         self.parent_ = parent
-        self.logging_ = logging
-        self.w = watcher.AutoWatcher()
+        self.logging =  logging.getLogger(self.__class__.__name__)
+        self.w = None
         self.quit = False
 
         self.threshold_ = None
         self.timeout_ = None
         self.delay_ = None
+
+        if recursive == True:
+            self.logging.info("RECURSIVE_MODE")
+            self.w = watcher.AutoWatcher()
+        else:
+            self.logging.info("NON-RECURSIVE_MODE")
+            self.w = watcher.Watcher()
+
+        self.recursiveMode = recursive
 
     def setThreshold(self,threshold,timeout,delay):
         #currently ignored
@@ -30,17 +40,18 @@ class InotifyWrapper(threading.Thread):
         self.timeout_ = timeout
         self.delay_ = delay
 
-    def registerPath(self,path,mask,recursive=False):
+    def registerPath(self,path,mask):
         try:
-            if recursive:
-                self.w.add_all(path, mask, reportError)
+            if self.recursiveMode == True:
+                self.w.add_all(path,mask,reportError)
             else:
                 self.w.add(path,mask)
         except OSError, err:
-            self.logging_.error('inotify wrapper exception: ' + err.strerror)
+            self.logging.error('inotify wrapper exception: ' + err.strerror)
+            raise err
 
     def reportError(self,err):
-        self.logging_.error('error registering inotify path ' + err.strerror +', continuing')
+        self.logging.error('error registering inotify path ' + str(err) +', ignoring')
 
     def run(self):
 	while self.quit == False:
@@ -66,7 +77,7 @@ class InotifyWrapper(threading.Thread):
                       #parent does not implement the function
                       self.parent_.process_default(event)
           except Exception, ex:
-              self.logging_.info("exception in inotify run thread: "+ str(ex))
+              self.logging.error("exception in inotify run thread: "+ str(ex))
 
     def stop(self):
         self.quit = True
@@ -76,7 +87,7 @@ class InotifyWrapper(threading.Thread):
         except Exception, ex:
             pass
         self.w.close()
-        self.logging_.info('closed inotify fd')
+        self.logging.debug('closed inotify fd')
 
 #more advanced use
 #    def run(self):

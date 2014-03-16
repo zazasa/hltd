@@ -719,7 +719,7 @@ class Run:
 class RunRanger:
 
     def __init__(self):
-        self.inotifyWrapper = InotifyWrapper(self,logging)
+        self.inotifyWrapper = InotifyWrapper(self)
 
     def register_inotify_path(self,path,mask):
         self.inotifyWrapper.registerPath(path,mask)
@@ -851,7 +851,7 @@ class RunRanger:
 class ResourceRanger:
 
     def __init__(self):
-        self.inotifyWrapper = InotifyWrapper(self,logging)
+        self.inotifyWrapper = InotifyWrapper(self)
 
         self.managed_monitor = system_monitor()
         self.managed_monitor.start()

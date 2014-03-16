@@ -30,13 +30,31 @@ class elasticCollector(LumiSectionRanger):
         filepath = self.infile.filepath
         fileType = self.infile.fileType
         eventType = self.eventType
-        if eventType == "IN_CLOSE_WRITE":
+        if eventType & inotify.IN_CLOSE_WRITE:
             if self.esDirName in self.infile.dir:
                 if fileType in [INDEX,STREAM,OUTPUT]:   self.elasticize(filepath,fileType)
                 if fileType in [EOR]: self.stop()
                 self.infile.deleteFile()
             elif fileType in [FAST,SLOW]:
                 return
+        #DEBUG
+        if eventType & inotify.IN_DELETE:
+            self.logger.info("file " + filepath + " deleted")
+
+        if eventType & inotify.IN_CREATE:
+            self.logger.info("file " + filepath + " created")
+
+        if eventType & inotify.IN_MODIFY:
+            self.logger.info("file " + filepath + " modified")
+
+        if eventType & inotify.IN_MOVED_TO:
+            self.logger.info("file " + filepath + " moved")
+
+        if eventType & inotify.IN_CLOSE_WRITE:
+            self.logger.info("file " + filepath + " closed")
+
+
+
                 #self.elasticize(filepath,fileType)
 
 
@@ -78,21 +96,35 @@ if __name__ == "__main__":
     dirname = os.path.basename(os.path.normpath(dirname))
     watchDir = os.path.join(conf.watch_directory,dirname)
     outputDir = conf.micromerge_output
+    monDir = os.path.join(watchDir,"mon")
+    tempDir = os.path.join(watchDir,ES_DIR_NAME)
 
-    
+    mask = inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO
+    monMask = inotify.IN_CLOSE_WRITE
+    tempMask = inotify.IN_CLOSE_WRITE
 
-    mask = inotify.IN_CLOSE_WRITE | inotify.IN_DELETE
     logger.info("starting elastic for "+dirname)
+
+    try:
+        os.makedirs(monDir)
+    except OSError:
+        pass
+    try:
+        os.makedirs(tempDir)
+    except OSError:
+        pass
+
     mr = None
     try:
         #starting inotify thread
         mr = MonitorRanger()
         mr.setEventQueue(eventQueue)
         mr.register_inotify_path(watchDir,mask)
+        mr.register_inotify_path(monDir,monMask)
+        mr.register_inotify_path(tempDir,tempMask)
         mr.start_inotify()
 
         es = elasticBand.elasticBand('http://localhost:9200',dirname)
-        os.makedirs(os.path.join(watchDir,ES_DIR_NAME))
 
         #starting elasticCollector thread
         ec = elasticCollector(ES_DIR_NAME)

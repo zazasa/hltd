@@ -6,7 +6,7 @@ import time
 import shutil
 
 import filecmp
-import watcher
+from inotifywrapper import InotifyWrapper
 import _inotify as inotify
 import threading
 import Queue
@@ -39,11 +39,10 @@ class stdErrorLog:
     #on notify, put the event file in a queue
 class MonitorRanger:
 
-    def __init__(self):
-        super(MonitorRanger, self).__init__()
+    def __init__(self,recursiveMode):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.eventQueue = False
-        self.inotifyWrapper = InotifyWrapper(self,logging)
+        self.inotifyWrapper = InotifyWrapper(self,recursiveMode)
 
     def register_inotify_path(self,path,mask):
         self.inotifyWrapper.registerPath(path,mask)
@@ -274,7 +273,7 @@ class LumiSectionRanger():
         fileType = self.infile.fileType
         eventType = self.eventType
 
-        if eventType & "IN_CLOSE_WRITE":
+        if eventType & inotify.IN_CLOSE_WRITE:
             if fileType in [STREAM,INDEX,EOLS,DAT]:
                 run,ls = (self.infile.run,self.infile.ls)
                 key = (run,ls)
