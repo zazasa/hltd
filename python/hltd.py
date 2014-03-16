@@ -487,24 +487,24 @@ class Run:
             #note: start elastic.py first!
         if conf.use_elasticsearch:
             try:
-
                 logging.info("starting elastic.py with arguments:"+self.dirname)
                 elastic_args = ['/opt/hltd/python/elastic.py',self.dirname]
                 self.elastic_monitor = subprocess.Popen(elastic_args,
                                                         preexec_fn=preexec_function,
                                                         close_fds=True
                                                         )
-
-                logging.info("starting anelastic.py with arguments:"+self.dirname)
-                elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname]
-                self.anelastic_monitor = subprocess.Popen(elastic_args,
-                                                        preexec_fn=preexec_function,
-                                                        close_fds=True
-                                                        )
-
             except OSError as ex:
                 logging.error("failed to start elasticsearch client")
                 logging.error(ex)
+        try:
+            logging.info("starting anelastic.py with arguments:"+self.dirname)
+            elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname]
+            self.anelastic_monitor = subprocess.Popen(elastic_args,
+                                                    preexec_fn=preexec_function,
+                                                    close_fds=True
+                                                    )
+        except OSError as ex:
+            logging.error("failed to start elasticsearch client: " + str(ex))
 
 
 
@@ -650,12 +650,17 @@ class Run:
                     resource.NotifyShutdown()
 
             self.online_resource_list = []
+            try:
+                if self.anelastic_monitor:
+                    self.anelastic_monitor.terminate()
+            except Exception as ex:
+                logging.info("exception encountered in shutting down anelastic.py " + str(ex))
             if conf.use_elasticsearch:
-
-                if self.elastic_monitor:
-                    self.managed_monitor.terminate()
-                if self.managed_monitor:
-                    self.managed_monitor.terminate()
+                try:
+                    if self.elastic_monitor:
+                        self.elastic_monitor.terminate()
+                except Exception as ex:
+                    logging.info("exception encountered in shutting down elastic.py " + str(ex))
             if self.waitForEndThread is not none:
                 self.waitForEndThread.join()
         except Exception as ex:
@@ -691,8 +696,9 @@ class Run:
             self.online_resource_list = []
             if conf.role == 'fu':
                 self.changeMarkerMaybe(Run.COMPLETE)
+            self.anelastic_monitor.wait()
             if conf.use_elasticsearch:
-                self.managed_monitor.wait()
+                self.elastic_monitor.wait()
 
         except Exception as ex:
             logging.info("exception encountered in ending run")

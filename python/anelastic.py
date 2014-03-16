@@ -39,7 +39,7 @@ class stdErrorLog:
     #on notify, put the event file in a queue
 class MonitorRanger:
 
-    def __init__(self,recursiveMode):
+    def __init__(self,recursiveMode=False):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.eventQueue = False
         self.inotifyWrapper = InotifyWrapper(self,recursiveMode)
@@ -622,7 +622,12 @@ if __name__ == "__main__":
         logger.exception("error: ")
         sys.exit(1)
 
-    
+    #make temp dir if we are here before elastic.py
+    try:
+        os.makedirs(os.path.join(watchDir,ES_DIR_NAME))
+    except OSError:
+        pass
+
 
 #    while not ls.stoprequest.isSet():  
 #        try:

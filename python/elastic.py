@@ -37,23 +37,6 @@ class elasticCollector(LumiSectionRanger):
                 self.infile.deleteFile()
             elif fileType in [FAST,SLOW]:
                 return
-        #DEBUG
-        if eventType & inotify.IN_DELETE:
-            self.logger.info("file " + filepath + " deleted")
-
-        if eventType & inotify.IN_CREATE:
-            self.logger.info("file " + filepath + " created")
-
-        if eventType & inotify.IN_MODIFY:
-            self.logger.info("file " + filepath + " modified")
-
-        if eventType & inotify.IN_MOVED_TO:
-            self.logger.info("file " + filepath + " moved")
-
-        if eventType & inotify.IN_CLOSE_WRITE:
-            self.logger.info("file " + filepath + " closed")
-
-
 
                 #self.elasticize(filepath,fileType)
 
@@ -119,7 +102,7 @@ if __name__ == "__main__":
         #starting inotify thread
         mr = MonitorRanger()
         mr.setEventQueue(eventQueue)
-        mr.register_inotify_path(watchDir,mask)
+        #mr.register_inotify_path(watchDir,mask)
         mr.register_inotify_path(monDir,monMask)
         mr.register_inotify_path(tempDir,tempMask)
         mr.start_inotify()
