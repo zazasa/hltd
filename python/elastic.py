@@ -36,8 +36,7 @@ class elasticCollector(LumiSectionRanger):
                 if fileType in [EOR]: self.stop()
                 self.infile.deleteFile()
             elif fileType in [FAST,SLOW]:
-                return
-                #self.elasticize(filepath,fileType)
+                self.elasticize(filepath,fileType)
 
 
     def elasticize(self,filepath,fileType):

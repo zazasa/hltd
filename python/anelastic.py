@@ -276,39 +276,43 @@ class LumiSectionRanger():
                 self.processEORFile()
     
     def processCRASHfile(self):
+
         lsList = self.LSHandlerList
         basename = self.infile.basename
         pid = self.infile.pid
         dirname = self.infile.dir
-        errcode = self.infile.data["errorCode"]
+        errCode = self.infile.data["errorCode"]
 
-        self.logger.info("%r with errcode: %r" %(basename,errcode))
-
-        #find ls with hung process       
-        hungKeyList = filter(lambda x: lsList[x].checkHungPid(pid),lsList.keys())
-
-        self.logger.info(hungKeyList)
-        self.logger.info(lsList.keys())
+        self.logger.info("%r with errcode: %r" %(basename,errCode))
+        for item in lsList.values():
+            item.processFile(self.infile)
 
 
-        #merge ouput data for each key found
-        for key in hungKeyList:
-            eventsNum,streams = lsList[key].getPidInfo(pid)
-            run,ls = key
-
-            for stream in streams:
-                errFilename = "_".join([run,ls,"error",stream])+".jsn"
-                errFilepath = os.path.join(dirname,errFilename)
-                outfile = fileHandler(errFilepath,dirname)
-                definitions = [ { "name":"notProcessed",  "operation":"sum",  "type":"integer"},
-                                { "name":"errorCodes",    "operation":"cat",  "type":"string" }]
-
-                newData = [str(eventsNum),str(errcode)]
-                oldData = outfile.data["data"][:] if outfile.exists() else [None]
-
-                result=Aggregator(definitions,newData,oldData).output()
-                outfile.data = {"data":result}
-                outfile.writeout()
+#        #find ls with hung process       
+#        hungKeyList = filter(lambda x: lsList[x].checkHungPid(pid),lsList.keys())
+#
+#        self.logger.info(hungKeyList)
+#        self.logger.info(lsList.keys())
+#
+#
+#        #merge ouput data for each key found
+#        for key in hungKeyList:
+#            eventsNum,streams = lsList[key].getPidInfo(pid)
+#            run,ls = key
+#
+#            for stream in streams:
+#                errFilename = "_".join([run,ls,"error",stream])+".jsn"
+#                errFilepath = os.path.join(dirname,errFilename)
+#                outfile = fileHandler(errFilepath,dirname)
+#                definitions = [ { "name":"notProcessed",  "operation":"sum",  "type":"integer"},
+#                                { "name":"errorCodes",    "operation":"cat",  "type":"string" }]
+#
+#                newData = [str(eventsNum),str(errcode)]
+#                oldData = outfile.data["data"][:] if outfile.exists() else [None]
+#
+#                result=Aggregator(definitions,newData,oldData).output()
+#                outfile.data = {"data":result}
+#                outfile.writeout()
 
 
     def processINIfile(self):
@@ -364,7 +368,7 @@ class LumiSectionHandler():
         self.datFileList = []
         self.indexFileList = []
         self.pidList = {}           # {"pid":{"numEvents":num,"streamList":[streamA,streamB]}
-
+        self.crashList = {}         # {"stream" : [(events,errcode),(events,errcore)]}
 
         self.EOLS = threading.Event()
         self.closed = threading.Event() #True if all files are closed/moved
@@ -381,8 +385,48 @@ class LumiSectionHandler():
         elif fileType == INDEX: self.processIndexFile()
         elif fileType == EOLS: self.processEOLSFile()
         elif fileType == DAT: self.processDATFile()
+        elif fileType == CRASH: self.processCRASHFile()
 
+
+
+    def processCRASHFile(self):
         self.logger.info(self.pidList)
+        pid = self.infile.pid
+        host = self.infile.host
+        if pid not in self.pidList: return True
+
+        streamDiff = list(set(self.activeStreams)-set(self.pidList[pid]["streamList"]))
+        numEvents = self.pidList[pid]["numEvents"]
+        errCode = self.infile.data["errorCode"]
+
+        for stream in streamDiff:
+            if stream not in self.crashList: self.crashList[stream] = []
+            self.crashList[stream].appen(numEvents,errCode) 
+
+
+    def processCrashes(self):
+        stream = self.outfile.Stream
+        if stream in self.crashList:
+            crashList = self.crashList[stream]
+            for crash in crashList:
+                definitions = self.outfile.definitions
+                jsdfile = self.outfile.jsdfile
+                neIndex,ecIndex = [definitions.index(item) for item in definitions if item["name"] in ["ErrorEvents","ReturnCodeMask"]]
+                crashData = [0 if f["type"] == "integer" else "" for f in definitions]
+                crashData[neIndex],crashData[ecIndex] = crash
+
+                self.infile.data = {"data":crashData}
+                if self.merge():
+                    self.logger.info("crashes merged %r" %crashData)
+                else:
+                    self.logger.error("unable to merge chrashes %r" %crashData)
+                    return False
+
+            self.crashList.pop(stream,None)
+
+
+
+
 
 
     def processStreamFile(self):
@@ -397,6 +441,7 @@ class LumiSectionHandler():
 
             #merging and update counters
             if self.merge():
+                self.processCrashes()
                 if self.outfile.basename in self.outFileList:
                     self.outFileList[self.outfile.basename] += self.counterValue
                 else: 
@@ -412,7 +457,6 @@ class LumiSectionHandler():
     def getData(self):
         data = self.infile.data.copy()
         if data:
-            self.buffer =  data["data"]
             self.counterValue = int(self.buffer[0])
             return True
         return False
@@ -426,7 +470,7 @@ class LumiSectionHandler():
         jsdfile = self.infile.jsdfile
         outfile = self.outfile
 
-        newData = self.buffer
+        newData = self.infile.data["data"]
         oldData = outfile.data["data"][:] if outfile.exists() else [None]
 
         result=Aggregator(definitions,newData,oldData).output()
