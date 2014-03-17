@@ -31,13 +31,21 @@ process.maxEvents = cms.untracked.PSet(
     input = cms.untracked.int32(-1)
 )
 
-process.options = cms.untracked.PSet(
-    numberOfThreads = cms.untracked.uint32(options.numThreads),
-    numberOfStreams = cms.untracked.uint32(options.numThreads),
-    multiProcesses = cms.untracked.PSet(
-    maxChildProcesses = cms.untracked.int32(0)
+#stream and thread parameter not set in single-threaded mode
+if options.numThreads <= 1:
+    process.options = cms.untracked.PSet(
+        multiProcesses = cms.untracked.PSet(
+        maxChildProcesses = cms.untracked.int32(0)
+        )
     )
-)
+else:
+    process.options = cms.untracked.PSet(
+        numberOfThreads = cms.untracked.uint32(options.numThreads),
+        numberOfStreams = cms.untracked.uint32(options.numThreads),
+        multiProcesses = cms.untracked.PSet(
+        maxChildProcesses = cms.untracked.int32(0)
+        )
+    )
 process.MessageLogger = cms.Service("MessageLogger",
                                     cout = cms.untracked.PSet(threshold = cms.untracked.string( "INFO" )
                                                               ),
