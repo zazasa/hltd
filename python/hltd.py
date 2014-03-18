@@ -496,15 +496,16 @@ class Run:
             except OSError as ex:
                 logging.error("failed to start elasticsearch client")
                 logging.error(ex)
-        try:
-            logging.info("starting anelastic.py with arguments:"+self.dirname)
-            elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname]
-            self.anelastic_monitor = subprocess.Popen(elastic_args,
+        if conf.role == "fu":
+            try:
+                logging.info("starting anelastic.py with arguments:"+self.dirname)
+                elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname]
+                self.anelastic_monitor = subprocess.Popen(elastic_args,
                                                     preexec_fn=preexec_function,
                                                     close_fds=True
                                                     )
-        except OSError as ex:
-            logging.error("failed to start elasticsearch client: " + str(ex))
+            except OSError as ex:
+                logging.error("failed to start elasticsearch client: " + str(ex))
 
 
 
@@ -696,7 +697,7 @@ class Run:
             self.online_resource_list = []
             if conf.role == 'fu':
                 self.changeMarkerMaybe(Run.COMPLETE)
-            self.anelastic_monitor.wait()
+                self.anelastic_monitor.wait()
             if conf.use_elasticsearch:
                 self.elastic_monitor.wait()
 
