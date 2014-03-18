@@ -57,7 +57,7 @@ class elasticCollector():
         self.source = source
 
     def process(self):
-        self.logger.info("RECEIVED FILE: %s " %(self.infile.basename))
+        self.logger.debug("RECEIVED FILE: %s " %(self.infile.basename))
         filepath = self.infile.filepath
         filetype = self.infile.filetype
         eventtype = self.eventtype
@@ -77,10 +77,10 @@ class elasticCollector():
         if es and os.path.isfile(filepath):
             if filetype == FAST: 
                 es.elasticize_prc_istate(path,name)
-                self.logger.info(name+" going into prc-istate")
+                self.logger.debug(name+" going into prc-istate")
             elif filetype == SLOW: 
                 es.elasticize_prc_sstate(path,name)      
-                self.logger.info(name+" going into prc-sstate")       
+                self.logger.debug(name+" going into prc-sstate")       
             elif filetype == INDEX: 
                 self.logger.info(name+" going into prc-in")
                 es.elasticize_prc_in(path,name)

@@ -106,7 +106,7 @@ class fileHandler(object):
 
     def setJsdfile(self,jsdfile):
         self.jsdfile = jsdfile
-        if self.filetype == OUTPUT: self.initData()
+        if self.filetype in [OUTPUT,CRASH]: self.initData()
         
     def initData(self):
         defs = self.definitions
@@ -230,20 +230,18 @@ class fileHandler(object):
 
 
     def merge(self,infile):
-        defs,oldData = self.definitions,self.data["data"]           #TODO: check infile definitions
-                    
-        if infile.filetype == CRASH:
-            numEvents = infile.data["numEvents"]
-            errCode = infile.data["errorCode"]
-            infile.initData()
-            infile.setFieldByName("ErrorEvents",numEvents)
-            infile.setFieldByName("ReturnCodeMask",errCode)
+        defs,oldData = self.definitions,self.data["data"][:]           #TODO: check infile definitions 
+        jsdfile = infile.jsdfile
+        host = infile.host
+        newData = infile.data["data"][:]
 
-        newData = infile.data["data"]
-        self.logger.info("old: %r with new: %r" %(oldData,newData))
+        self.logger.debug("old: %r with new: %r" %(oldData,newData))
         result=Aggregator(defs,oldData,newData).output()
-        self.logger.info("result: %r" %result)
+        self.logger.debug("result: %r" %result)
         self.data["data"] = result
+        self.data["definition"] = jsdfile
+        self.data["source"] = host
+        self.writeout()
 
 
 
@@ -281,7 +279,7 @@ class Aggregator(object):
         return str(res)
 
     def action_merge(self,data1,data2):
-        if not (data1 or data2): return data1
+        if not data2: return data1
         file1 = fileHandler(data1)
         
         file2 = fileHandler(data2)
@@ -289,7 +287,7 @@ class Aggregator(object):
         file2 = fileHandler(newfilename)
 
         if not file1 == file2:
-            self.logger.warning("found different files: %r,%r" %(file1.filepath,file2.filepath))
+            if data1: self.logger.warning("found different files: %r,%r" %(file1.filepath,file2.filepath))
             return file2.basename
         return file1.basename
 

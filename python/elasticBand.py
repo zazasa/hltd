@@ -246,7 +246,7 @@ class elasticBand():
         return int(ls[2:])
 
     def elasticize_fu_out(self,path,file):
-        self.logger.info("%r , %r" %(path,file))
+        
         document = self.imbue_jsn(path,file)
         tokens=file.split('.')[0].split('_')
         run=tokens[0]

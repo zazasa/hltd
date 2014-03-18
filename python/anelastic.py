@@ -129,7 +129,7 @@ class LumiSectionRanger():
             #calc generic local ini path
         filename = "_".join([run,ls,stream,self.host])+ext
         localfilepath = os.path.join(localdir,filename)
-        remotefilepath = os.path.join(self.outdir,filename)
+        remotefilepath = os.path.join(self.outdir,run,filename)
             #check and move/delete ini file
         if not os.path.exists(localfilepath):
             if stream not in self.activeStreams: self.activeStreams.append(stream)
@@ -206,8 +206,7 @@ class LumiSectionHandler():
 
     def processStreamFile(self):
         self.logger.info(self.infile.basename)
-        self.logger.info(self.outfileList)
-
+        
         self.infile.checkSources()
         infile = self.infile
         ls,stream,pid = infile.ls,infile.stream,infile.pid
@@ -223,8 +222,7 @@ class LumiSectionHandler():
             if outfile:
                 outfile.merge(infile)
                 processed = outfile.getFieldByName("Processed")
-                self.logger.info("ls: %s - events %s / %s " %(ls,processed,self.totalEvent))
-                outfile.writeout()
+                self.logger.info("ls,stream: %r,%r - events %r / %r " %(ls,stream,processed,self.totalEvent))
                 infile.deleteFile()
                 return True
         return False
@@ -249,16 +247,25 @@ class LumiSectionHandler():
         return False
 
     def processCRASHFile(self):
+        if self.infile.pid not in self.pidList: return True
+      
+        
         self.logger.info(self.infile.basename)
+        infile = self.infile
+        pid = infile.pid
+        data  = infile.data.copy()
+        numEvents = self.pidList[pid]["numEvents"]
+        errCode = data["errorCode"]
 
-        pid = self.infile.pid,self.infile.host
-        if pid not in self.pidList: return True
-
+        file2merge = fileHandler(infile.filepath)
+        file2merge.setJsdfile(JSDFILE)
+        file2merge.setFieldByName("ErrorEvents",numEvents)
+        file2merge.setFieldByName("ReturnCodeMask",errCode)
+        
         streamDiff = list(set(self.activeStreams)-set(self.pidList[pid]["streamList"]))
-        self.infile.data["numEvents"] = self.pidList[pid]["numEvents"]
         for outfile in self.outfileList:
             if outfile.stream in streamDiff:
-                outfile.merge(self.infile)
+                outfile.merge(file2merge)
 
     def processDATFile(self):
         self.logger.info(self.infile.basename)
@@ -269,7 +276,6 @@ class LumiSectionHandler():
     def processEOLSFile(self):
         self.logger.info(self.infile.basename)
         ls = self.infile.ls
-
         if self.EOLS:
             self.logger.warning("LS %s already closed" %repr(ls))
             return False
@@ -284,7 +290,7 @@ class LumiSectionHandler():
             processed = outfile.getFieldByName("Processed")+outfile.getFieldByName("ErrorEvents")
             if processed == self.totalEvent:
                 self.logger.info("%r,%r complete" %(self.ls,outfile.stream))
-                newfilepath = os.path.join(self.outdir,outfile.basename)
+                newfilepath = os.path.join(self.outdir,outfile.run,outfile.basename)
 
                     #move output file in rundir
                 if outfile.moveFile(newfilepath):
@@ -293,7 +299,7 @@ class LumiSectionHandler():
                     #move all dat files in rundir
                 for datfile in self.datfileList:
                     if datfile.stream == stream:
-                        newfilepath = os.path.join(self.outdir,datfile.basename)
+                        newfilepath = os.path.join(self.outdir,datfile.run,datfile.basename)
                         datfile.moveFile(newfilepath)
                         self.datfileList.remove(datfile)
                 
