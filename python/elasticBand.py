@@ -7,11 +7,14 @@ import json
 import csv
 import math
 
+import logging
+
 es_server_url = 'http://localhost:9200'
 
 class elasticBand():
 
     def __init__(self,es_server_url,runstring):
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.es = ElasticSearch(es_server_url)
         self.settings = {
             "analysis":{
@@ -212,17 +215,15 @@ class elasticBand():
         datadict = {}
         datadict['ls'] = int(tokens[1][2:])
         datadict['process'] = tokens[2]
-#        print list(document['data'][0])
-        if document['data'][1] is not "N/A":
+        if not document['data'][0] == "N/A":
           datadict['macro']   = [int(f) for f in document['data'][0].strip('[]').split(',')]
-        if document['data'][2] is not "N/A":
+        if not document['data'][1] ==  "N/A":
           datadict['mini']    = [int(f) for f in document['data'][1].strip('[]').split(',')]
-        if document['data'][3] is not "N/A":
+        if not document['data'][2] == "N/A":
           datadict['micro']   = [int(f) for f in document['data'][2].strip('[]').split(',')]
         datadict['tp']      = float(document['data'][4]) if not math.isnan(float(document['data'][4])) and not  math.isinf(float(document['data'][4])) else 0.
         datadict['lead']    = float(document['data'][5]) if not math.isnan(float(document['data'][5])) and not  math.isinf(float(document['data'][5])) else 0.
         datadict['nfiles']  = int(document['data'][6])
-###        print datadict
         self.es.index(self.run,'prc-s-state',datadict)
         os.remove(path+'/'+file)
 
@@ -245,6 +246,7 @@ class elasticBand():
         return int(ls[2:])
 
     def elasticize_fu_out(self,path,file):
+        self.logger.info("%r , %r" %(path,file))
         document = self.imbue_jsn(path,file)
         tokens=file.split('.')[0].split('_')
         run=tokens[0]

@@ -12,6 +12,7 @@ import elasticBand
 import hltdconf
 
 from anelastic import *
+from aUtils import *
 
 
 
@@ -19,40 +20,74 @@ class BadIniFile(Exception):
     pass
 
 
-class elasticCollector(LumiSectionRanger):
-    
+class elasticCollector():
+    stoprequest = threading.Event()
+    emptyQueue = threading.Event()
+    source = False
+    infile = False
     def __init__(self, esDir):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.esDirName = esDir
-    
+
+    def start(self):
+        self.run()
+
+    def stop(self):
+        self.stoprequest.set()
+
+    def run(self):
+        self.logger.info("Start main loop") 
+        while not (self.stoprequest.isSet() and self.emptyQueue.isSet()) :
+            if self.source:
+                try:
+                    event = self.source.get(True,0.5) #blocking with timeout
+                    self.eventtype = event.maskname
+                    self.infile = fileHandler(event.pathname)
+                    self.emptyQueue.clear()
+                    self.process() 
+                except (KeyboardInterrupt,Queue.Empty) as e:
+                    self.emptyQueue.set() 
+            else:
+                time.sleep(0.5)
+
+        self.logger.info("Stop main loop")
+
+
+    def setSource(self,source):
+        self.source = source
+
     def process(self):
-        self.logger.debug("RECEIVED FILE: %s " %(self.infile.basename))
+        self.logger.info("RECEIVED FILE: %s " %(self.infile.basename))
         filepath = self.infile.filepath
-        fileType = self.infile.fileType
-        eventType = self.eventType
-        if eventType == "IN_CLOSE_WRITE":
+        filetype = self.infile.filetype
+        eventtype = self.eventtype
+        if eventtype == "IN_CLOSE_WRITE":
             if self.esDirName in self.infile.dir:
-                if fileType in [INDEX,STREAM,OUTPUT]:   self.elasticize(filepath,fileType)
-                if fileType in [EOR]: self.stop()
-                self.infile.deleteFile()
-            elif fileType in [FAST,SLOW]:
-                self.elasticize(filepath,fileType)
+                if filetype in [INDEX,STREAM,OUTPUT]:   self.elasticize(filepath,filetype)
+                if filetype in [EOR]: self.stop()
+                #self.infile.deleteFile()
+            elif filetype in [FAST,SLOW]:
+                self.elasticize(filepath,filetype)
 
 
-    def elasticize(self,filepath,fileType):
+    def elasticize(self,filepath,filetype):
         self.logger.debug(filepath)
         path = os.path.dirname(filepath)
         name = os.path.basename(filepath)
         if es and os.path.isfile(filepath):
-            if fileType == FAST: es.elasticize_prc_istate(path,name)
-            elif fileType == SLOW: es.elasticize_prc_sstate(path,name)             
-            elif fileType == INDEX: 
+            if filetype == FAST: 
+                es.elasticize_prc_istate(path,name)
+                self.logger.info(name+" going into prc-istate")
+            elif filetype == SLOW: 
+                es.elasticize_prc_sstate(path,name)      
+                self.logger.info(name+" going into prc-sstate")       
+            elif filetype == INDEX: 
                 self.logger.info(name+" going into prc-in")
                 es.elasticize_prc_in(path,name)
-            elif fileType == STREAM:
+            elif filetype == STREAM:
                 self.logger.info(name+" going into prc-out")
                 es.elasticize_prc_out(path,name)
-            elif fileType == OUTPUT:
+            elif filetype == OUTPUT:
                 self.logger.info(name+" going into fu-out")
                 es.elasticize_fu_out(path,name)
 
