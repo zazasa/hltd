@@ -48,7 +48,6 @@ process.FastMonitoringService = cms.Service("FastMonitoringService",
     sleepTime = cms.untracked.int32(1),
     microstateDefPath = cms.untracked.string( cmsswbase+'/src/EventFilter/Utilities/plugins/microstatedef.jsd' ),
     fastMicrostateDefPath = cms.untracked.string( cmsswbase+'/src/EventFilter/Utilities/plugins/microstatedeffast.jsd' ),
-    outputDefPath = cms.untracked.string( cmsswbase+'/src/EventFilter/Utilities/plugins/output.jsd' ),
     fastName = cms.untracked.string( 'fastmoni' ),
     slowName = cms.untracked.string( 'slowmoni' ))
 
