@@ -7,11 +7,14 @@ import json
 import csv
 import math
 
+import logging
+
 es_server_url = 'http://localhost:9200'
 
 class elasticBand():
 
     def __init__(self,es_server_url,runstring):
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.es = ElasticSearch(es_server_url)
         self.settings = {
             "analysis":{
@@ -185,12 +188,12 @@ class elasticBand():
             pass
 
     def imbue_jsn(self,path,file):
-        with open(path+file,'r') as fp:
+        with open(os.path.join(path,file),'r') as fp:
             document = json.load(fp)
             return document
 
     def imbue_csv(self,path,file):
-        with open(path+file,'r') as fp:
+        with open(os.path.join(path,file),'r') as fp:
             fp.readline()
             row = fp.readline().split(',')
             return row
@@ -214,7 +217,6 @@ class elasticBand():
         datadict = {}
         datadict['ls'] = int(tokens[1][2:])
         datadict['process'] = tokens[2]
-#        print list(document['data'][0])
         if document['data'][0] != "N/A":
           datadict['macro']   = [int(f) for f in document['data'][0].strip('[]').split(',')]
         else:
@@ -230,7 +232,6 @@ class elasticBand():
         datadict['tp']      = float(document['data'][4]) if not math.isnan(float(document['data'][4])) and not  math.isinf(float(document['data'][4])) else 0.
         datadict['lead']    = float(document['data'][5]) if not math.isnan(float(document['data'][5])) and not  math.isinf(float(document['data'][5])) else 0.
         datadict['nfiles']  = int(document['data'][6])
-###        print datadict
         self.es.index(self.run,'prc-s-state',datadict)
         os.remove(path+'/'+file)
 
@@ -241,11 +242,34 @@ class elasticBand():
         ls=tokens[1]
         stream=tokens[2]
         document['data'] = [int(f) if f.isdigit() else str(f) for f in document['data']]
-        datadict = {'in':document['data'][0],'out':document['data'][1],'file':document['data'][2]}
+        
+        values = document["data"]
+        keys = ["in","out","errorEvents","ReturnCodeMask","Filelist","InputFiles"]
+        datadict = dict(zip(keys, values))
+
         document['data']=datadict
         document['ls']=int(ls[2:])
         document['stream']=stream
         self.es.index(self.run,'prc-out',document)
+        return int(ls[2:])
+
+    def elasticize_fu_out(self,path,file):
+        
+        document = self.imbue_jsn(path,file)
+        tokens=file.split('.')[0].split('_')
+        run=tokens[0]
+        ls=tokens[1]
+        stream=tokens[2]
+        document['data'] = [int(f) if f.isdigit() else str(f) for f in document['data']]
+
+        values = document["data"]
+        keys = ["in","out","errorEvents","ReturnCodeMask","Filelist","InputFiles"]
+        datadict = dict(zip(keys, values))
+        
+        document['data']=datadict
+        document['ls']=int(ls[2:])
+        document['stream']=stream
+        self.es.index(self.run,'fu-out',document)
         return int(ls[2:])
 
     def elasticize_prc_in(self,path,file):
