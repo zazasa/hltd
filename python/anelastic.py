@@ -94,6 +94,7 @@ class LumiSectionRanger():
         if eventtype == "IN_CLOSE_WRITE":
             if filetype == JSD and not self.jsdfile: self.jsdfile=self.infile.filepath  
             elif filetype in [STREAM,INDEX,EOLS,DAT]:
+                if not self.jsdfile: self.jsdfile == OUTJSDFILE
                 run,ls = (self.infile.run,self.infile.ls)
                 key = (run,ls)
                 if key not in self.LSHandlerList:
@@ -152,6 +153,7 @@ class LumiSectionRanger():
             if not self.LSHandlerList[key].closed.isSet():
                 return False
         return True
+
 
 class LumiSectionHandler():
     host = os.uname()[1]
@@ -314,6 +316,26 @@ class LumiSectionHandler():
                 self.closed.set()
 
 
+def getBackupJSD():
+    global OUTJSDFILE
+    path = os.path.join(conf.cmssw_base,conf.version_file)
+    if not os.path.isdir(path):
+        path = os.path.join(conf.cmssw_base,conf.cmssw_default_version)
+
+    path = os.path.join(path,conf.outjsdfile)
+    if not os.path.exists(path): 
+        raise IOError("invalid filename: %r" %path)
+        OUTJSDFILE = None
+        return False
+
+    OUTJSDFILE = path
+    return True
+
+
+
+
+
+
 if __name__ == "__main__":
     logging.basicConfig(filename="/tmp/anelastic.log",
                     level=logging.INFO,
@@ -335,6 +357,8 @@ if __name__ == "__main__":
     mask = pyinotify.IN_CLOSE_WRITE   # watched events
     logger.info("starting anelastic for "+dirname)
     try:
+
+        getBackupJSD()
         #starting inotify thread
         wm = pyinotify.WatchManager()
         mr = MonitorRanger()
