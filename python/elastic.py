@@ -4,7 +4,7 @@ import sys,traceback
 import os
 
 import logging
-import pyinotify
+import _inotify as inotify
 import threading
 import Queue
 
@@ -20,11 +20,8 @@ class BadIniFile(Exception):
     pass
 
 
-class elasticCollector():
-    stoprequest = threading.Event()
-    emptyQueue = threading.Event()
-    source = False
-    infile = False
+class elasticCollector(LumiSectionRanger):
+    
     def __init__(self, esDir):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.esDirName = esDir
@@ -61,7 +58,7 @@ class elasticCollector():
         filepath = self.infile.filepath
         filetype = self.infile.filetype
         eventtype = self.eventtype
-        if eventtype == "IN_CLOSE_WRITE":
+        if eventtype & inotify.IN_CLOSE_WRITE:
             if self.esDirName in self.infile.dir:
                 if filetype in [INDEX,STREAM,OUTPUT]:   self.elasticize(filepath,filetype)
                 if filetype in [EOR]: self.stop()
@@ -91,10 +88,6 @@ class elasticCollector():
                 self.logger.info(name+" going into fu-out")
                 es.elasticize_fu_out(path,name)
 
-
-             
-
-
 if __name__ == "__main__":
     logging.basicConfig(filename="/tmp/elastic.log",
                     level=logging.INFO,
@@ -116,22 +109,35 @@ if __name__ == "__main__":
     dirname = os.path.basename(os.path.normpath(dirname))
     watchDir = os.path.join(conf.watch_directory,dirname)
     outputDir = conf.micromerge_output
+    monDir = os.path.join(watchDir,"mon")
+    tempDir = os.path.join(watchDir,ES_DIR_NAME)
 
-    
+    mask = inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO
+    monMask = inotify.IN_CLOSE_WRITE
+    tempMask = inotify.IN_CLOSE_WRITE
 
-    mask = pyinotify.IN_CLOSE_WRITE | pyinotify.IN_DELETE
     logger.info("starting elastic for "+dirname)
+
+    try:
+        os.makedirs(monDir)
+    except OSError:
+        pass
+    try:
+        os.makedirs(tempDir)
+    except OSError:
+        pass
+
+    mr = None
     try:
         #starting inotify thread
-        wm = pyinotify.WatchManager()
         mr = MonitorRanger()
         mr.setEventQueue(eventQueue)
-        notifier = pyinotify.ThreadedNotifier(wm, mr)
-        notifier.start()
-        wdd = wm.add_watch(watchDir, mask, rec=True, auto_add =True)
+        #mr.register_inotify_path(watchDir,mask)
+        mr.register_inotify_path(monDir,monMask)
+        mr.register_inotify_path(tempDir,tempMask)
+        mr.start_inotify()
 
         es = elasticBand.elasticBand('http://localhost:9200',dirname)
-        os.makedirs(os.path.join(watchDir,ES_DIR_NAME))
 
         #starting elasticCollector thread
         ec = elasticCollector(ES_DIR_NAME)
@@ -144,7 +150,8 @@ if __name__ == "__main__":
         logger.error("when processing files from directory "+dirname)
 
     logging.info("Closing notifier")
-    notifier.stop()
+    if mr is not None:
+      mr.stop_inotify()
 
     logging.info("Quit")
     sys.exit(0)
