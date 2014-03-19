@@ -65,7 +65,7 @@ class elasticCollector():
             if self.esDirName in self.infile.dir:
                 if filetype in [INDEX,STREAM,OUTPUT]:   self.elasticize(filepath,filetype)
                 if filetype in [EOR]: self.stop()
-                #self.infile.deleteFile()
+                self.infile.deleteFile()
             elif filetype in [FAST,SLOW]:
                 self.elasticize(filepath,filetype)
 

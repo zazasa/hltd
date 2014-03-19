@@ -33,7 +33,7 @@ class killer():
 
     def run(self):
         self.logger.info("Start main loop") 
-        while not (self.stoprequest.isSet() and self.emptyQueue.isSet()) :
+        while not self.stoprequest.isSet() :
             if self.source:
                 try:
                     event = self.source.get(True,0.5) #blocking with timeout
@@ -60,6 +60,7 @@ class killer():
             pid = int(self.infile.pid[3:])
             os.kill(pid,signal.SIGKILL)
             print "killed %r for %r " %(pid,self.infile.filepath)
+            self.stop()
 
         
 
@@ -109,13 +110,13 @@ if __name__ == "__main__":
         k.setSource(eventQueue)
         k.start()
 
-    except (KeyboardInterrupt,Exception) as e:
+    except KeyboardInterrupt as e:
         logger.exception(e)
         print traceback.format_exc()
         logger.error("when processing files from directory "+dirname)
 
-    logging.info("Closing notifier")
+    print "Closing notifier"
     notifier.stop()
 
-    logging.info("Quit")
+    print "Quit"
     sys.exit(0)

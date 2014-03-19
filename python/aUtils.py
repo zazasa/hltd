@@ -13,7 +13,7 @@ import hltdconf
 
 
 ES_DIR_NAME = "TEMP_ES_DIRECTORY"
-UNKNOWN,STREAM,INDEX,FAST,SLOW,OUTPUT,INI,EOLS,EOR,DAT,PDAT,CRASH = range(12)            #file types 
+UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,INI,EOLS,EOR,DAT,PDAT,CRASH = range(13)            #file types 
 TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,EOR]
 
 
@@ -68,6 +68,7 @@ class fileHandler(object):
             if ext == ".dat" and "PID" not in name: return DAT
             if ext == ".dat" and "PID" in name: return PDAT
             if ext == ".ini" and "PID" in name: return INI
+            if ext == ".jsd" and "OUTPUT" in name: return JSD
             if ext == ".jsn":
                 if "STREAM" in name and "PID" in name: return STREAM
                 if "STREAM" in name and "PID" not in name: return OUTPUT

@@ -16,9 +16,6 @@ import hltdconf
 from aUtils import *
 
 
-JSDFILE = "/opt/hltd/python/def.jsd"
-
-
 
     #on notify, put the event file in a queue
 class MonitorRanger(pyinotify.ProcessEvent):
@@ -52,6 +49,7 @@ class LumiSectionRanger():
         self.EOR = None  #EORfile Object
         self.outdir = outdir
         self.tempdir = tempdir
+        self.jsdfile = None
 
 
     def join(self, stop=False, timeout=None):
@@ -94,11 +92,12 @@ class LumiSectionRanger():
         eventtype = self.eventtype
 
         if eventtype == "IN_CLOSE_WRITE":
-            if filetype in [STREAM,INDEX,EOLS,DAT]:
+            if filetype == JSD and not self.jsdfile: self.jsdfile=self.infile.filepath  
+            elif filetype in [STREAM,INDEX,EOLS,DAT]:
                 run,ls = (self.infile.run,self.infile.ls)
                 key = (run,ls)
                 if key not in self.LSHandlerList:
-                    self.LSHandlerList[key] = LumiSectionHandler(run,ls,self.activeStreams,self.tempdir,self.outdir)
+                    self.LSHandlerList[key] = LumiSectionHandler(run,ls,self.activeStreams,self.tempdir,self.outdir,self.jsdfile)
                 self.LSHandlerList[key].processFile(self.infile)
                 if self.LSHandlerList[key].closed.isSet():
                     self.LSHandlerList.pop(key,None)
@@ -156,7 +155,7 @@ class LumiSectionRanger():
 
 class LumiSectionHandler():
     host = os.uname()[1]
-    def __init__(self,run,ls,activeStreams,tempdir,outdir):
+    def __init__(self,run,ls,activeStreams,tempdir,outdir,jsdfile):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.info(ls)
 
@@ -164,7 +163,8 @@ class LumiSectionHandler():
         self.ls = ls
         self.run = run
         self.outdir = outdir
-        self.tempdir = tempdir    
+        self.tempdir = tempdir   
+        self.jsdfile = jsdfile 
         
         self.outfileList = []
         self.datfileList = []
@@ -179,15 +179,15 @@ class LumiSectionHandler():
     def initOutFiles(self):
         activeStreams,run,ls,tempdir = self.activeStreams,self.run,self.ls,self.tempdir
         ext = ".jsn"
-        if not os.path.exists(JSDFILE):
-            self.logger.error("JSD file not found %r" %JSDFILE)
+        if not os.path.exists(self.jsdfile):
+            self.logger.error("JSD file not found %r" %self.jsdfile)
             return False
 
         for stream in self.activeStreams:
             outfilename = "_".join([run,ls,stream,self.host])+ext
             outfilepath = os.path.join(tempdir,outfilename)
             outfile = fileHandler(outfilepath)
-            outfile.setJsdfile(JSDFILE)
+            outfile.setJsdfile(self.jsdfile)
             self.outfileList.append(outfile)
 
 
@@ -258,7 +258,7 @@ class LumiSectionHandler():
         errCode = data["errorCode"]
 
         file2merge = fileHandler(infile.filepath)
-        file2merge.setJsdfile(JSDFILE)
+        file2merge.setJsdfile(self.jsdfile)
         file2merge.setFieldByName("ErrorEvents",numEvents)
         file2merge.setFieldByName("ReturnCodeMask",errCode)
         
