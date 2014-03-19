@@ -40,7 +40,8 @@ class LumiSectionRanger():
     def __init__(self,tempdir,outdir):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.stoprequest = threading.Event()
-        self.emptyQueue = threading.Event()    
+        self.emptyQueue = threading.Event()  
+        self.firstStream = threading.Event()  
         self.LSHandlerList = {}  # {(run,ls): LumiSectionHandler()}
         self.activeStreams = [] # updated by the ini files
         self.source = None
@@ -50,6 +51,7 @@ class LumiSectionRanger():
         self.outdir = outdir
         self.tempdir = tempdir
         self.jsdfile = None
+        self.buffer = []        # file list before the first stream file
 
 
     def join(self, stop=False, timeout=None):
@@ -85,6 +87,11 @@ class LumiSectionRanger():
         self.logger.info("Stop main loop")
 
 
+    def flushBuffer(self):
+        self.firstStream.set()
+        for self.infile in self.buffer:
+            self.process()
+
         #send the fileEvent to the proper LShandlerand remove closed LSs, or process INI and EOR files
     def process(self):
         
@@ -92,9 +99,13 @@ class LumiSectionRanger():
         eventtype = self.eventtype
 
         if eventtype == "IN_CLOSE_WRITE":
-            if filetype == JSD and not self.jsdfile: self.jsdfile=self.infile.filepath  
+            if filetype == JSD and not self.jsdfile: self.jsdfile=self.infile.filepath
+            elif filetype == INI: self.processINIfile()
+            elif not self.firstStream.isSet():
+                self.buffer.append(self.infile)
+                if filetype == STREAM: self.flushBuffer()
             elif filetype in [STREAM,INDEX,EOLS,DAT]:
-                if not self.jsdfile: self.jsdfile = OUTJSDFILE
+                #if not self.jsdfile: self.jsdfile = OUTJSDFILE
                 run,ls = (self.infile.run,self.infile.ls)
                 key = (run,ls)
                 if key not in self.LSHandlerList:
@@ -104,8 +115,6 @@ class LumiSectionRanger():
                     self.LSHandlerList.pop(key,None)
             elif filetype == CRASH:
                 self.processCRASHfile()
-            elif filetype == INI:
-                self.processINIfile()
             elif filetype == EOR:
                 self.processEORFile()
     
@@ -315,27 +324,6 @@ class LumiSectionHandler():
                 #close lumisection if all streams are closed
                 self.closed.set()
 
-
-def getBackupJSD():
-    global OUTJSDFILE
-    path = os.path.join(conf.cmssw_base,conf.version_file)
-    if not os.path.isdir(path):
-        path = os.path.join(conf.cmssw_base,conf.cmssw_default_version)
-
-    path = os.path.join(path,conf.outjsdfile)
-    if not os.path.exists(path): 
-        raise IOError("invalid filename: %r" %path)
-        OUTJSDFILE = None
-        return False
-
-    OUTJSDFILE = path
-    return True
-
-
-
-
-
-
 if __name__ == "__main__":
     logging.basicConfig(filename="/tmp/anelastic.log",
                     level=logging.INFO,
@@ -358,7 +346,7 @@ if __name__ == "__main__":
     logger.info("starting anelastic for "+dirname)
     try:
 
-        getBackupJSD()
+        #getBackupJSD()
         #starting inotify thread
         wm = pyinotify.WatchManager()
         mr = MonitorRanger()
