@@ -108,7 +108,7 @@ class LumiSectionRanger():
         if eventtype & inotify.IN_CLOSE_WRITE:
             if filetype == JSD and not self.jsdfile: self.jsdfile=self.infile.filepath  
             elif filetype in [STREAM,INDEX,EOLS,DAT]:
-                if not self.jsdfile: self.jsdfile == OUTJSDFILE
+                if not self.jsdfile: self.jsdfile = OUTJSDFILE
                 run,ls = (self.infile.run,self.infile.ls)
                 key = (run,ls)
                 if key not in self.LSHandlerList:
