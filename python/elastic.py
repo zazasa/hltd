@@ -19,8 +19,11 @@ from aUtils import *
 class BadIniFile(Exception):
     pass
 
-
-class elasticCollector(LumiSectionRanger):
+class elasticCollector():
+    stoprequest = threading.Event()
+    emptyQueue = threading.Event()
+    source = False
+    infile = False
     
     def __init__(self, esDir):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -38,8 +41,8 @@ class elasticCollector(LumiSectionRanger):
             if self.source:
                 try:
                     event = self.source.get(True,0.5) #blocking with timeout
-                    self.eventtype = event.maskname
-                    self.infile = fileHandler(event.pathname)
+                    self.eventtype = event.mask
+                    self.infile = fileHandler(event.fullpath)
                     self.emptyQueue.clear()
                     self.process() 
                 except (KeyboardInterrupt,Queue.Empty) as e:
