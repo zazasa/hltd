@@ -33,6 +33,7 @@ idles = conf.resource_base+'/idle/'
 used = conf.resource_base+'/online/'
 broken = conf.resource_base+'/except/'
 quarantined = conf.resource_base+'/quarantined/'
+nthreads = None
 
 run_list=[]
 bu_disk_list=[]
@@ -113,6 +114,16 @@ def cleanup_mountpoints():
     except Exception as ex:
         logging.error("Exception in cleanup_mountpoints")
         logging.error(ex)
+
+def calculate_threadnumber():
+    global nthreads
+    if conf.cmssw_threads_autosplit>0:
+        idlecount = len(os.listdir(idles))
+        nthreads = idlecount/conf.cmssw_threads_autosplit
+        if nthreads*conf.cmssw_threads_autosplit != nthreads:
+            logging.error("idle cores can not be evenly split to cmssw threads")
+    else:
+        nthreads = conf.cmssw_threads
 
 class system_monitor(threading.Thread):
 
@@ -222,9 +233,9 @@ bu_emulator=BUEmu()
 
 class OnlineResource:
 
-    def __init__(self,resourcename,lock):
+    def __init__(self,resourcenames,lock):
         self.hoststate = 0 #@@MO what is this used for?
-        self.cpu = resourcename
+        self.cpu = resourcenames
         self.process = None
         self.processstate = None
         self.watchdog = None
@@ -235,12 +246,12 @@ class OnlineResource:
 
     def ping(self):
         if conf.role == 'bu':
-            if not os.system("ping -c 1 "+self.cpu)==0: self.hoststate = 0
+            if not os.system("ping -c 1 "+self.cpu[0])==0: self.hoststate = 0
 
     def NotifyNewRun(self,runnumber):
         self.runnumber = runnumber
-        logging.info("calling start of run on "+self.cpu);
-        connection = httplib.HTTPConnection(self.cpu, 8000)
+        logging.info("calling start of run on "+self.cpu[0]);
+        connection = httplib.HTTPConnection(self.cpu[0], 8000)
         connection.request("GET",'cgi-bin/start_cgi.py?run='+str(runnumber))
         response = connection.getresponse()
         #do something intelligent with the response code
@@ -250,13 +261,13 @@ class OnlineResource:
             logging.info(response.read())
 
     def NotifyShutdown(self):
-        connection = httplib.HTTPConnection(self.cpu, 8000)
+        connection = httplib.HTTPConnection(self.cpu[0], 8000)
         connection.request("GET",'cgi-bin/stop_cgi.py?run='+str(self.runnumber))
         response = connection.getresponse()
 #do something intelligent with the response code
         if response.status > 300: self.hoststate = 0
 
-    def StartNewProcess(self ,runnumber, startindex, arch, version, menu):
+    def StartNewProcess(self ,runnumber, startindex, arch, version, menu,num_threads):
         logging.debug("OnlineResource: StartNewProcess called")
         self.runnumber = runnumber
 
@@ -277,7 +288,8 @@ class OnlineResource:
                         conf.exec_directory,
                         menu,
                         str(runnumber),
-                        input_disk]
+                        input_disk,
+                        str(num_threads)]
         logging.info("arg array "+str(new_run_args).translate(None, "'"))
         try:
 #            dem = demote.demote(conf.user)
@@ -308,7 +320,7 @@ class OnlineResource:
         self.watchdog.join()
 
     def disableRestart(self):
-        logging.debug("OnlineResource "+self.cpu+" restart is now disabled")
+        logging.debug("OnlineResource "+str(self.cpu)+" restart is now disabled")
         if self.watchdog:
             self.watchdog.disableRestart()
 
@@ -333,18 +345,23 @@ class ProcessWatchdog(threading.Thread):
             logging.debug('ProcessWatchdog: acquire lock thread '+str(pid))
             self.lock.acquire()
             logging.debug('ProcessWatchdog: acquired lock thread '+str(pid))
-            fp=open(monfile,'r+')
 
-            stat=json.load(fp)
+            try:
+                fp=open(monfile,'r+')
 
-            stat=[[x[0],x[1],returncode]
-                  if x[0]==self.resource.cpu else [x[0],x[1],x[2]] for x in stat]
-            fp.seek(0)
-            fp.truncate()
-            json.dump(stat,fp)
+                stat=json.load(fp)
 
-            fp.flush()
-            fp.close()
+                stat=[[x[0],x[1],returncode]
+                      if x[0]==self.resource.cpu else [x[0],x[1],x[2]] for x in stat]
+                fp.seek(0)
+                fp.truncate()
+                json.dump(stat,fp)
+
+                fp.flush()
+                fp.close()
+            except IOError,ex:
+                logging.error(str(ex))
+
             logging.debug('ProcessWatchdog: release lock thread '+str(pid))
             self.lock.release()
             logging.debug('ProcessWatchdog: released lock thread '+str(pid))
@@ -355,7 +372,7 @@ class ProcessWatchdog(threading.Thread):
             if returncode < 0:
                 logging.error("process "+str(pid)
                               +" for run "+str(self.resource.runnumber)
-                              +" on resource " + self.resource.cpu
+                              +" on resource(s) " + str(self.resource.cpu)
                               +" exited with signal "
                               +str(returncode)
                               +" restart is enabled ? "
@@ -364,7 +381,7 @@ class ProcessWatchdog(threading.Thread):
 
                 oldpid = pid
 
-                if self.resource.retry_attempts < self.retry_limit and self.retry_enabled:
+                if self.resource.retry_attempts < self.retry_limit:
                     """
                     sleep a configurable amount of seconds before
                     trying a restart. This is to avoid 'crash storms'
@@ -374,24 +391,27 @@ class ProcessWatchdog(threading.Thread):
                     self.resource.process = None
                     self.resource.retry_attempts += 1
 
-                    logging.info("try to restart process for resource "
-                                 +self.resource.cpu
+                    logging.info("try to restart process for resource(s) "
+                                 +str(self.resource.cpu)
                                  +" attempt "
                                  + str(self.resource.retry_attempts))
-                    os.rename(used+self.resource.cpu,broken+self.resource.cpu)
-                    logging.debug("resource " +self.resource.cpu+
+                    for cpu in self.resource.cpu:
+                      os.rename(used+cpu,broken+cpu)
+                    logging.debug("resource(s) " +str(self.resource.cpu)+
                                   " successfully moved to except")
                 elif self.resource.retry_attempts >= self.retry_limit:
                     logging.error("process for run "
                                   +str(self.resource.runnumber)
-                                  +" on resource " + self.resource.cpu
+                                  +" on resources " + str(self.resource.cpu)
                                   +" reached max retry limit "
                                   )
-                    os.rename(used+self.resource.cpu,quarantined+self.resource.cpu)
+                    for cpu in self.resource.cpu:
+                        os.rename(used+cpu,quarantined+cpu)
+
             #successful end= release resource
             elif returncode == 0:
 
-                logging.info('releasing resource, exit0 meaning end of run '+self.resource.cpu)
+                logging.info('releasing resource, exit0 meaning end of run '+str(self.resource.cpu))
                 # generate an end-of-run marker if it isn't already there - it will be picked up by the RunRanger
                 endmarker = conf.watch_directory+'/'+conf.watch_end_prefix+str(self.resource.runnumber)
                 stoppingmarker = self.resource.associateddir+'/'+Run.STOPPING
@@ -404,7 +424,8 @@ class ProcessWatchdog(threading.Thread):
                     if os.path.exists(completemarker): break
                     time.sleep(.1)
                 # move back the resource now that it's safe since the run is marked as ended
-                os.rename(used+self.resource.cpu,idles+self.resource.cpu)
+                for cpu in self.resource.cpu:
+                  os.rename(used+cpu,idles+cpu)
                 #self.resource.process=None
 
             #        logging.info('exiting thread '+str(self.resource.process.pid))
@@ -431,11 +452,12 @@ class Run:
         self.runnumber = nr
         self.dirname = dirname
         self.online_resource_list = []
-        self.is_active_run = True
+        self.is_active_run = False
         self.managed_monitor = None
         self.arch = None
         self.version = None
         self.menu = None
+        self.waitForEndThread = None
         if conf.role == 'fu':
             self.changeMarkerMaybe(Run.STARTING)
         self.menu_directory = bu_dir+'/'+conf.menu_directory
@@ -472,22 +494,23 @@ class Run:
 
 
 
-    def AcquireResource(self,resourcename,fromstate):
+    def AcquireResource(self,resourcenames,fromstate):
         idles = conf.resource_base+'/'+fromstate+'/'
         try:
             logging.debug("Trying to acquire resource "
-                          +resourcename
+                          +str(resourcenames)
                           +" from "+fromstate)
 
-            os.rename(idles+resourcename,used+resourcename)
-            if not filter(lambda x: x.cpu==resourcename,self.online_resource_list):
-                logging.debug("resource "+resourcename
+            for resourcename in resourcenames:
+              os.rename(idles+resourcename,used+resourcename)
+            if not filter(lambda x: x.cpu==resourcenames,self.online_resource_list):
+                logging.debug("resource(s) "+str(resourcenames)
                               +" not found in online_resource_list, creating new")
-                self.online_resource_list.append(OnlineResource(resourcename,self.lock))
+                self.online_resource_list.append(OnlineResource(resourcenames,self.lock))#
                 return self.online_resource_list[-1]
-            logging.debug("resource "+resourcename
+            logging.debug("resource(s) "+str(resourcenames)
                           +" found in online_resource_list")
-            return filter(lambda x: x.cpu==resourcename,self.online_resource_list)[0]
+            return filter(lambda x: x.cpu==resourcenames,self.online_resource_list)[0]
         except Exception as ex:
             logging.info("exception encountered in looking for resources")
             logging.info(ex)
@@ -510,18 +533,29 @@ class Run:
             logging.info(ex)
         logging.info(dirlist)
         current_time = time.time()
+        count = 0
+        cpu_group=[]
+        #self.lock.acquire()
         for cpu in dirlist:
+            count = count+1
+            cpu_group.append(cpu)
             age = current_time - os.path.getmtime(idles+cpu)
             logging.info("found resource "+cpu+" which is "+str(age)+" seconds old")
             if conf.role == 'fu':
-                self.AcquireResource(cpu,'idle')
+                if count == nthreads:
+                  self.AcquireResource(cpu_group,'idle')
+                  cpu_group=[]
+                  count=0
             else:
                 if age < 10:
-                    self.ContactResource(cpu)
+                    cpus = [cpu]
+                    self.ContactResource(cpus)
+        #self.lock.release()
 
     def Start(self):
+        self.is_active_run = True
         for resource in self.online_resource_list:
-            logging.info('start run '+str(self.runnumber)+' on cpu '+resource.cpu)
+            logging.info('start run '+str(self.runnumber)+' on cpu(s) '+str(resource.cpu))
             if conf.role == 'fu': self.StartOnResource(resource)
             else: resource.NotifyNewRun(self.runnumber)
         if conf.role == 'fu':
@@ -535,7 +569,8 @@ class Run:
                                  self.online_resource_list.index(resource),
                                  self.arch,
                                  self.version,
-                                 self.menu)
+                                 self.menu,
+                                 len(resource.cpu))
         logging.debug("StartOnResource process started")
         logging.debug("StartOnResource going to acquire lock")
         self.lock.acquire()
@@ -581,6 +616,7 @@ class Run:
         try:
             for resource in self.online_resource_list:
                 resource.disableRestart()
+            for resource in self.online_resource_list:
                 if conf.role == 'fu':
                     if resource.processstate==100:
                         logging.info('terminating process '+str(resource.process.pid)+
@@ -591,8 +627,9 @@ class Run:
                         #                    time.sleep(.1)
                         resource.join()
                         logging.info('process '+str(resource.process.pid)+' terminated')
-                    logging.info('releasing resource '+resource.cpu)
-                    os.rename(used+resource.cpu,idles+resource.cpu)
+                    logging.info('releasing resource(s) '+str(resource.cpu))
+                    for cpu in resource.cpu:
+                      os.rename(used+cpu,idles+cpu)
                     resource.process=None
                 elif conf.role == 'bu':
                     resource.NotifyShutdown()
@@ -601,19 +638,30 @@ class Run:
             if conf.use_elasticsearch:
                 if self.managed_monitor:
                     self.managed_monitor.terminate()
+            if self.waitForEndThread is not none:
+                self.waitForEndThread.join()
         except Exception as ex:
             logging.info("exception encountered in shutting down resources")
             logging.info(ex)
         logging.info('Shutdown of run '+str(self.runnumber).zfill(conf.run_number_padding)+' completed')
 
-    def WaitForEnd(self):
+    def StartWaitForEnd(self):
         self.is_active_run = False
         if conf.role == 'fu':
             self.changeMarkerMaybe(Run.STOPPING)
+        try:
+            self.waitForEndThread = threading.Thread(target = self.WaitForEnd)
+            self.waitForEndThread.start()
+        except Exception as ex:
+            logging.info("exception encountered in starting run end thread")
+            logging.info(ex)
 
+    def WaitForEnd(self):
+        print "wait for end thread!"
         try:
             for resource in self.online_resource_list:
-
+                resource.disableRestart()
+            for resource in self.online_resource_list:
                 if resource.processstate==100:
                     logging.info('waiting for process '+str(resource.process.pid)+
                                  ' in state '+str(resource.processstate) +
@@ -702,7 +750,7 @@ class RunRanger(pyinotify.ProcessEvent):
                         if len(runtoend)==1:
                             logging.info('end run '+str(nr))
                             if conf.role == 'fu':
-                                runtoend[0].WaitForEnd()
+                                runtoend[0].StartWaitForEnd()
                             elif bu_emulator:
                                 bu_emulator.stop()
 
@@ -802,11 +850,80 @@ class ResourceRanger(pyinotify.ProcessEvent):
                     """grab resources that become available
                     #@@EM implement threaded acquisition of resources here
                     """
-                    res = activerun.AcquireResource(resourcename,resourcestate)
-                    logging.info("ResourceRanger: acquired resource "+res.cpu)
-                    activerun.StartOnResource(res)
-                    logging.info("ResourceRanger: started process on resource "
-                                 +res.cpu)
+                    #find all idle cores
+                    #activerun.lock.acquire()
+
+                    idlesdir = '/'+resourcepath
+		    try:
+                        reslist = os.listdir(idlesdir)
+                    except Exception as ex:
+                        logging.info("exception encountered in looking for resources")
+                        logging.info(ex)
+                    #put inotify-ed resource as the first item
+                    for resindex,resname in enumerate(reslist):
+                        fileFound=False
+                        if resname == resourcename:
+                            fileFound=True
+                            if resindex != 0:
+                                firstitem = reslist[0]
+                                reslist[0] = resourcename
+                                reslist[resindex] = firstitem
+                        break
+                        if fileFound==False:
+                            #inotified file was already moved earlier
+                            return                    
+                    #acquire sufficient cores for a multithreaded process start 
+                    resourcenames = []
+                    for resname in reslist:
+                        if len(resourcenames) < nthreads:
+                            resourcenames.append(resname)
+                        else:
+                            break
+
+                    acquired_sufficient = False
+                    if len(resourcenames) == nthreads:
+                        acquired_sufficient = True
+                        res = activerun.AcquireResource(resourcenames,resourcestate)
+                    #activerun.lock.release()
+
+                    if acquired_sufficient:
+                        logging.info("ResourceRanger: acquired resource(s) "+str(res.cpu))
+                        activerun.StartOnResource(res)
+                        logging.info("ResourceRanger: started process on resource "
+                                     +str(res.cpu))
+                else:
+                    #if no run is active, move (x N threads) files from except to idle to be picked up for the next run
+                    #TODO:debug,write test
+                    if resourcestate == 'except':
+                        idlesdir = '/'+resourcepath
+		        try:
+                            reslist = os.listdir(idlesdir)
+                            #put inotify-ed resource as the first item
+                            fileFound=False
+                            for resindex,resname in enumerate(reslist):
+                                if resname == resourcename:
+                                    fileFound=True
+                                    if resindex != 0:
+                                        firstitem = reslist[0]
+                                        reslist[0] = resourcename
+                                        reslist[resindex] = firstitem
+                                    break
+                                if fileFound==False:
+                                    #inotified file was already moved earlier
+                                    return
+                            resourcenames = []
+                            for resname in reslist:
+                                if len(resourcenames) < nthreads:
+                                    resourcenames.append(resname)
+                                else:
+                                    break
+                            if len(resourcenames) == nthreads:
+                                for resname in resourcenames:
+                                    os.rename(broken+resname,idles+resname)
+
+                        except Exception as ex:
+                            logging.info("exception encountered in looking for resources in except")
+                            logging.info(ex)
 
         except Exception as ex:
             logging.error("exception in ResourceRanger")
@@ -883,6 +1000,8 @@ class hltd(Daemon2,object):
             """
 
             cleanup_mountpoints()
+
+            calculate_threadnumber()
 
         """
         the line below is a VERY DIRTY trick to address the fact that

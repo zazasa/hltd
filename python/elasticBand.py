@@ -198,6 +198,8 @@ class elasticBand():
     def elasticize_prc_istate(self,path,file):
         stub = self.imbue_csv(path,file)
         document = {}
+        if len(stub) == 0 or stub[0]=='\n':
+          return;
         document['macro'] = int(stub[0])
         document['mini']  = int(stub[1])
         document['micro'] = int(stub[2])
@@ -213,12 +215,18 @@ class elasticBand():
         datadict['ls'] = int(tokens[1][2:])
         datadict['process'] = tokens[2]
 #        print list(document['data'][0])
-        if document['data'][1] is not "N/A":
+        if document['data'][0] != "N/A":
           datadict['macro']   = [int(f) for f in document['data'][0].strip('[]').split(',')]
-        if document['data'][2] is not "N/A":
+        else:
+          datadict['macro'] = 0
+        if document['data'][1] != "N/A":
           datadict['mini']    = [int(f) for f in document['data'][1].strip('[]').split(',')]
-        if document['data'][3] is not "N/A":
+        else:
+          datadict['mini'] = 0
+        if document['data'][2] != "N/A":
           datadict['micro']   = [int(f) for f in document['data'][2].strip('[]').split(',')]
+        else:
+          datadict['micro'] = 0
         datadict['tp']      = float(document['data'][4]) if not math.isnan(float(document['data'][4])) and not  math.isinf(float(document['data'][4])) else 0.
         datadict['lead']    = float(document['data'][5]) if not math.isnan(float(document['data'][5])) and not  math.isinf(float(document['data'][5])) else 0.
         datadict['nfiles']  = int(document['data'][6])
