@@ -49,7 +49,6 @@ class hltdConf:
         self.test_hlt_config1 = cfg.get('CMSSW','test_hlt_config1')
         self.test_hlt_config2 = cfg.get('CMSSW','test_hlt_config2')
         self.test_bu_config = cfg.get('CMSSW','test_bu_config')
-        self.outjsdfile = cfg.get('CMSSW','outjsdfile')
 
         self.menu_directory = cfg.get('HLT','menu_directory')
         self.menu_name = cfg.get('HLT','menu_name')
