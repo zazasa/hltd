@@ -14,5 +14,4 @@ pwd >> $logname 2>&1
 eval `scram runtime -sh`;
 cd $4;
 logname="/tmp/hlt$$.log"
-#do not pass number of threads if equals 1
 exec cmsRun $5 "runNumber="$6 "buBaseDir="$7 "numThreads="$8 >> $logname 2>&1
