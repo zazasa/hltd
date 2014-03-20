@@ -137,47 +137,6 @@ Classifier: Topic :: Security
 EOF
 
 cd $TOPDIR
-cd opt/hltd/lib/pyinotify-master/
-./setup.py -q build
-cp build/lib/pyinotify.py $TOPDIR/usr/lib64/python2.6/site-packages
-python - <<'EOF'
-import py_compile
-py_compile.compile("build/lib/pyinotify.py")
-EOF
-cp build/lib/pyinotify.pyc $TOPDIR/usr/lib64/python2.6/site-packages/
-cat > $TOPDIR/usr/lib64/python2.6/site-packages/pyinotify-0.9.4-py2.6.egg-info <<EOF
-Metadata-Version: 1.0
-Name: pyinotify
-Version: 0.9.4
-Summary: Linux filesystem events monitoring
-Home-page: http://github.com/seb-m/pyinotify
-Author: Sebastien Martini
-Author-email: seb@dbzteam.org
-License: MIT License
-Download-URL: http://pypi.python.org/pypi/pyinotify
-Description: UNKNOWN
-Platform: Linux
-Classifier: Development Status :: 5 - Production/Stable
-Classifier: Environment :: Console
-Classifier: Intended Audience :: Developers
-Classifier: License :: OSI Approved :: MIT License
-Classifier: Natural Language :: English
-Classifier: Operating System :: POSIX :: Linux
-Classifier: Programming Language :: Python
-Classifier: Programming Language :: Python :: 2.4
-Classifier: Programming Language :: Python :: 2.5
-Classifier: Programming Language :: Python :: 2.6
-Classifier: Programming Language :: Python :: 2.7
-Classifier: Programming Language :: Python :: 3
-Classifier: Programming Language :: Python :: 3.0
-Classifier: Programming Language :: Python :: 3.1
-Classifier: Programming Language :: Python :: 3.2
-Classifier: Topic :: Software Development :: Libraries :: Python Modules
-Classifier: Topic :: System :: Filesystems
-Classifier: Topic :: System :: Monitoring
-EOF
-
-cd $TOPDIR
 cd opt/hltd/lib/python-inotify-0.5/
 ./setup.py -q build
 cp build/lib.linux-x86_64-2.6/inotify/_inotify.so $TOPDIR/usr/lib64/python2.6/site-packages
@@ -217,7 +176,7 @@ cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > hltd.spec <<EOF
 Name: hltd
-Version: 1.2.93
+Version: 1.3.0rc1
 Release: 0
 Summary: hlt daemon
 License: gpl
@@ -232,7 +191,6 @@ Provides:/opt/hltd
 Provides:/etc/hltd.conf
 Provides:/etc/init.d/hltd
 Provides:/usr/lib64/python2.6/site-packages/prctl.pyc
-Provides:/usr/lib64/python2.6/site-packages/pyinotify.py
 Requires:python,libcap,python-six,python-requests
 
 %description
@@ -261,7 +219,6 @@ rm -rf /etc/appliance/except/*
 /etc/appliance
 /usr/lib64/python2.6/site-packages/*prctl*
 /usr/lib64/python2.6/site-packages/*simplejson*
-/usr/lib64/python2.6/site-packages/*pyinotify*
 /usr/lib64/python2.6/site-packages/*watcher*
 /usr/lib64/python2.6/site-packages/*_inotify.so*
 /usr/lib64/python2.6/site-packages/*python_inotify*

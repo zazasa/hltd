@@ -15,8 +15,4 @@ eval `scram runtime -sh`;
 cd $4;
 logname="/tmp/hlt$$.log"
 #do not pass number of threads if equals 1
-if [ $8 != "1" ] ; then
-  exec cmsRun $5 "runNumber="$6 "buBaseDir="$7 "numThreads="$8 >> $logname 2>&1
-else
-  exec cmsRun $5 "runNumber="$6 "buBaseDir="$7 >> $logname 2>&1
-fi
+exec cmsRun $5 "runNumber="$6 "buBaseDir="$7 "numThreads="$8 >> $logname 2>&1
