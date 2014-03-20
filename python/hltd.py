@@ -379,7 +379,23 @@ class ProcessWatchdog(threading.Thread):
                               +str(self.retry_enabled)
                               )
 
-                oldpid = pid
+
+                #generate crashed pid json file like: run000001_ls0000_crash_pid12345.jsn
+                oldpid = "pid"+str(pid).zfill(5)
+                outdir = os.path.dirname(self.resource.associateddir[:-1])
+                runnumber = "run"+str(self.resource.runnumber).zfill(conf.run_number_padding)
+                ls = "ls0000"
+                filename = "_".join([runnumber,ls,"crash",oldpid])+".jsn"
+                filepath = os.path.join(outdir,filename)
+                document = {"errorCode":returncode}
+                try: 
+                    with open(filepath,"w") as fi: 
+                        json.dump(document,fi)
+                except: logging.exception("unable to create %r" %filename)
+                logging.info("pid crash file: %r" %filename)
+
+
+
 
                 if self.resource.retry_attempts < self.retry_limit:
                     """
@@ -453,7 +469,9 @@ class Run:
         self.dirname = dirname
         self.online_resource_list = []
         self.is_active_run = False
-        self.managed_monitor = None
+        self.anelastic_monitor = None
+        self.elastic_monitor = None   
+        
         self.arch = None
         self.version = None
         self.menu = None
@@ -479,14 +497,25 @@ class Run:
             logging.warn("Using default values for run "+str(self.runnumber)+": "+self.version+" ("+self.arch+") with "+self.menu)
 
         self.lock = threading.Lock()
+        #conf.use_elasticsearch = False
+            #note: start elastic.py first!
         if conf.use_elasticsearch:
             try:
+
                 logging.info("starting elastic.py with arguments:"+self.dirname)
                 elastic_args = ['/opt/hltd/python/elastic.py',self.dirname]
-                self.managed_monitor = subprocess.Popen(elastic_args,
+                self.elastic_monitor = subprocess.Popen(elastic_args,
                                                         preexec_fn=preexec_function,
                                                         close_fds=True
                                                         )
+
+                logging.info("starting anelastic.py with arguments:"+self.dirname)
+                elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname]
+                self.anelastic_monitor = subprocess.Popen(elastic_args,
+                                                        preexec_fn=preexec_function,
+                                                        close_fds=True
+                                                        )
+
             except OSError as ex:
                 logging.error("failed to start elasticsearch client")
                 logging.error(ex)
