@@ -119,7 +119,6 @@ class LumiSectionRanger():
                 self.buffer.append(self.infile)
                 if filetype == STREAM: self.flushBuffer()
             elif filetype in [STREAM,INDEX,EOLS,DAT]:
-                #if not self.jsdfile: self.jsdfile = OUTJSDFILE
                 run,ls = (self.infile.run,self.infile.ls)
                 key = (run,ls)
                 if key not in self.LSHandlerList:
@@ -361,7 +360,6 @@ if __name__ == "__main__":
     mr = None
     try:
 
-        #getBackupJSD()
         #starting inotify thread
         mr = MonitorRanger()
         mr.setEventQueue(eventQueue)
