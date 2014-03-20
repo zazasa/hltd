@@ -33,6 +33,7 @@ idles = conf.resource_base+'/idle/'
 used = conf.resource_base+'/online/'
 broken = conf.resource_base+'/except/'
 quarantined = conf.resource_base+'/quarantined/'
+nthreads = None
 
 run_list=[]
 bu_disk_list=[]
@@ -113,6 +114,16 @@ def cleanup_mountpoints():
     except Exception as ex:
         logging.error("Exception in cleanup_mountpoints")
         logging.error(ex)
+
+def calculate_threadnumber():
+    global nthreads
+    if conf.cmssw_threads_autosplit>0:
+        idlecount = len(os.listdir(idles))
+        nthreads = idlecount/conf.cmssw_threads_autosplit
+        if nthreads*conf.cmssw_threads_autosplit != nthreads:
+            logging.error("idle cores can not be evenly split to cmssw threads")
+    else:
+        nthreads = conf.cmssw_threads
 
 class system_monitor(threading.Thread):
 
@@ -334,18 +345,23 @@ class ProcessWatchdog(threading.Thread):
             logging.debug('ProcessWatchdog: acquire lock thread '+str(pid))
             self.lock.acquire()
             logging.debug('ProcessWatchdog: acquired lock thread '+str(pid))
-            fp=open(monfile,'r+')
 
-            stat=json.load(fp)
+            try:
+                fp=open(monfile,'r+')
 
-            stat=[[x[0],x[1],returncode]
-                  if x[0]==self.resource.cpu else [x[0],x[1],x[2]] for x in stat]
-            fp.seek(0)
-            fp.truncate()
-            json.dump(stat,fp)
+                stat=json.load(fp)
 
-            fp.flush()
-            fp.close()
+                stat=[[x[0],x[1],returncode]
+                      if x[0]==self.resource.cpu else [x[0],x[1],x[2]] for x in stat]
+                fp.seek(0)
+                fp.truncate()
+                json.dump(stat,fp)
+
+                fp.flush()
+                fp.close()
+            except IOError,ex:
+                logging.error(str(ex))
+
             logging.debug('ProcessWatchdog: release lock thread '+str(pid))
             self.lock.release()
             logging.debug('ProcessWatchdog: released lock thread '+str(pid))
@@ -555,7 +571,7 @@ class Run:
             age = current_time - os.path.getmtime(idles+cpu)
             logging.info("found resource "+cpu+" which is "+str(age)+" seconds old")
             if conf.role == 'fu':
-                if count == conf.cmssw_threads:
+                if count == nthreads:
                   self.AcquireResource(cpu_group,'idle')
                   cpu_group=[]
                   count=0
@@ -888,13 +904,13 @@ class ResourceRanger(pyinotify.ProcessEvent):
                     #acquire sufficient cores for a multithreaded process start 
                     resourcenames = []
                     for resname in reslist:
-                        if len(resourcenames) < conf.cmssw_threads:
+                        if len(resourcenames) < nthreads:
                             resourcenames.append(resname)
                         else:
                             break
 
                     acquired_sufficient = False
-                    if len(resourcenames) == conf.cmssw_threads:
+                    if len(resourcenames) == nthreads:
                         acquired_sufficient = True
                         res = activerun.AcquireResource(resourcenames,resourcestate)
                     #activerun.lock.release()
@@ -926,11 +942,11 @@ class ResourceRanger(pyinotify.ProcessEvent):
                                     return
                             resourcenames = []
                             for resname in reslist:
-                                if len(resourcenames) < conf.cmssw_threads:
+                                if len(resourcenames) < nthreads:
                                     resourcenames.append(resname)
                                 else:
                                     break
-                            if len(resourcenames) == conf.cmssw_threads:
+                            if len(resourcenames) == nthreads:
                                 for resname in resourcenames:
                                     os.rename(broken+resname,idles+resname)
 
@@ -1013,6 +1029,8 @@ class hltd(Daemon2,object):
             """
 
             cleanup_mountpoints()
+
+            calculate_threadnumber()
 
         """
         the line below is a VERY DIRTY trick to address the fact that
