@@ -29,6 +29,7 @@ ls
 
 
 echo "Moving files to their destination"
+mkdir -p /var/log/hltd
 mkdir -p opt/hltd
 mkdir -p etc/init.d
 mkdir -p etc/appliance/resources/idle
@@ -42,7 +43,7 @@ mkdir -p usr/lib64/python2.6/site-packages/simplejson
 ls
 cp -r $BASEDIR/python/hltd $TOPDIR/etc/init.d/hltd
 cp -r $BASEDIR/* $TOPDIR/opt/hltd
-cp -r $BASEDIR/etc/hltd.conf $TOPDIR/etc/
+cp -r $BASEDIR/etc/* $TOPDIR/etc/
 echo "working in $PWD"
 ls opt/hltd
 

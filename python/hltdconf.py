@@ -31,7 +31,7 @@ class hltdConf:
             self.role = cfg.get('General','role')
 
         self.use_elasticsearch = cfg.getboolean('Monitoring','use_elasticsearch')
-        self.elastic_log = cfg.get('Monitoring','elastic_log')
+        self.log_dir = cfg.get('Monitoring','log_dir')
 
         self.cgi_port = cfg.getint('Web','cgi_port')
 
