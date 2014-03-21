@@ -2,11 +2,6 @@ import sys,traceback
 import os
 import time
 import shutil
-
-import filecmp
-import pyinotify
-import threading
-import Queue
 import json
 import logging
 import hltdconf
