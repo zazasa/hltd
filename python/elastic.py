@@ -22,6 +22,7 @@ class BadIniFile(Exception):
 class elasticCollector():
     stoprequest = threading.Event()
     emptyQueue = threading.Event()
+    fastmonBuffer = []
     source = False
     infile = False
     
@@ -50,6 +51,8 @@ class elasticCollector():
             else:
                 time.sleep(0.5)
 
+
+        self.flushBuffer()
         self.logger.info("Stop main loop")
 
 
@@ -61,13 +64,31 @@ class elasticCollector():
         filepath = self.infile.filepath
         filetype = self.infile.filetype
         eventtype = self.eventtype
+        #if filetype not in [FAST,EOR,SLOW]: return #test fastmon buffering
         if eventtype & inotify.IN_CLOSE_WRITE:
             if self.esDirName in self.infile.dir:
                 if filetype in [INDEX,STREAM,OUTPUT]:   self.elasticize(filepath,filetype)
                 if filetype in [EOR]: self.stop()
                 self.infile.deleteFile()
-            elif filetype in [FAST,SLOW]:
+            elif filetype in [SLOW]:
                 self.elasticize(filepath,filetype)
+            elif filetype in [FAST]:
+                self.bufferize(filepath,filetype)
+
+
+    def flushBuffer(self):
+        self.logger.info("flushing monitor buffer (len: %r)" %len(self.fastmonBuffer))
+        es.elasticize_prc_istate(self.fastmonBuffer)
+        self.fastmonBuffer = []
+
+
+    def bufferize(self,filepath,filetype):
+        self.logger.debug(os.path.basename(filepath)+" going into buffer")
+        self.fastmonBuffer.append((filepath,filetype))
+        if len(self.fastmonBuffer) == MONBUFFERSIZE:
+            self.flushBuffer()
+
+
 
 
     def elasticize(self,filepath,filetype):
@@ -75,12 +96,12 @@ class elasticCollector():
         path = os.path.dirname(filepath)
         name = os.path.basename(filepath)
         if es and os.path.isfile(filepath):
-            if filetype == FAST: 
-                es.elasticize_prc_istate(path,name)
-                self.logger.debug(name+" going into prc-istate")
-            elif filetype == SLOW: 
+#            if filetype == FAST: 
+#                es.elasticize_prc_istate(path,name)
+#                self.logger.debug(name+" going into prc-istate")
+            if filetype == SLOW: 
                 es.elasticize_prc_sstate(path,name)      
-                self.logger.debug(name+" going into prc-sstate")       
+                self.logger.info(name+" going into prc-sstate")       
             elif filetype == INDEX: 
                 self.logger.info(name+" going into prc-in")
                 es.elasticize_prc_in(path,name)
