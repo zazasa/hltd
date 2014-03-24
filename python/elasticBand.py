@@ -9,9 +9,11 @@ import math
 
 import logging
 
+MONBUFFERSIZE = 50
 es_server_url = 'http://localhost:9200'
 
 class elasticBand():
+    fastmonBuffer = []
 
     def __init__(self,es_server_url,runstring):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -198,25 +200,31 @@ class elasticBand():
             row = fp.readline().split(',')
             return row
     
-    def elasticize_prc_istate(self,filelist):
-        docs = []
-        for filepath,eventtype in filelist:
-            path = os.path.dirname(filepath)
-            file = os.path.basename(filepath)
-            stub = self.imbue_csv(path,file)
-            document = {}
-            if len(stub) == 0 or stub[0]=='\n':
-              return;
+    def elasticize_prc_istate(self,path,file):
+
+        self.logger.debug(os.path.basename(file)+" going into buffer")
+        stub = self.imbue_csv(path,file)
+        document = {}
+        if len(stub) == 0 or stub[0]=='\n':
+          return;
+        try:
             document['macro'] = int(stub[0])
             document['mini']  = int(stub[1])
             document['micro'] = int(stub[2])
             document['tp']    = float(stub[4])
             document['lead']  = float(stub[5])
             document['nfiles']= int(stub[6])
-            docs.append(document)
-        self.es.bulk_index(self.run,'prc-i-state',docs)
+            self.fastmonBuffer.append(document)
+        except Exception:
+            pass
+        if len(self.fastmonBuffer) == MONBUFFERSIZE:
+            self.flushBuffer()
 
-        #self.es.index(self.run,'prc-i-state',document)
+    def flushBuffer(self):
+        self.logger.info("flushing fast monitor buffer (len: %r) " %len(self.fastmonBuffer))
+        self.es.bulk_index(self.run,'prc-i-state',self.fastmonBuffer)
+        self.fastmonBuffer = []
+
 
     def elasticize_prc_sstate(self,path,file):
         document = self.imbue_jsn(path,file)
