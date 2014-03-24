@@ -203,12 +203,15 @@ class elasticBand():
         document = {}
         if len(stub) == 0 or stub[0]=='\n':
           return;
-        document['macro'] = int(stub[0])
-        document['mini']  = int(stub[1])
-        document['micro'] = int(stub[2])
-        document['tp']    = float(stub[4])
-        document['lead']  = float(stub[5])
-        document['nfiles']= int(stub[6])
+        try:
+          document['macro'] = int(stub[0])
+          document['mini']  = int(stub[1])
+          document['micro'] = int(stub[2])
+          document['tp']    = float(stub[4])
+          document['lead']  = float(stub[5])
+          document['nfiles']= int(stub[6])
+        except Exception as ex:
+          pass
         self.es.index(self.run,'prc-i-state',document)
 
     def elasticize_prc_sstate(self,path,file):
