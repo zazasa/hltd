@@ -215,9 +215,10 @@ class elasticBand():
                 document['lead']  = float(stub[5])
                 document['nfiles']= int(stub[6])
                 docs.append(document)
-                self.es.bulk_index(self.run,'prc-i-state',docs)
             except Exception as ex:
                 pass
+        if len(docs)>0:
+            self.es.bulk_index(self.run,'prc-i-state',docs)
 
         #self.es.index(self.run,'prc-i-state',document)
 
