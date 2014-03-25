@@ -50,6 +50,7 @@ class elasticCollector():
             else:
                 time.sleep(0.5)
 
+        es.flushBuffer()
         self.logger.info("Stop main loop")
 
 
@@ -68,6 +69,7 @@ class elasticCollector():
                 self.infile.deleteFile()
             elif filetype in [FAST,SLOW]:
                 self.elasticize(filepath,filetype)
+                if filetype == SLOW: self.infile.deleteFile()
 
 
     def elasticize(self,filepath,filetype):
