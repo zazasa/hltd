@@ -1,4 +1,4 @@
-import os
+import os,time
 import sys
 from pyelasticsearch.client import ElasticSearch
 from pyelasticsearch.client import IndexAlreadyExistsError
@@ -42,16 +42,18 @@ class elasticBand():
         self.run_mapping = {
             'prc-i-state' : {
                 'properties' : {
-                    'macro' : {'type' : 'integer'},
-                    'mini'  : {'type' : 'integer'},
-                    'micro' : {'type' : 'integer'},
-                    'tp'    : {'type' : 'double' },
-                    'lead'  : {'type' : 'double' },
-                    'nfiles': {'type' : 'integer'}
+                    'macro'     : {'type' : 'integer'},
+                    'mini'      : {'type' : 'integer'},
+                    'micro'     : {'type' : 'integer'},
+                    'tp'        : {'type' : 'double' },
+                    'lead'      : {'type' : 'double' },
+                    'nfiles'    : {'type' : 'integer'},
+                    'fm_date'   : {'type' : 'date'   }
                     },
                 '_timestamp' : { 
-                    'enabled' : True,
-                    'store'   : "yes"
+                    'enabled'   : True,
+                    'store'     : "yes",
+                    "path"      : "fm_date"
                     },
                 '_ttl'       : { 'enabled' : True,                             
                                  'default' :  '5m'} 
@@ -203,6 +205,9 @@ class elasticBand():
     def elasticize_prc_istate(self,path,file):
 
         self.logger.debug(os.path.basename(file)+" going into buffer")
+
+        filepath = os.path.join(path,file)
+        mtime = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(os.path.getmtime(filepath)))
         stub = self.imbue_csv(path,file)
         document = {}
         if len(stub) == 0 or stub[0]=='\n':
@@ -214,6 +219,7 @@ class elasticBand():
             document['tp']    = float(stub[4])
             document['lead']  = float(stub[5])
             document['nfiles']= int(stub[6])
+            document['fm_date'] = str(mtime)
             self.fastmonBuffer.append(document)
         except Exception:
             pass
