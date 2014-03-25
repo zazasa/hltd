@@ -1,7 +1,5 @@
 #!/bin/env python
-#
-# chkconfig:   2345 80 21
-#
+
 import os,sys
 sys.path.append('/opt/hltd/python')
 sys.path.append('/opt/hltd/lib')
