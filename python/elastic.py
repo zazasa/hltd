@@ -72,10 +72,10 @@ class elasticCollector():
                     self.stop()
                     self.infile.deleteFile()
 
-
-
     def elasticize(self):
         infile = self.infile
+        filetype = infile.filetype
+        name = infile.name
         if es and os.path.isfile(infile.filepath):
             if filetype == FAST: 
                 es.elasticize_prc_istate(infile)
