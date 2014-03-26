@@ -309,7 +309,8 @@ class LumiSectionHandler():
 
     def checkClosure(self):
         if not self.EOLS: return False
-        for outfile in self.outfileList:
+        outfilelist = self.outfileList[:]
+        for outfile in outfilelist:
             stream = outfile.stream
             processed = outfile.getFieldByName("Processed")+outfile.getFieldByName("ErrorEvents")
             if processed == self.totalEvent:
@@ -321,23 +322,25 @@ class LumiSectionHandler():
                     self.outfileList.remove(outfile)
                     
                     #move all dat files in rundir
-                for datfile in self.datfileList:
+                    datfilelist = self.datfileList[:]
+                for datfile in datfilelist:
                     if datfile.stream == stream:
                         newfilepath = os.path.join(self.outdir,datfile.run,datfile.basename)
                         datfile.moveFile(newfilepath)
                         self.datfileList.remove(datfile)
                 
-            if not self.outfileList:
-                #self.EOLS.deleteFile()
+        if not self.outfileList:
+            #self.EOLS.deleteFile()
 
-                #delete all index files
-                for item in self.indexfileList:
-                    item.deleteFile()
+            #delete all index files
+            for item in self.indexfileList:
+                item.deleteFile()
 
-                #close lumisection if all streams are closed
-                self.logger.info("closing %r" %self.ls)
-                self.EOLS.esCopy()
-                self.closed.set()
+            #close lumisection if all streams are closed
+            self.logger.info("closing %r" %self.ls)
+            self.EOLS.esCopy()
+            self.closed.set()
+
 
 if __name__ == "__main__":
     logging.basicConfig(filename="/tmp/anelastic.log",
