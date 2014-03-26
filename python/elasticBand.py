@@ -322,11 +322,11 @@ class elasticBand():
 
     def flushAll(self):
         self.flushMonBuffer()
-        lslist = list(  set(self.prcinBuffer.values()) | 
-                        set(self.prcoutBuffer.values()) |
-                        set(self.fuoutBuffer.values()) )
+        lslist = list(  set(self.prcinBuffer.keys()) | 
+                        set(self.prcoutBuffer.keys()) |
+                        set(self.fuoutBuffer.keys()) )
         for ls in lslist:
             self.flushLS(ls)
-            
+
         
 
