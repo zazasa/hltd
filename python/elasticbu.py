@@ -181,7 +181,7 @@ class elasticCollectorBU():
             if (count%5) == 0:
                 if os.path.exists(self.eorCheckPath):
                     if es:
-                        dt=os.path.getmtime(self.eorCheckPath)
+                        dt=os.path.getctime(self.eorCheckPath)
                         endtime = datetime.datetime.utcfromtimestamp(dt)
                         es.elasticize_runend_time(endtime)
                     break
@@ -225,7 +225,7 @@ if __name__ == "__main__":
     es_server = sys.argv[0]
     dirname = sys.argv[1]
     runnumber = sys.argv[2]
-    dt=os.path.getmtime(dirname)
+    dt=os.path.getctime(dirname)
     startTime = datetime.datetime.utcfromtimestamp(dt)
     
     #EoR file path to watch for
