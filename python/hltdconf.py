@@ -36,8 +36,11 @@ class hltdConf:
         self.cgi_port = cfg.getint('Web','cgi_port')
 
         self.elastic_runindex_url = None
-        if cfg.has_option('Elastic URL','elastic_runindex_url'):
-            self.elastic_runindex_url = cfg.get('Elastic URL','elastic_runindex_url')
+        if cfg.has_option('Monitoring','elastic_runindex_url'):
+            self.elastic_runindex_url = cfg.get('Monitoring','elastic_runindex_url')
+
+        if cfg.has_option('Monitoring','elastic_bu_testing'):
+            self.elastic_bu_test = cfg.get('Monitoring','elastic_bu_test')
 
         self.resource_base = cfg.get('Resources','resource_base')
 

@@ -4,6 +4,7 @@ sys.path.append('/opt/hltd/python')
 sys.path.append('/opt/hltd/lib')
 
 import time
+import datetime
 import logging
 import subprocess
 from signal import SIGKILL
@@ -519,7 +520,8 @@ class Run:
             try:
                 if conf.role == "bu":
                     logging.info("starting elasticbu.py with arguments:"+self.dirname)
-                    elastic_args = ['/opt/hltd/python/elasticbu.py',self.dirname,str(self.runnumber)]
+                    run_dir_created = time.ctime(os.path.getctime(self.rawinputdir))
+                    elastic_args = ['/opt/hltd/python/elasticbu.py',self.dirname,str(self.runnumber),str(run_dir_created)]
                 else:
                     logging.info("starting elastic.py with arguments:"+self.dirname)
                     elastic_args = ['/opt/hltd/python/elastic.py',self.dirname,self.rawinputdir+'/mon',str(expected_processes)]
@@ -528,11 +530,13 @@ class Run:
                                                         preexec_fn=preexec_function,
                                                         close_fds=True
                                                         )
-
-                #hack
-                #elastic_args_test = ['/opt/hltd/python/elasticbutest.py',self.rawinputdir+'/',str(self.runnumber)]
-                #self.elastic_test = subprocess.Popen(elastic_args_test, preexec_fn=preexec_function, close_fds=True)
-
+                if conf.elastic_bu_test is not None:
+                    logging.info("starting elasticbu.py testing mode with arguments:"+self.dirname)
+                    #run_dir_created = time.ctime(os.path.getctime(self.rawinputdir))
+                    dt=os.path.getmtime(self.rawinputdir)
+                    run_dir_created = datetime.datetime.utcfromtimestamp(dt)
+                    elastic_args_test = ['/opt/hltd/python/elasticbu.py',self.rawinputdir,str(self.runnumber),str(run_dir_created)]
+                    self.elastic_test = subprocess.Popen(elastic_args_test, preexec_fn=preexec_function, close_fds=True)
 
             except OSError as ex:
                 logging.error("failed to start elasticsearch client")
