@@ -97,6 +97,7 @@ class LumiSectionRanger():
             else:
                 time.sleep(0.5)
 
+        self.EOR.esCopy()
         self.EOR.deleteFile()
         self.logger.info("Stop main loop")
 
