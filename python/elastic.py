@@ -50,7 +50,7 @@ class elasticCollector():
             else:
                 time.sleep(0.5)
 
-        es.flushBuffer()
+        es.flushAll()
         self.logger.info("Stop main loop")
 
 
