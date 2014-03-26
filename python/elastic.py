@@ -58,7 +58,7 @@ class elasticCollector():
         self.source = source
 
     def process(self):
-        self.logger.debug("RECEIVED FILE: %s " %(self.infile.basename))
+        self.logger.info("RECEIVED FILE: %s " %(self.infile.basename))
         infile = self.infile
         filetype = infile.filetype
         eventtype = self.eventtype    
@@ -100,6 +100,7 @@ class elasticCollector():
     def elasticizeLS(self):
         ls = self.infile.ls
         es.flushLS(ls)
+        self.infile.deleteFile()
 
 
 
