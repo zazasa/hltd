@@ -313,12 +313,12 @@ class elasticBand():
 
     def flushLS(self,ls):
         self.logger.info("flushing %r" %ls)
-        prcinBuffer = self.prcinBuffer.pop(ls) if ls in self.prcinBuffer else None
+        prcinDocs = self.prcinBuffer.pop(ls) if ls in self.prcinBuffer else None
         prcoutDocs = self.prcoutBuffer.pop(ls) if ls in self.prcoutBuffer else None
-        fuoutBuffer = self.fuoutBuffer.pop(ls) if ls in self.fuoutBuffer else None
-        if prcinBuffer: self.es.bulk_index(self.run,'prc-in',prcinBuffer)        
-        if prcoutBuffer: self.es.bulk_index(self.run,'prc-out',prcoutDocs)
-        if fuoutBuffer: self.es.bulk_index(self.run,'fu-out',fuoutBuffer)
+        fuoutDocs = self.fuoutBuffer.pop(ls) if ls in self.fuoutBuffer else None
+        if prcinDocs: self.es.bulk_index(self.run,'prc-in',prcinDocs)        
+        if prcoutDocs: self.es.bulk_index(self.run,'prc-out',DocsDocs)
+        if fuoutDocs: self.es.bulk_index(self.run,'fu-out',fuoutDocs)
 
     def flushAll(self):
         self.flushMonBuffer()
