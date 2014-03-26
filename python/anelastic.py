@@ -100,13 +100,13 @@ class LumiSectionRanger():
         self.EOR.deleteFile()
         self.logger.info("Stop main loop")
 
-
     def flushBuffer(self):
         self.firstStream.set()
         for self.infile in self.buffer:
             self.process()
 
         #send the fileEvent to the proper LShandlerand remove closed LSs, or process INI and EOR files
+    
     def process(self):
         
         filetype = self.infile.filetype
@@ -139,9 +139,8 @@ class LumiSectionRanger():
         self.logger.info("%r with errcode: %r" %(basename,errCode))
         for item in lsList.values():
             item.processFile(self.infile)
-
+    
     def processINIfile(self):
-            #get file information
         self.logger.info(self.infile.basename)
         infile = self.infile 
 
@@ -226,7 +225,6 @@ class LumiSectionHandler():
         elif filetype == CRASH: self.processCRASHFile()
 
         self.checkClosure()
-   
 
     def processStreamFile(self):
         self.logger.info(self.infile.basename)
@@ -247,6 +245,7 @@ class LumiSectionHandler():
                 outfile.merge(infile)
                 processed = outfile.getFieldByName("Processed")
                 self.logger.info("ls,stream: %r,%r - events %r / %r " %(ls,stream,processed,self.totalEvent))
+                infile.esCopy()
                 infile.deleteFile()
                 return True
         return False
@@ -265,11 +264,12 @@ class LumiSectionHandler():
             if pid not in self.pidList: self.pidList[pid] = {"numEvents": 0, "streamList": []}
             self.pidList[pid]["numEvents"]+=numEvents
 
-            if self.infile not in self.indexfileList:
-                self.indexfileList.append(self.infile)
+            if infile not in self.indexfileList:
+                self.indexfileList.append(infile)
+                infile.esCopy()
             return True
         return False
-
+ 
     def processCRASHFile(self):
         if self.infile.pid not in self.pidList: return True
       
@@ -318,6 +318,7 @@ class LumiSectionHandler():
                 newfilepath = os.path.join(self.outdir,outfile.run,outfile.basename)
 
                     #move output file in rundir
+                outfile.esCopy()
                 if outfile.moveFile(newfilepath):
                     self.outfileList.remove(outfile)
                     

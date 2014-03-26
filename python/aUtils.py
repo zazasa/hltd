@@ -174,7 +174,6 @@ class fileHandler(object):
         self.logger.info(filepath)
         if os.path.isfile(filepath):
             try:
-                self.esCopy()
                 os.remove(filepath)
             except Exception,e:
                 self.logger.exception(e)
@@ -192,7 +191,6 @@ class fileHandler(object):
             if not os.path.isdir(newdir): os.makedirs(newdir)
             if copy: shutil.copy(oldpath,newpath)
             else: 
-                self.esCopy()
                 shutil.move(oldpath,newpath)
         except OSError,e:
             self.logger.exception(e)
@@ -221,7 +219,6 @@ class fileHandler(object):
     def esCopy(self):
         if self.filetype in TO_ELASTICIZE:
             esDir = os.path.join(self.dir,ES_DIR_NAME)
-            self.logger.debug(esDir)
             if os.path.isdir(esDir):
                 newpath = os.path.join(esDir,self.basename)
                 shutil.copy(self.filepath,newpath)
