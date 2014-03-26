@@ -25,9 +25,12 @@ class elasticCollector():
     source = False
     infile = False
     
-    def __init__(self, esDir):
+    def __init__(self, esDir, inMonDir):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.esDirName = esDir
+        self.inputMonDir = inMonDir
+        self.movedModuleLegend = False
+        self.movedPathLegend = False
 
     def start(self):
         self.run()
@@ -70,6 +73,20 @@ class elasticCollector():
             elif filetype in [FAST,SLOW]:
                 self.elasticize(filepath,filetype)
                 if filetype == SLOW: self.infile.deleteFile()
+            elif filetype in [MODULELEGEND] and self.movedModuleLegend == False:
+                try:
+                    self.infile.moveFile(self.inputMonDir+'/microstatelegend.leg')
+                except Exception,ex:
+                    logger.error(ex)
+                    pass
+                self.movedModuleLegend = True
+            elif filetype in [PATHLEGEND] and self.movedPathLegend == False:
+                try:
+                    self.infile.moveFile(self.inputMonDir+'/pathlegend.leg')
+                except Exception,ex:
+                    logger.error(ex)
+                    pass
+                self.movedPathLegend = True
 
 
     def elasticize(self,filepath,filetype):
@@ -111,6 +128,7 @@ if __name__ == "__main__":
 
     conf=hltdconf.hltdConf('/etc/hltd.conf')
     dirname = sys.argv[1]
+    inmondir = sys.argv[2]
     dirname = os.path.basename(os.path.normpath(dirname))
     watchDir = os.path.join(conf.watch_directory,dirname)
     outputDir = conf.micromerge_output
@@ -145,7 +163,7 @@ if __name__ == "__main__":
         es = elasticBand.elasticBand('http://localhost:9200',dirname)
 
         #starting elasticCollector thread
-        ec = elasticCollector(ES_DIR_NAME)
+        ec = elasticCollector(ES_DIR_NAME,inmondir)
         ec.setSource(eventQueue)
         ec.start()
 

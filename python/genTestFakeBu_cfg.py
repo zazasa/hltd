@@ -2,6 +2,7 @@ import FWCore.ParameterSet.Config as cms
 import FWCore.ParameterSet.VarParsing as VarParsing
 
 options = VarParsing.VarParsing ('analysis')
+cmsswbase = os.path.expandvars('$CMSSW_BASE/')
 
 options.register ('runNumber',
                   1, # default value
@@ -80,7 +81,7 @@ process.out = cms.OutputModule("RawStreamFileWriterForBU",
                                ProductLabel = cms.untracked.string("s"),
                                numWriters = cms.untracked.uint32(1),
 			       eventBufferSize = cms.untracked.uint32(100),
-   			       jsonDefLocation = cms.untracked.string("/nfshome0/aspataru/cmssw/CMSSW_6_2_0_pre3/src/EventFilter/Utilities/plugins/budef.jsd"),
+   			       jsonDefLocation = cms.untracked.string(cmsswbase+"/src/EventFilter/Utilities/plugins/budef.jsd"),
 			       #lumiSubdirectoriesMode=cms.untracked.bool(False),
 			       debug = cms.untracked.bool(True)
                                )

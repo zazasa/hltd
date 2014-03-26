@@ -35,6 +35,9 @@ class hltdConf:
 
         self.cgi_port = cfg.getint('Web','cgi_port')
 
+        self.elastic_runindex_url = None
+        if cfg.has_option('Elastic URL','elastic_runindex_url'):
+            self.elastic_runindex_url = cfg.get('Elastic URL','elastic_runindex_url')
 
         self.resource_base = cfg.get('Resources','resource_base')
 

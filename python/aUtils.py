@@ -8,7 +8,7 @@ import hltdconf
 
 
 ES_DIR_NAME = "TEMP_ES_DIRECTORY"
-UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,INI,EOLS,EOR,DAT,PDAT,CRASH = range(13)            #file types 
+UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,INI,EOLS,EOR,DAT,PDAT,CRASH,MODULELEGEND,PATHLEGEND = range(15)            #file types 
 TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,EOR]
 MONBUFFERSIZE = 50
 
@@ -74,6 +74,8 @@ class fileHandler(object):
                 elif "EOR" in name: return EOR
         if ".fast" in filename: return FAST
         if "slow" in filename: return SLOW
+        if ext == ".leg" and "MICROSTATELEGEND" in name: return MODULELEGEND
+        if ext == ".leg" and "PATHLEGEND" in name: return PATHLEGEND
         return UNKNOWN
 
 

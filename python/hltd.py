@@ -35,7 +35,7 @@ used = conf.resource_base+'/online/'
 broken = conf.resource_base+'/except/'
 quarantined = conf.resource_base+'/quarantined/'
 nthreads = None
-
+expected_processes = None
 run_list=[]
 bu_disk_list=[]
 
@@ -118,13 +118,15 @@ def cleanup_mountpoints():
 
 def calculate_threadnumber():
     global nthreads
+    global expected_processes
+    idlecount = len(os.listdir(idles))
     if conf.cmssw_threads_autosplit>0:
-        idlecount = len(os.listdir(idles))
         nthreads = idlecount/conf.cmssw_threads_autosplit
         if nthreads*conf.cmssw_threads_autosplit != nthreads:
             logging.error("idle cores can not be evenly split to cmssw threads")
     else:
         nthreads = conf.cmssw_threads
+    expected_processes = idlecount/nthreads
 
 class system_monitor(threading.Thread):
 
@@ -280,7 +282,7 @@ class OnlineResource:
         IFF it is necessary, it should address "any" number of mounts, not just 2
         """
         input_disk = bu_disk_list[startindex%len(bu_disk_list)]+'/ramdisk'
-        run_dir = input_disk + '/run' + str(self.runnumber).zfill(conf.run_number_padding)
+        #run_dir = input_disk + '/run' + str(self.runnumber).zfill(conf.run_number_padding)
 
         logging.info("starting process with "+version+" and run number "+str(runnumber))
 
@@ -474,6 +476,7 @@ class Run:
         self.is_active_run = False
         self.anelastic_monitor = None
         self.elastic_monitor = None   
+        self.elastic_test = None   
         
         self.arch = None
         self.version = None
@@ -499,24 +502,45 @@ class Run:
             self.menu = conf.test_hlt_config1
             logging.warn("Using default values for run "+str(self.runnumber)+": "+self.version+" ("+self.arch+") with "+self.menu)
 
+        self.rawinputdir = None
+        if conf.role == "bu":
+            try:
+                self.rawinputdir = conf.watch_directory+'/run'+str(self.runnumber).zfill(conf.run_number_padding)+'/'
+                os.makedirs(mondir+'/mon')
+            except Exception, ex:
+                logging.error("could not create mon dir inside the run input directory")
+        else:
+            self.rawinputdir= bu_disk_list[0]+'/ramdisk/run' + str(self.runnumber).zfill(conf.run_number_padding)+'/'
+
         self.lock = threading.Lock()
         #conf.use_elasticsearch = False
             #note: start elastic.py first!
         if conf.use_elasticsearch:
             try:
-                logging.info("starting elastic.py with arguments:"+self.dirname)
-                elastic_args = ['/opt/hltd/python/elastic.py',self.dirname]
+                if conf.role == "bu":
+                    logging.info("starting elasticbu.py with arguments:"+self.dirname)
+                    elastic_args = ['/opt/hltd/python/elasticbu.py',self.dirname,str(self.runnumber)]
+                else:
+                    logging.info("starting elastic.py with arguments:"+self.dirname)
+                    elastic_args = ['/opt/hltd/python/elastic.py',self.dirname,self.rawinputdir+'mon']
+
                 self.elastic_monitor = subprocess.Popen(elastic_args,
                                                         preexec_fn=preexec_function,
                                                         close_fds=True
                                                         )
+
+                #hack
+                #elastic_args_test = ['/opt/hltd/python/elasticbutest.py',self.rawinputdir,str(self.runnumber)]
+                #self.elastic_test = subprocess.Popen(elastic_args_test, preexec_fn=preexec_function, close_fds=True)
+
+
             except OSError as ex:
                 logging.error("failed to start elasticsearch client")
                 logging.error(ex)
         if conf.role == "fu":
             try:
                 logging.info("starting anelastic.py with arguments:"+self.dirname)
-                elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname]
+                elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname,str(expected_processes)]
                 self.anelastic_monitor = subprocess.Popen(elastic_args,
                                                     preexec_fn=preexec_function,
                                                     close_fds=True
