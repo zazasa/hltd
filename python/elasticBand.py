@@ -233,10 +233,9 @@ class elasticBand():
 
     def elasticize_prc_sstate(self,infile):
         document = self.imbue_jsn(infile)
-        tokens=file.split('.')[0].split('_')
         datadict = {}
-        datadict['ls'] = int(tokens[1][2:])
-        datadict['process'] = tokens[2]
+        datadict['ls'] = int(infile.ls[2:])
+        datadict['process'] = infile.pid
         if document['data'][0] != "N/A":
           datadict['macro']   = [int(f) for f in document['data'][0].strip('[]').split(',')]
         else:
