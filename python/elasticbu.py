@@ -19,7 +19,7 @@ from pyelasticsearch.client import IndexAlreadyExistsError
 from pyelasticsearch.client import ElasticHttpError
 import csv
 
-index_name = "runindex_testing12"
+index_name = "runindex_test"
 
 class elasticBandBU:
 
@@ -114,7 +114,7 @@ class elasticBandBU:
     
     def elasticize_modulelegend(self,fullpath):
 
-        self.logger.debug(os.path.basename(fullpath)+" going into buffer")
+        self.logger.info(os.path.basename(fullpath)+" going into buffer")
         stub = self.read_line(fullpath)
         document = {}
         document['_parent']= self.runnumber
@@ -125,7 +125,7 @@ class elasticBandBU:
 
     def elasticize_pathlegend(self,fullpath):
 
-        self.logger.debug(os.path.basename(fullpath)+" going into buffer")
+        self.logger.info(os.path.basename(fullpath)+" going into buffer")
         stub = self.read_line(fullpath)
         document = {}
         document['_parent']= self.runnumber
@@ -135,7 +135,7 @@ class elasticBandBU:
 
     def elasticize_runend_time(self,endtime):
 
-        self.logger.debug(os.path.basename(fullpath)+" going into buffer")
+        self.logger.info(os.path.basename(fullpath)+" going into buffer")
         document = {}
         document['runNumber'] = self.runnumber
         document['endTime'] = endtime
@@ -148,11 +148,12 @@ class elasticCollectorBU():
     source = False
     infile = False
     
-    def __init__(self, inMonDir):
+    def __init__(self, inMonDir, inRunDir, rn):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.inputMonDir = inMonDir
         self.insertedModuleLegend = False
         self.insertedPathLegend = False
+        self.eorCheckPath = inRunDir + '/run' +  str(rn) + '_ls0000_EoR.jsn'
 
     def start(self):
         self.run()
@@ -161,7 +162,8 @@ class elasticCollectorBU():
         self.stoprequest.set()
 
     def run(self):
-        self.logger.info("Start main loop") 
+        self.logger.info("Start main loop")
+        count = 0
         while not (self.stoprequest.isSet() and self.emptyQueue.isSet()) :
             if self.source:
                 try:
@@ -174,6 +176,15 @@ class elasticCollectorBU():
                     self.emptyQueue.set() 
             else:
                 time.sleep(1.0)
+            #check for EoR file every 5 intervals
+            count+=1
+            if (count%5) == 0:
+                if os.path.exists(self.eorCheckPath):
+                    if es:
+                        dt=os.path.getmtime(self.eorCheckPath)
+                        endtime = datetime.datetime.utcfromtimestamp(dt)
+                        es.elasticize_runend_time(endtime)
+                    break
 
         es.flushBuffer()
         self.logger.info("Stop main loop")
@@ -182,16 +193,19 @@ class elasticCollectorBU():
     def setSource(self,source):
         self.source = source
 
+
     def process(self):
         self.logger.debug("RECEIVED FILE: %s " %(self.infile.basename))
         filepath = self.infile.filepath
         filetype = self.infile.filetype
         eventtype = self.eventtype
         if es and eventtype & (inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO):
-            if filetype in [MODULELEGEND]:
+            if filetype in [MODULELEGEND] and self.insertedModuleLegend == False:
                 es.elasticize_modulelegend(filepath)
-            elif filetype in [PATHLEGEND]:
+                self.insertedModuleLegend = True
+            elif filetype in [PATHLEGEND] and self.insertedPathLegend == False:
                 es.elasticize_pathlegend(filepath)
+                self.insertedPathLegend = True
 
 if __name__ == "__main__":
     logging.basicConfig(filename="/tmp/elastic-bu.log",
@@ -211,8 +225,10 @@ if __name__ == "__main__":
     es_server = sys.argv[0]
     dirname = sys.argv[1]
     runnumber = sys.argv[2]
-    startTime = sys.argv[3]
-    logger.info('start time ' + startTime)
+    dt=os.path.getmtime(dirname)
+    startTime = datetime.datetime.utcfromtimestamp(dt)
+    
+    #EoR file path to watch for
 
     monDir = os.path.join(dirname,"mon")
 
@@ -236,13 +252,16 @@ if __name__ == "__main__":
         mr.register_inotify_path(monDir,monMask)
         mr.start_inotify()
 
-        if conf.elastic_bu_test is not None:
-            es = elasticBandBU('http://localhost:9200',runnumber,startTime) 
-        else:
-            es = elasticBandBU(conf.elastic_runindex_url,dirname,startTime)
+        try:
+            if conf.elastic_bu_test is not None:
+                es = elasticBandBU('http://localhost:9200',runnumber,startTime)
+            else:
+                es = elasticBandBU(conf.elastic_runindex_url,runnumber,startTime)
+        except:
+            es = elasticBandBU(conf.elastic_runindex_url,runnumber,startTime)
 
         #starting elasticCollector thread
-        ec = elasticCollectorBU(monDir)
+        ec = elasticCollectorBU(monDir,dirname, runnumber.zfill(conf.run_number_padding))
         ec.setSource(eventQueue)
         ec.start()
 
@@ -250,11 +269,6 @@ if __name__ == "__main__":
         logger.exception(e)
         print traceback.format_exc()
         logger.error("when processing files from directory "+monDir)
-
-    if ec is not None:
-        utc_datetime = datetime.datetime.utcnow()
-        logger.info('end time ' + utc_datetime)
-        elasticize_runend_time(utd_datetime)
 
     logging.info("Closing notifier")
     if mr is not None:

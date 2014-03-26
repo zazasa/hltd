@@ -76,14 +76,16 @@ class elasticCollector():
                     self.infile.deleteFile()
             elif filetype in [MODULELEGEND] and self.movedModuleLegend == False:
                 try:
-                    self.infile.moveFile(self.inputMonDir+'/microstatelegend.leg')
+                    if not os.path.exists(self.inputMonDir+'/microstatelegend.leg')
+                        self.infile.moveFile(self.inputMonDir+'/microstatelegend.leg')
                 except Exception,ex:
                     logger.error(ex)
                     pass
                 self.movedModuleLegend = True
             elif filetype in [PATHLEGEND] and self.movedPathLegend == False:
                 try:
-                    self.infile.moveFile(self.inputMonDir+'/pathlegend.leg')
+                    if not os.path.exists(self.inputMonDir+'/pathlegend.leg')
+                        self.infile.moveFile(self.inputMonDir+'/pathlegend.leg')
                 except Exception,ex:
                     logger.error(ex)
                     pass
