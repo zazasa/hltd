@@ -81,8 +81,8 @@ class fileHandler(object):
         name,ext = self.name,self.ext
         splitname = name.split("_")
         if filetype in [STREAM,INI,PDAT,CRASH]: self.run,self.ls,self.stream,self.pid = splitname
-        elif filetype = SLOW: self.run,self.ls,self.pid = splitname
-        elif filetype = FAST: self.run,self.pid = splitname
+        elif filetype == SLOW: self.run,self.ls,self.pid = splitname
+        elif filetype == FAST: self.run,self.pid = splitname
         elif filetype in [DAT,OUTPUT]: self.run,self.ls,self.stream,self.host = splitname
         elif filetype == INDEX: self.run,self.ls,self.index,self.pid = splitname
         elif filetype == EOLS: self.run,self.ls,self.eols = splitname
