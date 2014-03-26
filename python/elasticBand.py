@@ -317,7 +317,7 @@ class elasticBand():
         prcoutDocs = self.prcoutBuffer.pop(ls) if ls in self.prcoutBuffer else None
         fuoutDocs = self.fuoutBuffer.pop(ls) if ls in self.fuoutBuffer else None
         if prcinDocs: self.es.bulk_index(self.run,'prc-in',prcinDocs)        
-        if prcoutDocs: self.es.bulk_index(self.run,'prc-out',DocsDocs)
+        if prcoutDocs: self.es.bulk_index(self.run,'prc-out',prcoutDocs)
         if fuoutDocs: self.es.bulk_index(self.run,'fu-out',fuoutDocs)
 
     def flushAll(self):
