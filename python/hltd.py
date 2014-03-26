@@ -505,12 +505,12 @@ class Run:
         self.rawinputdir = None
         if conf.role == "bu":
             try:
-                self.rawinputdir = conf.watch_directory+'/run'+str(self.runnumber).zfill(conf.run_number_padding)+'/'
+                self.rawinputdir = conf.watch_directory+'/run'+str(self.runnumber).zfill(conf.run_number_padding)
                 os.makedirs(mondir+'/mon')
             except Exception, ex:
                 logging.error("could not create mon dir inside the run input directory")
         else:
-            self.rawinputdir= bu_disk_list[0]+'/ramdisk/run' + str(self.runnumber).zfill(conf.run_number_padding)+'/'
+            self.rawinputdir= bu_disk_list[0]+'/ramdisk/run' + str(self.runnumber).zfill(conf.run_number_padding)
 
         self.lock = threading.Lock()
         #conf.use_elasticsearch = False
@@ -522,7 +522,7 @@ class Run:
                     elastic_args = ['/opt/hltd/python/elasticbu.py',self.dirname,str(self.runnumber)]
                 else:
                     logging.info("starting elastic.py with arguments:"+self.dirname)
-                    elastic_args = ['/opt/hltd/python/elastic.py',self.dirname,self.rawinputdir+'mon']
+                    elastic_args = ['/opt/hltd/python/elastic.py',self.dirname,self.rawinputdir+'/mon',str(expected_processes)]
 
                 self.elastic_monitor = subprocess.Popen(elastic_args,
                                                         preexec_fn=preexec_function,
@@ -530,7 +530,7 @@ class Run:
                                                         )
 
                 #hack
-                #elastic_args_test = ['/opt/hltd/python/elasticbutest.py',self.rawinputdir,str(self.runnumber)]
+                #elastic_args_test = ['/opt/hltd/python/elasticbutest.py',self.rawinputdir+'/',str(self.runnumber)]
                 #self.elastic_test = subprocess.Popen(elastic_args_test, preexec_fn=preexec_function, close_fds=True)
 
 
@@ -540,7 +540,7 @@ class Run:
         if conf.role == "fu":
             try:
                 logging.info("starting anelastic.py with arguments:"+self.dirname)
-                elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname,str(expected_processes)]
+                elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname]
                 self.anelastic_monitor = subprocess.Popen(elastic_args,
                                                     preexec_fn=preexec_function,
                                                     close_fds=True

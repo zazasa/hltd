@@ -53,7 +53,7 @@ class elasticCollector():
             else:
                 time.sleep(0.5)
 
-        es.flushBuffer()
+        es.flushAll()
         self.logger.info("Stop main loop")
 
 
@@ -61,18 +61,19 @@ class elasticCollector():
         self.source = source
 
     def process(self):
-        self.logger.debug("RECEIVED FILE: %s " %(self.infile.basename))
-        filepath = self.infile.filepath
-        filetype = self.infile.filetype
-        eventtype = self.eventtype
+        self.logger.info("RECEIVED FILE: %s " %(self.infile.basename))
+        infile = self.infile
+        filetype = infile.filetype
+        eventtype = self.eventtype    
         if eventtype & inotify.IN_CLOSE_WRITE:
-            if self.esDirName in self.infile.dir:
-                if filetype in [INDEX,STREAM,OUTPUT]:   self.elasticize(filepath,filetype)
-                if filetype in [EOR]: self.stop()
-                self.infile.deleteFile()
-            elif filetype in [FAST,SLOW]:
-                self.elasticize(filepath,filetype)
-                if filetype == SLOW: self.infile.deleteFile()
+            if filetype in [FAST,SLOW]:
+                self.elasticize()
+            elif self.esDirName in infile.dir:
+                if filetype in [INDEX,STREAM,OUTPUT]:self.elasticize()
+                elif filetype in [EOLS]:self.elasticizeLS()
+                elif filetype in [EOR]: 
+                    self.stop()
+                    self.infile.deleteFile()
             elif filetype in [MODULELEGEND] and self.movedModuleLegend == False:
                 try:
                     self.infile.moveFile(self.inputMonDir+'/microstatelegend.leg')
@@ -88,27 +89,37 @@ class elasticCollector():
                     pass
                 self.movedPathLegend = True
 
-
-    def elasticize(self,filepath,filetype):
-        self.logger.debug(filepath)
-        path = os.path.dirname(filepath)
-        name = os.path.basename(filepath)
-        if es and os.path.isfile(filepath):
+    def elasticize(self):
+        infile = self.infile
+        filetype = infile.filetype
+        name = infile.name
+        if es and os.path.isfile(infile.filepath):
             if filetype == FAST: 
-                es.elasticize_prc_istate(path,name)
+                es.elasticize_prc_istate(infile)
                 self.logger.debug(name+" going into prc-istate")
             elif filetype == SLOW: 
-                es.elasticize_prc_sstate(path,name)      
-                self.logger.debug(name+" going into prc-sstate")       
+                es.elasticize_prc_sstate(infile)      
+                self.logger.debug(name+" going into prc-sstate")     
+                self.infile.deleteFile()  
             elif filetype == INDEX: 
                 self.logger.info(name+" going into prc-in")
-                es.elasticize_prc_in(path,name)
+                es.elasticize_prc_in(infile)
+                self.infile.deleteFile()
             elif filetype == STREAM:
                 self.logger.info(name+" going into prc-out")
-                es.elasticize_prc_out(path,name)
+                es.elasticize_prc_out(infile)
+                self.infile.deleteFile()
             elif filetype == OUTPUT:
                 self.logger.info(name+" going into fu-out")
-                es.elasticize_fu_out(path,name)
+                es.elasticize_fu_out(infile)
+                self.infile.deleteFile()
+
+    def elasticizeLS(self):
+        ls = self.infile.ls
+        es.flushLS(ls)
+        self.infile.deleteFile()
+
+
 
 if __name__ == "__main__":
     logging.basicConfig(filename="/tmp/elastic.log",

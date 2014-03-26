@@ -10,7 +10,7 @@ import hltdconf
 ES_DIR_NAME = "TEMP_ES_DIRECTORY"
 UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,INI,EOLS,EOR,DAT,PDAT,CRASH,MODULELEGEND,PATHLEGEND = range(15)            #file types 
 TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,EOR]
-MONBUFFERSIZE = 50
+TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,EOR,EOLS]
 
 
 
@@ -84,6 +84,8 @@ class fileHandler(object):
         name,ext = self.name,self.ext
         splitname = name.split("_")
         if filetype in [STREAM,INI,PDAT,CRASH]: self.run,self.ls,self.stream,self.pid = splitname
+        elif filetype == SLOW: self.run,self.ls,self.pid = splitname
+        elif filetype == FAST: self.run,self.pid = splitname
         elif filetype in [DAT,OUTPUT]: self.run,self.ls,self.stream,self.host = splitname
         elif filetype == INDEX: self.run,self.ls,self.index,self.pid = splitname
         elif filetype == EOLS: self.run,self.ls,self.eols = splitname

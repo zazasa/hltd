@@ -236,7 +236,7 @@ class LumiSectionHandler():
         ls,stream,pid = infile.ls,infile.stream,infile.pid
         outdir = self.outdir
 
-        if self.closed.isSet(): self.closed.clear()
+        #if self.closed.isSet(): self.closed.clear()
         if infile.data:
             #update pidlist
             if stream not in self.pidList[pid]["streamList"]: self.pidList[pid]["streamList"].append(stream)
@@ -335,6 +335,8 @@ class LumiSectionHandler():
                     item.deleteFile()
 
                 #close lumisection if all streams are closed
+                self.logger.info("closing %r" %self.ls)
+                self.EOLS.esCopy()
                 self.closed.set()
 
 if __name__ == "__main__":
