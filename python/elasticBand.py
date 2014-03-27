@@ -62,7 +62,7 @@ class elasticBand():
                     'store'     : "yes",
                     "path"      : "fm_date"
                     },
-                '_ttl'       : { 'enabled' : False,                             
+                '_ttl'       : { 'enabled' : True,                             
                                  'default' :  '5m'} 
                 },
             'prc-s-state' : {
