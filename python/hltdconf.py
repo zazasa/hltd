@@ -15,6 +15,12 @@ class hltdConf:
         self.exec_directory = cfg.get('General','exec_directory')
         self.user = cfg.get('General','user')
         self.watch_directory = cfg.get('General','watch_directory')
+
+        #optional parameter for testing with a different ramdisk directory
+        self.ramdisk_subdirectory = 'ramdisk'
+        if cfg.has_option('General','ramdisk_subdirectory'):
+            self.ramdisk_subdirectory = cfg.get('General','ramdisk_subdirectory')
+
         self.micromerge_output = cfg.get('General','micromerge_output')
         self.watch_prefix = cfg.get('General','watch_prefix')
         self.watch_emu_prefix = cfg.get('General','watch_emu_prefix')
@@ -35,10 +41,12 @@ class hltdConf:
 
         self.cgi_port = cfg.getint('Web','cgi_port')
 
+        #optional parameter used only in bu role
         self.elastic_runindex_url = None
         if cfg.has_option('Monitoring','elastic_runindex_url'):
             self.elastic_runindex_url = cfg.get('Monitoring','elastic_runindex_url')
 
+        #optional parameter used for testing
         if cfg.has_option('Monitoring','elastic_bu_test'):
             self.elastic_bu_test = cfg.get('Monitoring','elastic_bu_test')
 
@@ -84,6 +92,8 @@ class hltdConf:
         logging.info( 'self.cmssw_arch '+ self.cmssw_arch)
         logging.info( 'self.cmssw_default_version '+ self.cmssw_default_version)
         logging.info( 'self.cmssw_script_location '+ self.cmssw_script_location)
+        logging.ingo( 'self.cmssw_threads_autosplit '+ self.cmssw_threads_autosplit)
+        logging.ingo( 'self.cmssw_threads '+ self.cmssw_threads)
         logging.info( 'self.test_hlt_config '+ self.test_hlt_config1)
         logging.info( 'self.test_bu_config '+ self.test_bu_config)
         logging.info( 'self.service_log_level '+str(self.service_log_level))

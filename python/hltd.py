@@ -140,7 +140,7 @@ class system_monitor(threading.Thread):
         self.threadEvent = threading.Event()
 
     def rehash(self):
-        self.directory = ['/'+x+'/ramdisk/appliance/boxes/' for x in bu_disk_list]
+        self.directory = ['/'+x+'/'+conf.ramdisk_subdirectory+'/appliance/boxes/' for x in bu_disk_list]
         self.file = [x+self.hostname for x in self.directory]
         for dir in self.directory:
             try:
@@ -281,7 +281,7 @@ class OnlineResource:
         independent mounts of the BU - it should not be necessary in due course
         IFF it is necessary, it should address "any" number of mounts, not just 2
         """
-        input_disk = bu_disk_list[startindex%len(bu_disk_list)]+'/ramdisk'
+        input_disk = bu_disk_list[startindex%len(bu_disk_list)]+'/'+conf.ramdisk_subdirectory
         #run_dir = input_disk + '/run' + str(self.runnumber).zfill(conf.run_number_padding)
 
         logging.info("starting process with "+version+" and run number "+str(runnumber))
@@ -510,7 +510,7 @@ class Run:
             except Exception, ex:
                 logging.error("could not create mon dir inside the run input directory")
         else:
-            self.rawinputdir= bu_disk_list[0]+'/ramdisk/run' + str(self.runnumber).zfill(conf.run_number_padding)
+            self.rawinputdir= bu_disk_list[0]+'/'+conf.ramdisk_subdirectory+'/run' + str(self.runnumber).zfill(conf.run_number_padding)
 
         self.lock = threading.Lock()
         #conf.use_elasticsearch = False
@@ -796,7 +796,7 @@ class RunRanger:
                 try:
                     logging.info('new run '+str(nr))
                     if conf.role == 'fu':
-                        bu_dir = bu_disk_list[0]+'/ramdisk/'+dirname
+                        bu_dir = bu_disk_list[0]+'/'+conf.ramdisk_subdirectory+'/'+dirname
                         os.symlink(bu_dir+'/jsd',event.fullpath+'/jsd')
                     else:
                         bu_dir = ''
