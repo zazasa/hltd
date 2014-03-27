@@ -39,7 +39,7 @@ class hltdConf:
         if cfg.has_option('Monitoring','elastic_runindex_url'):
             self.elastic_runindex_url = cfg.get('Monitoring','elastic_runindex_url')
 
-        if cfg.has_option('Monitoring','elastic_bu_testing'):
+        if cfg.has_option('Monitoring','elastic_bu_test'):
             self.elastic_bu_test = cfg.get('Monitoring','elastic_bu_test')
 
         self.resource_base = cfg.get('Resources','resource_base')

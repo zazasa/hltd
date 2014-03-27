@@ -27,6 +27,7 @@ class elasticBandBU:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.es = ElasticSearch(es_server_url)
         self.runnumber = str(runnumber)
+        self.startTime = startTime
         self.settings = {
             "analysis":{
                 "analyzer": {
@@ -74,19 +75,34 @@ class elasticBandBU:
                     }
             },
             'microstatelegend' : {
+
+                '_id' : {
+                    'path' : 'id'
+                },
                 '_parent':{'type':'run'},
                 'properties' : {
                     'names':{
+                        'type':'string'
+                        },
+                    'id':{
                         'type':'string'
                         }
                     }
             },
             'pathlegend' : {
+
+                '_id' : {
+                    'path' : 'id'
+                },
                 '_parent':{'type':'run'},
                 'properties' : {
                     'names':{
                         'type':'string'
+                        },
+                    'id':{
+                        'type':'string'
                         }
+
                     }
                 }
             }
@@ -118,6 +134,7 @@ class elasticBandBU:
         stub = self.read_line(fullpath)
         document = {}
         document['_parent']= self.runnumber
+        document['id']= "microstatelegend_"+self.runnumber
         document['names']= self.read_line(fullpath)
         documents = [document]
         self.es.bulk_index(index_name,'microstatelegend',documents)
@@ -129,15 +146,17 @@ class elasticBandBU:
         stub = self.read_line(fullpath)
         document = {}
         document['_parent']= self.runnumber
+        document['id']= "pathlegend_"+self.runnumber
         document['names']= self.read_line(fullpath)
         documents = [document]
         self.es.bulk_index(index_name,'pathlegend',documents)
 
     def elasticize_runend_time(self,endtime):
 
-        self.logger.info(os.path.basename(fullpath)+" going into buffer")
+        self.logger.info(str(endtime)+" going into buffer")
         document = {}
         document['runNumber'] = self.runnumber
+        document['startTime'] = self.startTime
         document['endTime'] = endtime
         self.es.index(index_name,'run',document)
 
@@ -186,7 +205,6 @@ class elasticCollectorBU():
                         es.elasticize_runend_time(endtime)
                     break
 
-        es.flushBuffer()
         self.logger.info("Stop main loop")
 
 
