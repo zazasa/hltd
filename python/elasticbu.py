@@ -36,31 +36,18 @@ class elasticBandBU:
                         "tokenizer": "prefix-test-tokenizer"
                     }
                 },
-            },
+                "tokenizer": {
+                    "prefix-test-tokenizer": {
+                        "type": "path_hierarchy",
+                        "delimiter": " "
+                    }
+                }
+             },
             "index":{
                 'number_of_shards' : 1,
                 'number_of_replicas' : 1
             },
         }
-
-
-        self.box_mapping = {
-            'boxinfo' : {
-                '_parent':{'type':'run'},
-                'properties' : {
-                    'fm_date'   :{'type':'date'},
-                    'broken'    :{'type':'string'},
-                    'used'      :{'type':'string'},
-                    'idles'     :{'type':'string'},
-                    'quarantined':{'type':'string'},
-                    }
-                },
-#                '_timestamp' : { 
-#                    'enabled'   : True,
-#                    'store'     : "yes",
-#                    "path"      : "fm_date"
-#                    },
-                }
 
         self.run_mapping = {
             'run' : {
@@ -76,10 +63,10 @@ class elasticBandBU:
                         'type':'integer'
                         },
                     'startTime':{
-                        'type':'date'
+                        'type':'string'
                             },
                     'endTime':{
-                        'type':'date'
+                        'type':'string'
                             }
                 },
                 '_timestamp' : {
@@ -117,11 +104,33 @@ class elasticBandBU:
                         }
 
                     }
+                },
+            'boxinfo' : {
+                '_id'        :{'path':'id'},
+                '_parent'    :{'type':'run'},
+                'properties' : {
+                    'fm_date'       :{'type':'date'},
+                    'id'            :{'type':'string'},
+                    'broken'        :{'type':'string'},
+                    'used'          :{'type':'string'},
+                    'idles'         :{'type':'string'},
+                    'quarantined'   :{'type':'string'},
+                    'outpud'        :{'type':'string'},
+                    'ramdisk'       :{'type':'string'}
+                    },
+                '_timestamp' : { 
+                    'enabled'   : True,
+                    'store'     : "yes",
+                    "path"      : "fm_date"
+                    },
                 }
             }
 
+
+
+
         try:
-            self.es.create_index(index_name, settings={ 'settings': self.settings, 'mappings': self.box_mapping })
+            self.es.create_index(index_name, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
         except ElasticHttpError as ex:
             logger.info(ex)
 #            print "Index already existing - records will be overridden"
@@ -175,15 +184,14 @@ class elasticBandBU:
 
 
     def elasticize_box(self,infile):
+
         basename = infile.basename
         self.logger.info(basename+" going into buffer")
         document = infile.data
         document['_parent']= self.runnumber
-        try:
-            self.es.create_index(basename, settings={ 'settings': self.settings, 'mappings': self.box_mapping })
-        except ElasticHttpError as ex:
-            pass
-        self.es.bulk_index(basename,'boxinfo',documents)
+        document['id']= basename+self.runnumber
+        documents = [document]
+        self.es.bulk_index(index_name,'boxinfo',documents)
 
 
 class elasticCollectorBU():
@@ -254,9 +262,8 @@ class elasticCollectorBU():
                 self.insertedModuleLegend = True
             elif filetype in [PATHLEGEND] and self.insertedPathLegend == False:
                 es.elasticize_pathlegend(filepath)
-                self.insertedPathLegend = True
-        elif es and eventtype & (inotify.IN_CLOSE_WRITE):                
-            if filetype == BOX:
+                self.insertedPathLegend = True          
+            elif filetype == BOX:
                 self.logger.info(self.infile.basename)
                 es.elasticize_box(self.infile)
 

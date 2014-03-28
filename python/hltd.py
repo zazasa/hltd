@@ -158,14 +158,27 @@ class system_monitor(threading.Thread):
 #                logging.info('system monitor - running '+str(self.running))
                 self.threadEvent.wait(5)
                 tstring = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
+
                 fp = None
                 for mfile in self.file:
+                    
+                        budir = mfile[:len(conf.bu_base_dir)+3]
+                        outdir = os.path.join(budir,'output')
+                        outdir = os.statvfs(outdir)
+                        outdir = '{0:.0%}'.format(outdir.f_bavail/float(outdir.f_blocks))
+                        ramdisk = os.path.join(budir,'ramdisk')
+                        ramdisk = os.statvfs(ramdisk)
+                        ramdisk = '{0:.0%}'.format(ramdisk.f_bavail/float(ramdisk.f_blocks))
+
+
                         fp=open(mfile,'w+')
                         fp.write('fm_date='+tstring+'\n')
                         fp.write('idles='+str(len(os.listdir(idles)))+'\n')
                         fp.write('used='+str(len(os.listdir(used)))+'\n')
                         fp.write('broken='+str(len(os.listdir(broken)))+'\n')
                         fp.write('quarantined='+str(len(os.listdir(quarantined)))+'\n')
+                        fp.write('output='+str(outdir+'\n'))
+                        fp.write('ramdisk='+str(ramdisk+'\n'))
                         fp.close()
                 if conf.role == 'bu':
                     mfile = conf.resource_base+'/disk.jsn'

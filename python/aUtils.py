@@ -127,22 +127,24 @@ class fileHandler(object):
         elif self.filetype == BOX: return self.getBoxData()
         return None
 
-    def getBoxData(self):
+    def getBoxData(self,filepath = None):
+        if not filepath: filepath = self.filepath
         sep = '\n'
         try:
             with open(filepath,'r') as fi:
                 data = fi.read()
+                data = data.strip(sep).split(sep)
+                data = dict([d.split('=') for d in data])
         except StandardError,e:
             self.logger.exception(e)
             data = {}
 
-        data = dictdata.strip(sep).split(sep)
-        data = dict([d.split('=') for d in data])
+
         return data
 
         #get data from json file
     def getJsonData(self,filepath = None):
-        if not filepath: filepath=self.filepath
+        if not filepath: filepath = self.filepath
         try:
             with open(filepath) as fi:
                 data = json.load(fi)

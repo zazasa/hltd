@@ -307,9 +307,10 @@ class elasticBand():
         #return int(ls[2:])
 
     def flushMonBuffer(self):
-        self.logger.info("flushing fast monitor buffer (len: %r) " %len(self.istateBuffer))
-        self.es.bulk_index(self.run,'prc-i-state',self.istateBuffer)
-        self.istateBuffer = []
+        if self.istateBuffer:
+            self.logger.info("flushing fast monitor buffer (len: %r) " %len(self.istateBuffer))
+            self.es.bulk_index(self.run,'prc-i-state',self.istateBuffer)
+            self.istateBuffer = []
 
     def flushLS(self,ls):
         self.logger.info("flushing %r" %ls)
