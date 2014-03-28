@@ -4,6 +4,7 @@ sys.path.append('/opt/hltd/python')
 sys.path.append('/opt/hltd/lib')
 
 import time
+from datetime import datetime
 import logging
 import subprocess
 from signal import SIGKILL
@@ -157,7 +158,8 @@ class system_monitor(threading.Thread):
             while self.running:
 #                logging.info('system monitor - running '+str(self.running))
                 self.threadEvent.wait(5)
-                tstring = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
+
+                tstring = datetime.utcfromtimestamp(time.time()).isoformat()
 
                 fp = None
                 for mfile in self.file:
