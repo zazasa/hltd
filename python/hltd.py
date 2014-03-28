@@ -157,11 +157,11 @@ class system_monitor(threading.Thread):
             while self.running:
 #                logging.info('system monitor - running '+str(self.running))
                 self.threadEvent.wait(5)
-                tstring = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+                tstring = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
                 fp = None
                 for mfile in self.file:
                         fp=open(mfile,'w+')
-                        fp.write(tstring+'\n')
+                        fp.write('fm_date='+tstring+'\n')
                         fp.write('idles='+str(len(os.listdir(idles)))+'\n')
                         fp.write('used='+str(len(os.listdir(used)))+'\n')
                         fp.write('broken='+str(len(os.listdir(broken)))+'\n')

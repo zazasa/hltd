@@ -36,18 +36,31 @@ class elasticBandBU:
                         "tokenizer": "prefix-test-tokenizer"
                     }
                 },
-                "tokenizer": {
-                    "prefix-test-tokenizer": {
-                        "type": "path_hierarchy",
-                        "delimiter": " "
-                    }
-                }
-             },
+            },
             "index":{
                 'number_of_shards' : 1,
                 'number_of_replicas' : 1
             },
         }
+
+
+        self.box_mapping = {
+            'boxinfo' : {
+                '_parent':{'type':'run'},
+                'properties' : {
+                    'fm_date'   :{'type':'date'},
+                    'broken'    :{'type':'string'},
+                    'used'      :{'type':'string'},
+                    'idles'     :{'type':'string'},
+                    'quarantined':{'type':'string'},
+                    }
+                },
+#                '_timestamp' : { 
+#                    'enabled'   : True,
+#                    'store'     : "yes",
+#                    "path"      : "fm_date"
+#                    },
+                }
 
         self.run_mapping = {
             'run' : {
@@ -63,10 +76,10 @@ class elasticBandBU:
                         'type':'integer'
                         },
                     'startTime':{
-                        'type':'string'
+                        'type':'date'
                             },
                     'endTime':{
-                        'type':'string'
+                        'type':'date'
                             }
                 },
                 '_timestamp' : {
@@ -108,7 +121,7 @@ class elasticBandBU:
             }
 
         try:
-            self.es.create_index(index_name, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
+            self.es.create_index(index_name, settings={ 'settings': self.settings, 'mappings': self.box_mapping })
         except ElasticHttpError as ex:
             logger.info(ex)
 #            print "Index already existing - records will be overridden"
@@ -161,18 +174,35 @@ class elasticBandBU:
         self.es.index(index_name,'run',document)
 
 
+    def elasticize_box(self,infile):
+        basename = infile.basename
+        self.logger.info(basename+" going into buffer")
+        document = infile.data
+        document['_parent']= self.runnumber
+        try:
+            self.es.create_index(basename, settings={ 'settings': self.settings, 'mappings': self.box_mapping })
+        except ElasticHttpError as ex:
+            pass
+        self.es.bulk_index(basename,'boxinfo',documents)
+
+
 class elasticCollectorBU():
-    stoprequest = threading.Event()
-    emptyQueue = threading.Event()
-    source = False
-    infile = False
+
     
     def __init__(self, inMonDir, inRunDir, rn):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.inputMonDir = inMonDir
+        
+
+        self.runCreated = False
         self.insertedModuleLegend = False
         self.insertedPathLegend = False
         self.eorCheckPath = inRunDir + '/run' +  str(rn) + '_ls0000_EoR.jsn'
+        
+        self.stoprequest = threading.Event()
+        self.emptyQueue = threading.Event()
+        self.source = False
+        self.infile = False
 
     def start(self):
         self.run()
@@ -189,6 +219,7 @@ class elasticCollectorBU():
                     event = self.source.get(True,1.0) #blocking with timeout
                     self.eventtype = event.mask
                     self.infile = fileHandler(event.fullpath)
+                    self.logger.info(self.infile.filepath)
                     self.emptyQueue.clear()
                     self.process() 
                 except (KeyboardInterrupt,Queue.Empty) as e:
@@ -201,10 +232,10 @@ class elasticCollectorBU():
                 if os.path.exists(self.eorCheckPath):
                     if es:
                         dt=os.path.getctime(self.eorCheckPath)
-                        endtime = datetime.datetime.utcfromtimestamp(dt)
+                        endtime = datetime.datetime.utcfromtimestamp(dt).isoformat()
                         es.elasticize_runend_time(endtime)
+                        self.runCreated = True
                     break
-
         self.logger.info("Stop main loop")
 
 
@@ -224,6 +255,11 @@ class elasticCollectorBU():
             elif filetype in [PATHLEGEND] and self.insertedPathLegend == False:
                 es.elasticize_pathlegend(filepath)
                 self.insertedPathLegend = True
+        elif es and eventtype & (inotify.IN_CLOSE_WRITE):                
+            if filetype == BOX:
+                self.logger.info(self.infile.basename)
+                es.elasticize_box(self.infile)
+
 
 if __name__ == "__main__":
     logging.basicConfig(filename="/tmp/elastic-bu.log",
@@ -244,15 +280,18 @@ if __name__ == "__main__":
     dirname = sys.argv[1]
     runnumber = sys.argv[2]
     dt=os.path.getctime(dirname)
-    startTime = datetime.datetime.utcfromtimestamp(dt)
+    startTime = datetime.datetime.utcfromtimestamp(dt).isoformat()
     
     #EoR file path to watch for
 
     monDir = os.path.join(dirname,"mon")
-
     monMask = inotify.IN_CLOSE_WRITE |  inotify.IN_MOVED_TO
+    boxesDir =  os.path.join(dirname[:dirname.rfind('run')],'appliance/boxes')
+    boxesMask = inotify.IN_CLOSE_WRITE 
+
 
     logger.info("starting elastic for "+monDir)
+    logger.info("starting elastic for "+boxesDir)
 
     try:
         logger.info("watch dir" + monDir)
@@ -268,6 +307,8 @@ if __name__ == "__main__":
         mr.setEventQueue(eventQueue)
         #mr.register_inotify_path(watchDir,mask)
         mr.register_inotify_path(monDir,monMask)
+        mr.register_inotify_path(boxesDir,boxesMask)
+
         mr.start_inotify()
 
         try:

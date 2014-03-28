@@ -18,37 +18,6 @@ from aUtils import *
 
 
 
-    #on notify, put the event file in a queue
-class MonitorRanger:
-
-    def __init__(self,recursiveMode=False):
-        self.logger = logging.getLogger(self.__class__.__name__)
-        self.eventQueue = False
-        self.inotifyWrapper = InotifyWrapper(self,recursiveMode)
-
-    def register_inotify_path(self,path,mask):
-        self.inotifyWrapper.registerPath(path,mask)
-
-    def start_inotify(self):
-        self.inotifyWrapper.start()
-
-    def stop_inotify(self):
-        logging.info("MonitorRanger: Stop inotify wrapper")
-        self.inotifyWrapper.stop()
-        logging.info("MonitorRanger: Join inotify wrapper")
-        self.inotifyWrapper.join()
-        logging.info("MonitorRanger: Inotify wrapper returned")
-
-    def process_default(self, event):
-        self.logger.debug("event: %s on: %s" %(str(event.mask),event.fullpath))
-        if self.eventQueue:
-            self.eventQueue.put(event)
-
-    def setEventQueue(self,queue):
-        self.eventQueue = queue
-
-
-
 class LumiSectionRanger():
     host = os.uname()[1]        
     def __init__(self,tempdir,outdir):

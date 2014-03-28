@@ -11,7 +11,6 @@ import Queue
 import elasticBand
 import hltdconf
 
-from anelastic import *
 from aUtils import *
 
 

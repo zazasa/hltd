@@ -6,12 +6,13 @@ import json
 import logging
 import hltdconf
 
+from inotifywrapper import InotifyWrapper
+import _inotify as inotify
+
 
 ES_DIR_NAME = "TEMP_ES_DIRECTORY"
-UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,INI,EOLS,EOR,DAT,PDAT,CRASH,MODULELEGEND,PATHLEGEND = range(15)            #file types 
-TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,EOR]
+UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,INI,EOLS,EOR,DAT,PDAT,CRASH,MODULELEGEND,PATHLEGEND,BOX = range(16)            #file types 
 TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,EOR,EOLS]
-
 
 
 #Output redirection class
@@ -27,7 +28,34 @@ class stdErrorLog:
         self.logger.error(message)
 
 
+    #on notify, put the event file in a queue
+class MonitorRanger:
 
+    def __init__(self,recursiveMode=False):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.eventQueue = False
+        self.inotifyWrapper = InotifyWrapper(self,recursiveMode)
+
+    def register_inotify_path(self,path,mask):
+        self.inotifyWrapper.registerPath(path,mask)
+
+    def start_inotify(self):
+        self.inotifyWrapper.start()
+
+    def stop_inotify(self):
+        logging.info("MonitorRanger: Stop inotify wrapper")
+        self.inotifyWrapper.stop()
+        logging.info("MonitorRanger: Join inotify wrapper")
+        self.inotifyWrapper.join()
+        logging.info("MonitorRanger: Inotify wrapper returned")
+
+    def process_default(self, event):
+        self.logger.debug("event: %s on: %s" %(str(event.mask),event.fullpath))
+        if self.eventQueue:
+            self.eventQueue.put(event)
+
+    def setEventQueue(self,queue):
+        self.eventQueue = queue
 
 
 class fileHandler(object):
@@ -39,7 +67,7 @@ class fileHandler(object):
             if name in ["dir","ext","basename","name"]: self.getFileInfo() 
             elif name in ["filetype"]: self.filetype = self.getFiletype();
             elif name in ["run","ls","stream","index","pid"]: self.getFileHeaders()
-            elif name in ["data"]: self.data = self.getJsonData(); 
+            elif name in ["data"]: self.data = self.getData(); 
             elif name in ["definitions"]: self.getDefinitions()
             elif name in ["host"]: self.host = os.uname()[1];
         return self.__dict__[name]
@@ -76,6 +104,7 @@ class fileHandler(object):
         if "slow" in filename: return SLOW
         if ext == ".leg" and "MICROSTATELEGEND" in name: return MODULELEGEND
         if ext == ".leg" and "PATHLEGEND" in name: return PATHLEGEND
+        if "boxes" in filepath : return BOX
         return UNKNOWN
 
 
@@ -93,10 +122,27 @@ class fileHandler(object):
             self.logger.warning("Bad filetype: %s" %self.filepath)
             self.run,self.ls,self.stream = [None]*3
 
+    def getData(self):
+        if self.ext == '.jsn': return self.getJsonData()
+        elif self.filetype == BOX: return self.getBoxData()
+        return None
+
+    def getBoxData(self):
+        sep = '\n'
+        try:
+            with open(filepath,'r') as fi:
+                data = fi.read()
+        except StandardError,e:
+            self.logger.exception(e)
+            data = {}
+
+        data = dictdata.strip(sep).split(sep)
+        data = dict([d.split('=') for d in data])
+        return data
 
         #get data from json file
     def getJsonData(self,filepath = None):
-        if not filepath: filepath = self.filepath
+        if not filepath: filepath=self.filepath
         try:
             with open(filepath) as fi:
                 data = json.load(fi)
