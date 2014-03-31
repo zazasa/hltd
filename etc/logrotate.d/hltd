@@ -1,0 +1,7 @@
+/var/log/hltd/*log {
+        dateext
+        missingok
+        size 1M
+        rotate 10
+        compress
+}

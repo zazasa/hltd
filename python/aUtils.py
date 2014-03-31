@@ -14,7 +14,6 @@ ES_DIR_NAME = "TEMP_ES_DIRECTORY"
 UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,INI,EOLS,EOR,DAT,PDAT,CRASH,MODULELEGEND,PATHLEGEND,BOX = range(16)            #file types 
 TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,EOR,EOLS]
 
-
 #Output redirection class
 class stdOutLog:
     def __init__(self):

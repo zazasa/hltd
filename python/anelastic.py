@@ -314,6 +314,10 @@ class LumiSectionHandler():
 
 
 if __name__ == "__main__":
+
+    print __file__
+    sys.exit(0)
+
     logging.basicConfig(filename="/tmp/anelastic.log",
                     level=logging.INFO,
                     format='%(levelname)s:%(asctime)s-%(name)s.%(funcName)s - %(message)s',
