@@ -6,11 +6,11 @@ from pyelasticsearch.client import ElasticHttpError
 import json
 import csv
 import math
-
 import logging
 
-from aUtils import *
+from datetime import datetime
 
+from aUtils import *
 
 MONBUFFERSIZE = 50
 es_server_url = 'http://localhost:9200'
@@ -212,7 +212,9 @@ class elasticBand():
     def elasticize_prc_istate(self,infile):
         filepath = infile.filepath
         self.logger.debug("%r going into buffer" %filepath)
-        mtime = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(os.path.getmtime(filepath)))
+        #mtime = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(os.path.getmtime(filepath)))
+        mtime = datetime.utcfromtimestamp(os.path.getmtime(filepath)).isoformat()
+        self.logger.info(mtime)
         stub = self.imbue_csv(infile)
         document = {}
         if len(stub) == 0 or stub[0]=='\n':
@@ -307,9 +309,10 @@ class elasticBand():
         #return int(ls[2:])
 
     def flushMonBuffer(self):
-        self.logger.info("flushing fast monitor buffer (len: %r) " %len(self.istateBuffer))
-        self.es.bulk_index(self.run,'prc-i-state',self.istateBuffer)
-        self.istateBuffer = []
+        if self.istateBuffer:
+            self.logger.info("flushing fast monitor buffer (len: %r) " %len(self.istateBuffer))
+            self.es.bulk_index(self.run,'prc-i-state',self.istateBuffer)
+            self.istateBuffer = []
 
     def flushLS(self,ls):
         self.logger.info("flushing %r" %ls)

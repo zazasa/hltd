@@ -11,7 +11,6 @@ import Queue
 import elasticBand
 import hltdconf
 
-from anelastic import *
 from aUtils import *
 
 
@@ -61,7 +60,7 @@ class elasticCollector():
         self.source = source
 
     def process(self):
-        self.logger.info("RECEIVED FILE: %s " %(self.infile.basename))
+        self.logger.debug("RECEIVED FILE: %s " %(self.infile.basename))
         infile = self.infile
         filetype = infile.filetype
         eventtype = self.eventtype    
