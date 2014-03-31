@@ -12,12 +12,11 @@ import _inotify as inotify
 
 class InotifyWrapper(threading.Thread):
 
-    def __init__(self, parent, recursive = False):
-
+    def __init__(self, parent, recursive = False, logger = None):
         threading.Thread.__init__(self)
+        self.logger = logger or logging.getLogger(__name__)
 
         self.parent_ = parent
-        self.logging =  logging.getLogger(self.__class__.__name__)
         self.w = None
         self.quit = False
 

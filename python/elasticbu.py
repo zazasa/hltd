@@ -9,9 +9,7 @@ import _inotify as inotify
 import threading
 import Queue
 
-import hltdconf
-
-from anelastic import *
+from hltdconf import *
 from aUtils import *
 
 from pyelasticsearch.client import ElasticSearch
@@ -271,7 +269,7 @@ class elasticCollectorBU():
 if __name__ == "__main__":
     logging.basicConfig(filename="/tmp/elastic-bu.log",
                     level=logging.INFO,
-                    format='%(levelname)s:%(asctime)s-%(name)s.%(funcName)s - %(message)s',
+                    format='%(levelname)s:%(asctime)s - %(funcName)s - %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger(os.path.basename(__file__))
 
@@ -282,7 +280,6 @@ if __name__ == "__main__":
 
     eventQueue = Queue.Queue()
 
-    conf=hltdconf.hltdConf('/etc/hltd.conf')
     es_server = sys.argv[0]
     dirname = sys.argv[1]
     runnumber = sys.argv[2]

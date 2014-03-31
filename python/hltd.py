@@ -25,11 +25,9 @@ import prctl
 
 #modules which are part of hltd
 from daemon2 import Daemon2
-import hltdconf
+from hltdconf import *
 from inotifywrapper import InotifyWrapper
 import _inotify as inotify
-
-conf=hltdconf.hltdConf('/etc/hltd.conf')
 
 idles = conf.resource_base+'/idle/'
 used = conf.resource_base+'/online/'
@@ -40,7 +38,7 @@ expected_processes = None
 run_list=[]
 bu_disk_list=[]
 
-logging.basicConfig(filename=conf.service_log,
+logging.basicConfig(filename=os.path.join(conf.log_dir,"hltd.log"),
                     level=conf.service_log_level,
                     format='%(levelname)s:%(asctime)s - %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
@@ -1145,7 +1143,7 @@ class hltd(Daemon2,object):
             logging.error(ex)
 
         try:
-            cgitb.enable(display=0, logdir="/tmp")
+            cgitb.enable(display=0, logdir=conf.log_dir)
             handler = CGIHTTPServer.CGIHTTPRequestHandler
             # the following allows the base directory of the http
             # server to be 'conf.watch_directory, which is writeable
@@ -1186,5 +1184,5 @@ class hltd(Daemon2,object):
 
 
 if __name__ == "__main__":
-    daemon = hltd('/tmp/hltd.pid')
+    daemon = hltd('/var/run/hltd.pid')
     daemon.start()

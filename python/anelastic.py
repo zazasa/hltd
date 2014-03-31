@@ -12,8 +12,9 @@ import threading
 import Queue
 import json
 import logging
-import hltdconf
 
+
+from hltdconf import *
 from aUtils import *
 
 
@@ -314,13 +315,9 @@ class LumiSectionHandler():
 
 
 if __name__ == "__main__":
-
-    print __file__
-    sys.exit(0)
-
-    logging.basicConfig(filename="/tmp/anelastic.log",
+    logging.basicConfig(filename=os.path.join(conf.log_dir,"anelastic.log"),
                     level=logging.INFO,
-                    format='%(levelname)s:%(asctime)s-%(name)s.%(funcName)s - %(message)s',
+                    format='%(levelname)s:%(asctime)s - %(funcName)s - %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger(os.path.basename(__file__))
 
@@ -329,7 +326,7 @@ if __name__ == "__main__":
     sys.stdout = stdOutLog()
 
     eventQueue = Queue.Queue()
-    conf=hltdconf.hltdConf('/etc/hltd.conf')
+    
     dirname = sys.argv[1]
     dirname = os.path.basename(os.path.normpath(dirname))
     watchDir = os.path.join(conf.watch_directory,dirname)
