@@ -33,6 +33,7 @@ mkdir -p /var/log/hltd
 mkdir -p /var/log/hltd/pid
 mkdir -p opt/hltd
 mkdir -p etc/init.d
+mkdir -p etc/logrotate.d
 mkdir -p etc/appliance/resources/idle
 mkdir -p etc/appliance/resources/online
 mkdir -p etc/appliance/resources/offline
@@ -44,7 +45,8 @@ mkdir -p usr/lib64/python2.6/site-packages/simplejson
 ls
 cp -r $BASEDIR/python/hltd $TOPDIR/etc/init.d/hltd
 cp -r $BASEDIR/* $TOPDIR/opt/hltd
-cp -r $BASEDIR/etc/* $TOPDIR/etc/
+cp -r $BASEDIR/etc/hltd.conf $TOPDIR/etc/
+cp -r $BASEDIR/etc/logrotate.d/hltd $TOPDIR/etc/logrotate.d/
 echo "working in $PWD"
 ls opt/hltd
 
@@ -191,6 +193,7 @@ BuildArch: $BUILD_ARCH
 AutoReqProv: no
 Provides:/opt/hltd
 Provides:/etc/hltd.conf
+Provides:/etc/logrotate.d/hltd
 Provides:/etc/init.d/hltd
 Provides:/usr/lib64/python2.6/site-packages/prctl.pyc
 Requires:python,libcap,python-six,python-requests
@@ -217,6 +220,7 @@ rm -rf /etc/appliance/except/*
 %defattr(-, root, root, -)
 /opt/hltd/
 /etc/hltd.conf
+/etc/logrotate.d/hltd
 /etc/init.d/hltd
 /etc/appliance
 /usr/lib64/python2.6/site-packages/*prctl*
