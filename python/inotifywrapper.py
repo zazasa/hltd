@@ -25,10 +25,10 @@ class InotifyWrapper(threading.Thread):
         self.delay_ = None
 
         if recursive == True:
-            self.logging.info("RECURSIVE_MODE")
+            self.logger.info("RECURSIVE_MODE")
             self.w = watcher.AutoWatcher()
         else:
-            self.logging.info("NON-RECURSIVE_MODE")
+            self.logger.info("NON-RECURSIVE_MODE")
             self.w = watcher.Watcher()
 
         self.recursiveMode = recursive
@@ -46,11 +46,11 @@ class InotifyWrapper(threading.Thread):
             else:
                 self.w.add(path,mask)
         except OSError, err:
-            self.logging.error('inotify wrapper exception: ' + err.strerror)
+            self.logger.error('inotify wrapper exception: ' + err.strerror)
             raise err
 
     def reportError(self,err):
-        self.logging.error('error registering inotify path ' + str(err) +', ignoring')
+        self.logger.error('error registering inotify path ' + str(err) +', ignoring')
 
     def run(self):
 	while self.quit == False:
@@ -76,7 +76,7 @@ class InotifyWrapper(threading.Thread):
                       #parent does not implement the function
                       self.parent_.process_default(event)
           except Exception, ex:
-              self.logging.error("exception in inotify run thread: "+ str(ex))
+              self.logger.error("exception in inotify run thread: "+ str(ex))
 
     def stop(self):
         self.quit = True
@@ -86,7 +86,7 @@ class InotifyWrapper(threading.Thread):
         except Exception, ex:
             pass
         self.w.close()
-        self.logging.debug('closed inotify fd')
+        self.logger.debug('closed inotify fd')
 
 #more advanced use
 #    def run(self):
