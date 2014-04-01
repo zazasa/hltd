@@ -13,10 +13,6 @@ import elasticBand
 from hltdconf import *
 from aUtils import *
 
-
-class BadIniFile(Exception):
-    pass
-
 class elasticCollector():
     stoprequest = threading.Event()
     emptyQueue = threading.Event()

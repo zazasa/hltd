@@ -10,7 +10,7 @@ from subprocess import Popen
 from subprocess import PIPE
 
 if __name__ == "__main__":
-    daemon = hltd('/tmp/hltd.pid')
+    daemon = hltd('/var/run/hltd.pid')
     if len(sys.argv) == 2:
         if 'start' == sys.argv[1]:
             output = Popen(["/opt/hltd/python/hltd.py"], stdout=PIPE).communicate()[0]
@@ -22,7 +22,7 @@ if __name__ == "__main__":
         elif 'stop' == sys.argv[1]:
             if daemon.status():
                 daemon.stop()
-            elif os.path.exists('/tmp/hltd.pid'):
+            elif os.path.exists('/var/run/hltd.pid'):
                 daemon.delpid()
         elif 'restart' == sys.argv[1]:
             daemon.restart()

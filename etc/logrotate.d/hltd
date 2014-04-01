@@ -5,3 +5,9 @@
         rotate 10
         compress
 }
+/var/log/hltd/pid/*log {
+        daily
+        missingok
+        rotate 0
+        maxage 7
+}

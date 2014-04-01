@@ -267,7 +267,7 @@ class elasticCollectorBU():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(filename="/tmp/elastic-bu.log",
+    logging.basicConfig(filename=os.path.join(conf.log_dir,"elasticbu.log"),
                     level=logging.INFO,
                     format='%(levelname)s:%(asctime)s - %(funcName)s - %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
