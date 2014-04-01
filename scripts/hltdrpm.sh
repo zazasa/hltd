@@ -217,6 +217,8 @@ rm -rf /etc/appliance/except/*
 /opt/hltd/python/fillresources.py
 /sbin/service hltd restart
 %files
+%attr(777, -, -) /var/log/hltd
+%attr(777, -, -) /var/log/hltd/pid
 %defattr(-, root, root, -)
 /opt/hltd/
 /etc/hltd.conf
