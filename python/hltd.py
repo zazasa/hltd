@@ -25,9 +25,12 @@ import prctl
 
 #modules which are part of hltd
 from daemon2 import Daemon2
-from hltdconf import *
 from inotifywrapper import InotifyWrapper
 import _inotify as inotify
+
+from hltdconf import *
+
+
 
 idles = conf.resource_base+'/idle/'
 used = conf.resource_base+'/online/'

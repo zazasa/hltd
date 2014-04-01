@@ -207,6 +207,8 @@ fff hlt daemon
 %install
 rm -rf \$RPM_BUILD_ROOT
 mkdir -p \$RPM_BUILD_ROOT
+%__install -d "%{buildroot}/var/log/hltd"
+%__install -d "%{buildroot}/var/log/hltd/pid"
 tar -C $TOPDIR -c opt/hltd | tar -xC \$RPM_BUILD_ROOT
 tar -C $TOPDIR -c etc | tar -xC \$RPM_BUILD_ROOT
 tar -C $TOPDIR -c usr | tar -xC \$RPM_BUILD_ROOT
@@ -217,8 +219,8 @@ rm -rf /etc/appliance/except/*
 /opt/hltd/python/fillresources.py
 /sbin/service hltd restart
 %files
-%attr(777, -, -) /var/log/hltd
-%attr(777, -, -) /var/log/hltd/pid
+%dir %attr(777, -, -) /var/log/hltd
+%dir %attr(777, -, -) /var/log/hltd/pid
 %defattr(-, root, root, -)
 /opt/hltd/
 /etc/hltd.conf
