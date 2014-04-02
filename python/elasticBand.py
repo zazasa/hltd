@@ -8,8 +8,6 @@ import csv
 import math
 import logging
 
-from datetime import datetime
-
 from aUtils import *
 
 #MONBUFFERSIZE = 50
@@ -215,7 +213,7 @@ class elasticBand():
         filepath = infile.filepath
         self.logger.debug("%r going into buffer" %filepath)
         #mtime = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(os.path.getmtime(filepath)))
-        mtime = datetime.utcfromtimestamp(os.path.getmtime(filepath)).isoformat()
+        mtime = infile.mtime
         self.logger.info(mtime)
         stub = self.imbue_csv(infile)
         document = {}

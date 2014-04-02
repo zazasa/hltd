@@ -9,9 +9,7 @@ import _inotify as inotify
 import threading
 import Queue
 
-import hltdconf
-
-from anelastic import *
+from hltdconf import *
 from aUtils import *
 
 from pyelasticsearch.client import ElasticSearch
@@ -123,6 +121,23 @@ class elasticBandBU:
                     'store'     : "yes",
                     "path"      : "fm_date"
                     },
+                },
+            'eols' : {
+                '_id'        :{'path':'id'},
+                '_parent'    :{'type':'run'},
+                'properties' : {
+                    'fm_date'       :{'type':'date'},
+                    'id'            :{'type':'string'},
+                    'ls'            :{'type':'string'},
+                    'NEvents'       :{'type':'integer'},
+                    'NFiles'        :{'type':'integer'},
+                    'TotalEvents'   :{'type':'integer'},
+                    },
+                '_timestamp' : { 
+                    'enabled'   : True,
+                    'store'     : "yes",
+                    "path"      : "fm_date"
+                    },
                 }
             }
 
@@ -189,10 +204,26 @@ class elasticBandBU:
         self.logger.info(basename+" going into buffer")
         document = infile.data
         document['_parent']= self.runnumber
-        document['id']= basename+self.runnumber
+        document['id']= basename+'_'+self.runnumber
         documents = [document]
         self.es.bulk_index(index_name,'boxinfo',documents)
 
+    def elasticize_eols(self,infile):
+        basename = infile.basename
+        self.logger.info(basename+" going into buffer")
+        data = infile.data['data']
+        data.append(infile.mtime)
+        data.append(infile.ls)
+        
+
+        values = [int(f) if f.isdigit() else str(f) for f in data]
+        keys = ["NEvents","NFiles","TotalEvents","fm_date","ls"]
+        document = dict(zip(keys, values))
+
+        document['id'] = infile.name
+        document['_parent']= self.runnumber
+        documents = [document]
+        self.es.bulk_index(index_name,'eols',documents)
 
 class elasticCollectorBU():
 
@@ -227,7 +258,6 @@ class elasticCollectorBU():
                     event = self.source.get(True,1.0) #blocking with timeout
                     self.eventtype = event.mask
                     self.infile = fileHandler(event.fullpath)
-                    self.logger.info(self.infile.filepath)
                     self.emptyQueue.clear()
                     self.process() 
                 except (KeyboardInterrupt,Queue.Empty) as e:
@@ -266,12 +296,14 @@ class elasticCollectorBU():
             elif filetype == BOX:
                 self.logger.info(self.infile.basename)
                 es.elasticize_box(self.infile)
-
+            elif filetype == EOLS:
+                self.logger.info(self.infile.basename)
+                es.elasticize_eols(self.infile)
 
 if __name__ == "__main__":
-    logging.basicConfig(filename="/tmp/elastic-bu.log",
+    logging.basicConfig(filename=os.path.join(conf.log_dir,"elasticbu.log"),
                     level=logging.INFO,
-                    format='%(levelname)s:%(asctime)s-%(name)s.%(funcName)s - %(message)s',
+                    format='%(levelname)s:%(asctime)s - %(funcName)s - %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger(os.path.basename(__file__))
 
@@ -282,7 +314,6 @@ if __name__ == "__main__":
 
     eventQueue = Queue.Queue()
 
-    conf=hltdconf.hltdConf('/etc/hltd.conf')
     es_server = sys.argv[0]
     dirname = sys.argv[1]
     runnumber = sys.argv[2]
@@ -291,12 +322,14 @@ if __name__ == "__main__":
     
     #EoR file path to watch for
 
+    mainDir = dirname
+    mainMask = inotify.IN_CLOSE_WRITE
     monDir = os.path.join(dirname,"mon")
     monMask = inotify.IN_CLOSE_WRITE |  inotify.IN_MOVED_TO
     boxesDir =  os.path.join(dirname[:dirname.rfind('run')],'appliance/boxes')
     boxesMask = inotify.IN_CLOSE_WRITE 
 
-
+    logger.info("starting elastic for "+mainDir)
     logger.info("starting elastic for "+monDir)
     logger.info("starting elastic for "+boxesDir)
 
@@ -315,6 +348,7 @@ if __name__ == "__main__":
         #mr.register_inotify_path(watchDir,mask)
         mr.register_inotify_path(monDir,monMask)
         mr.register_inotify_path(boxesDir,boxesMask)
+        mr.register_inotify_path(mainDir,mainMask)
 
         mr.start_inotify()
 

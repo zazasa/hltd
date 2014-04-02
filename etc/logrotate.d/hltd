@@ -1,0 +1,13 @@
+/var/log/hltd/*log {
+        dateext
+        missingok
+        size 1M
+        rotate 10
+        compress
+}
+/var/log/hltd/pid/*log {
+        daily
+        missingok
+        rotate 0
+        maxage 7
+}

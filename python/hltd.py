@@ -25,11 +25,10 @@ import prctl
 
 #modules which are part of hltd
 from daemon2 import Daemon2
-import hltdconf
+from hltdconf import *
 from inotifywrapper import InotifyWrapper
 import _inotify as inotify
 
-conf=hltdconf.hltdConf('/etc/hltd.conf')
 
 idles = conf.resource_base+'/idle/'
 used = conf.resource_base+'/online/'
@@ -40,7 +39,7 @@ expected_processes = None
 run_list=[]
 bu_disk_list=[]
 
-logging.basicConfig(filename=conf.service_log,
+logging.basicConfig(filename=os.path.join(conf.log_dir,"hltd.log"),
                     level=conf.service_log_level,
                     format='%(levelname)s:%(asctime)s - %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
@@ -532,7 +531,10 @@ class Run:
             #note: start elastic.py first!
         if conf.use_elasticsearch:
             try:
-                if conf.role == "bu":
+                if conf.elastic_bu_test is not None:
+                    logging.info("starting elasticbu.py testing mode with arguments:"+self.dirname)
+                    elastic_args = ['/opt/hltd/python/elasticbu.py',self.rawinputdir,str(self.runnumber)]
+                elif conf.role == "bu":
                     logging.info("starting elasticbu.py with arguments:"+self.dirname)
                     elastic_args = ['/opt/hltd/python/elasticbu.py',self.dirname,str(self.runnumber)]
                 else:
@@ -543,13 +545,6 @@ class Run:
                                                         preexec_fn=preexec_function,
                                                         close_fds=True
                                                         )
-                try:
-                    if conf.elastic_bu_test is not None:
-                        logging.info("starting elasticbu.py testing mode with arguments:"+self.dirname)
-                        elastic_args_test = ['/opt/hltd/python/elasticbu.py',self.rawinputdir,str(self.runnumber)]
-                        self.elastic_test = subprocess.Popen(elastic_args_test, preexec_fn=preexec_function, close_fds=True)
-                except:
-                    pass
 
             except OSError as ex:
                 logging.error("failed to start elasticsearch client")
@@ -1186,5 +1181,5 @@ class hltd(Daemon2,object):
 
 
 if __name__ == "__main__":
-    daemon = hltd('/tmp/hltd.pid')
+    daemon = hltd('/var/run/hltd.pid')
     daemon.start()

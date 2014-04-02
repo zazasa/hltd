@@ -9,14 +9,9 @@ import threading
 import Queue
 
 import elasticBand
-import hltdconf
 
+from hltdconf import *
 from aUtils import *
-
-
-
-class BadIniFile(Exception):
-    pass
 
 class elasticCollector():
     stoprequest = threading.Event()
@@ -123,9 +118,9 @@ class elasticCollector():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(filename="/tmp/elastic.log",
+    logging.basicConfig(filename=os.path.join(conf.log_dir,"elastic.log"),
                     level=logging.INFO,
-                    format='%(levelname)s:%(asctime)s-%(name)s.%(funcName)s - %(message)s',
+                    format='%(levelname)s:%(asctime)s - %(funcName)s - %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger(os.path.basename(__file__))
 
@@ -138,7 +133,6 @@ if __name__ == "__main__":
     
     eventQueue = Queue.Queue()
 
-    conf=hltdconf.hltdConf('/etc/hltd.conf')
     dirname = sys.argv[1]
     inmondir = sys.argv[2]
     expected_processes = int(sys.argv[3])

@@ -1,10 +1,10 @@
 import sys,traceback
 import os
-import time
+import time,datetime
 import shutil
 import json
 import logging
-import hltdconf
+
 
 from inotifywrapper import InotifyWrapper
 import _inotify as inotify
@@ -70,6 +70,8 @@ class fileHandler(object):
             elif name in ["data"]: self.data = self.getData(); 
             elif name in ["definitions"]: self.getDefinitions()
             elif name in ["host"]: self.host = os.uname()[1];
+        if name in ["ctime"]: self.ctime = self.getTime('c')
+        if name in ["mtime"]: self.mtime = self.getTime('m')
         return self.__dict__[name]
 
     def __init__(self,filepath):
@@ -77,7 +79,16 @@ class fileHandler(object):
         self.filepath = filepath
         self.outDir = self.dir
 
-        
+    def getTime(self,t):
+        if self.exists():
+            if t == 'c':
+                dt=os.path.getctime(self.filepath)
+            elif t == 'm':
+                dt=os.path.getmtime(self.filepath)
+            time = datetime.datetime.utcfromtimestamp(dt).isoformat() 
+            return time
+        return None   
+                
     def getFileInfo(self):
         self.dir = os.path.dirname(self.filepath)
         self.basename = os.path.basename(self.filepath)
