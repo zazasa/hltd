@@ -204,7 +204,7 @@ class elasticBandBU:
         self.logger.info(basename+" going into buffer")
         document = infile.data
         document['_parent']= self.runnumber
-        document['id']= basename+self.runnumber
+        document['id']= basename+'_'+self.runnumber
         documents = [document]
         self.es.bulk_index(index_name,'boxinfo',documents)
 
