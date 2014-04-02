@@ -10,8 +10,9 @@ class hltdConf:
         cfg = ConfigParser.SafeConfigParser()
         cfg.read(conffile)
 
-        self.elastic_runindex_url = None
         self.role = None
+        self.elastic_bu_test = None
+        self.elastic_runindex_url = None
         for sec in cfg.sections():
             for item,value in cfg.items(sec):
                 self.__dict__[item] = value

@@ -532,10 +532,8 @@ class Run:
         if conf.use_elasticsearch:
             try:
                 if conf.elastic_bu_test is not None:
-                        logging.info("starting elasticbu.py testing mode with arguments:"+self.dirname)
-                        elastic_args_test = ['/opt/hltd/python/elasticbu.py',self.rawinputdir,str(self.runnumber)]
-                        self.elastic_test = subprocess.Popen(elastic_args_test, preexec_fn=preexec_function, close_fds=True)
-
+                    logging.info("starting elasticbu.py testing mode with arguments:"+self.dirname)
+                    elastic_args = ['/opt/hltd/python/elasticbu.py',self.rawinputdir,str(self.runnumber)]
                 elif conf.role == "bu":
                     logging.info("starting elasticbu.py with arguments:"+self.dirname)
                     elastic_args = ['/opt/hltd/python/elasticbu.py',self.dirname,str(self.runnumber)]

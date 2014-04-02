@@ -8,8 +8,6 @@ import csv
 import math
 import logging
 
-from datetime import datetime
-
 from aUtils import *
 
 MONBUFFERSIZE = 50

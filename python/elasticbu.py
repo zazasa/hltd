@@ -121,7 +121,7 @@ class elasticBandBU:
                     'store'     : "yes",
                     "path"      : "fm_date"
                     },
-                }
+                },
             'eols' : {
                 '_parent'    :{'type':'run'},
                 'properties' : {
