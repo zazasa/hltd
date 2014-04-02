@@ -25,11 +25,9 @@ import prctl
 
 #modules which are part of hltd
 from daemon2 import Daemon2
+from hltdconf import *
 from inotifywrapper import InotifyWrapper
 import _inotify as inotify
-
-from hltdconf import *
-
 
 
 idles = conf.resource_base+'/idle/'
@@ -1146,7 +1144,7 @@ class hltd(Daemon2,object):
             logging.error(ex)
 
         try:
-            cgitb.enable(display=0, logdir=conf.log_dir)
+            cgitb.enable(display=0, logdir="/tmp")
             handler = CGIHTTPServer.CGIHTTPRequestHandler
             # the following allows the base directory of the http
             # server to be 'conf.watch_directory, which is writeable
