@@ -531,7 +531,12 @@ class Run:
             #note: start elastic.py first!
         if conf.use_elasticsearch:
             try:
-                if conf.role == "bu":
+                if conf.elastic_bu_test is not None:
+                        logging.info("starting elasticbu.py testing mode with arguments:"+self.dirname)
+                        elastic_args_test = ['/opt/hltd/python/elasticbu.py',self.rawinputdir,str(self.runnumber)]
+                        self.elastic_test = subprocess.Popen(elastic_args_test, preexec_fn=preexec_function, close_fds=True)
+
+                elif conf.role == "bu":
                     logging.info("starting elasticbu.py with arguments:"+self.dirname)
                     elastic_args = ['/opt/hltd/python/elasticbu.py',self.dirname,str(self.runnumber)]
                 else:
@@ -542,13 +547,6 @@ class Run:
                                                         preexec_fn=preexec_function,
                                                         close_fds=True
                                                         )
-                try:
-                    if conf.elastic_bu_test is not None:
-                        logging.info("starting elasticbu.py testing mode with arguments:"+self.dirname)
-                        elastic_args_test = ['/opt/hltd/python/elasticbu.py',self.rawinputdir,str(self.runnumber)]
-                        self.elastic_test = subprocess.Popen(elastic_args_test, preexec_fn=preexec_function, close_fds=True)
-                except:
-                    pass
 
             except OSError as ex:
                 logging.error("failed to start elasticsearch client")
