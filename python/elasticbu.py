@@ -123,9 +123,11 @@ class elasticBandBU:
                     },
                 },
             'eols' : {
+                '_id'        :{'path':'id'},
                 '_parent'    :{'type':'run'},
                 'properties' : {
                     'fm_date'       :{'type':'date'},
+                    'id'            :{'type':'string'},
                     'ls'            :{'type':'string'},
                     'NEvents'       :{'type':'integer'},
                     'NFiles'        :{'type':'integer'},
@@ -212,11 +214,13 @@ class elasticBandBU:
         data = infile.data['data']
         data.append(infile.mtime)
         data.append(infile.ls)
+        
 
         values = [int(f) if f.isdigit() else str(f) for f in data]
         keys = ["NEvents","NFiles","TotalEvents","fm_date","ls"]
         document = dict(zip(keys, values))
 
+        document['id'] = infile.name
         document['_parent']= self.runnumber
         documents = [document]
         self.es.bulk_index(index_name,'eols',documents)
@@ -254,7 +258,6 @@ class elasticCollectorBU():
                     event = self.source.get(True,1.0) #blocking with timeout
                     self.eventtype = event.mask
                     self.infile = fileHandler(event.fullpath)
-                    self.logger.info(self.infile.filepath)
                     self.emptyQueue.clear()
                     self.process() 
                 except (KeyboardInterrupt,Queue.Empty) as e:
