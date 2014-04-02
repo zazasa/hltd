@@ -131,7 +131,7 @@ class elasticBandBU:
                     'ls'            :{'type':'string'},
                     'NEvents'       :{'type':'integer'},
                     'NFiles'        :{'type':'integer'},
-                    'TotalEvents'   :{'type':'integer'},
+                    'TotalEvents'   :{'type':'integer'}
                     },
                 '_timestamp' : { 
                     'enabled'   : True,
@@ -323,7 +323,7 @@ if __name__ == "__main__":
     #EoR file path to watch for
 
     mainDir = dirname
-    mainMask = inotify.IN_CLOSE_WRITE
+    mainMask = inotify.IN_CLOSE_WRITE |  inotify.IN_MOVED_TO
     monDir = os.path.join(dirname,"mon")
     monMask = inotify.IN_CLOSE_WRITE |  inotify.IN_MOVED_TO
     boxesDir =  os.path.join(dirname[:dirname.rfind('run')],'appliance/boxes')

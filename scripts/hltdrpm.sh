@@ -29,8 +29,8 @@ ls
 
 
 echo "Moving files to their destination"
-mkdir -p /var/log/hltd
-mkdir -p /var/log/hltd/pid
+mkdir -p var/log/hltd
+mkdir -p var/log/hltd/pid
 mkdir -p opt/hltd
 mkdir -p etc/init.d
 mkdir -p etc/logrotate.d

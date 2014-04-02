@@ -1,5 +1,6 @@
 import ConfigParser
 import logging
+import os
 
 class hltdConf:
     def __init__(self, conffile):
@@ -13,6 +14,7 @@ class hltdConf:
         self.role = None
         self.elastic_bu_test = None
         self.elastic_runindex_url = None
+        self.watch_directory = None
         self.ramdisk_subdirectory = 'ramdisk'
         self.fastmon_insert_modulo = 1
  
@@ -28,11 +30,13 @@ class hltdConf:
         self.cmssw_threads_autosplit = int(self.cmssw_threads_autosplit)
         self.cmssw_threads = int(self.cmssw_threads)
         self.service_log_level = getattr(logging,self.service_log_level)
+        self.autodetect_parameters()
       
     def dump(self):
         logging.info( 'self.exec_directory '+self.exec_directory)
         logging.info( 'self.user '+self.user)
-        logging.info( 'self.watch_directory '+ self.watch_directory)
+        if conf.watch_directory:
+            logging.info( 'self.watch_directory '+ self.watch_directory)
         logging.info( 'self.watch_prefix '+ self.watch_prefix)
         logging.info( 'self.watch_emu_prefix '+ self.watch_emu_prefix)
         logging.info( 'self.watch_end_prefix '+ self.watch_end_prefix)
@@ -51,5 +55,15 @@ class hltdConf:
         logging.info( 'self.test_hlt_config '+ self.test_hlt_config1)
         logging.info( 'self.test_bu_config '+ self.test_bu_config)
         logging.info( 'self.service_log_level '+str(self.service_log_level))
+
+    def autodetect_parameters(self):
+        if not self.role and 'bu' in os.uname()[1]:
+            self.role = 'bu'
+        elif not self.role:
+            self.role = 'fu'
+        if not self.watch_directory:
+            if self.role == 'bu': self.watch_directory='/fff/ramdisk'
+            if self.role == 'fu': self.watch_directory='/fff/data'
+
 
 conf = hltdConf('/etc/hltd.conf')

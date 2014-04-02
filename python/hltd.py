@@ -1085,15 +1085,6 @@ class hltd(Daemon2,object):
         infer it from the name of the machine
         """
 
-        if not conf.role and 'bu' in os.uname()[1]:
-            conf.role = 'bu'
-            if not conf.watch_directory:
-                conf.watch_directory='/fff/ramdisk'
-        else:
-            conf.role = 'fu'
-            if not conf.watch_directory:
-                conf.watch_directory='/fff/data'
-
         if conf.role == 'fu':
 
             """
