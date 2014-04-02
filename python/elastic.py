@@ -141,6 +141,8 @@ if __name__ == "__main__":
     conf=hltdconf.hltdConf('/etc/hltd.conf')
     dirname = sys.argv[1]
     inmondir = sys.argv[2]
+    expected_processes = int(sys.argv[3])
+    update_modulo=conf.fastmon_insert_modulo
     dirname = os.path.basename(os.path.normpath(dirname))
     watchDir = os.path.join(conf.watch_directory,dirname)
     outputDir = conf.micromerge_output
@@ -172,7 +174,7 @@ if __name__ == "__main__":
         mr.register_inotify_path(tempDir,tempMask)
         mr.start_inotify()
 
-        es = elasticBand.elasticBand('http://localhost:9200',dirname)
+        es = elasticBand.elasticBand('http://localhost:9200',dirname,expected_processes,update_modulo)
 
         #starting elasticCollector thread
         ec = elasticCollector(ES_DIR_NAME,inmondir)

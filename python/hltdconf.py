@@ -38,6 +38,11 @@ class hltdConf:
 
         self.use_elasticsearch = cfg.getboolean('Monitoring','use_elasticsearch')
         self.elastic_log = cfg.get('Monitoring','elastic_log')
+        self.fastmon_insert_modulo = 1
+        try:
+            self.fastmon_insert_modulo = cfg.getint('Monitoring','fastmon_insert_modulo')
+        except:
+            pass
 
         self.cgi_port = cfg.getint('Web','cgi_port')
 

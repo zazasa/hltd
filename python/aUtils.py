@@ -238,14 +238,21 @@ class fileHandler(object):
         if not os.path.exists(oldpath): return False
 
         self.logger.info("%s -> %s" %(oldpath,newpath))
-        try:
-            if not os.path.isdir(newdir): os.makedirs(newdir)
-            if copy: shutil.copy(oldpath,newpath)
-            else: 
-                shutil.move(oldpath,newpath)
-        except OSError,e:
-            self.logger.exception(e)
-            return False
+        retries = 5
+        while True:
+          try:
+              if not os.path.isdir(newdir): os.makedirs(newdir)
+              if copy: shutil.copy(oldpath,newpath)
+              else: 
+                  shutil.move(oldpath,newpath)
+              break
+          except OSError,e:
+              self.logger.exception(e)
+              retries-=1
+              if retries == 0:
+                  return False
+              else:
+                  time.sleep(0.5)
         self.filepath = newpath
         self.getFileInfo()
         return True   
@@ -272,7 +279,18 @@ class fileHandler(object):
             esDir = os.path.join(self.dir,ES_DIR_NAME)
             if os.path.isdir(esDir):
                 newpath = os.path.join(esDir,self.basename)
-                shutil.copy(self.filepath,newpath)
+                retries = 5
+                while True:
+                    try:
+                        shutil.copy(self.filepath,newpath)
+                        break
+                    except OSError,e:
+                        self.logger.exception(e)
+                        retries-=1
+                        if retries == 0:
+                            raise e
+                        else:
+                            time.sleep(0.5)
 
 
     def merge(self,infile):

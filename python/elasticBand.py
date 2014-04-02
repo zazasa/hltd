@@ -12,13 +12,13 @@ from datetime import datetime
 
 from aUtils import *
 
-MONBUFFERSIZE = 50
+#MONBUFFERSIZE = 50
 es_server_url = 'http://localhost:9200'
 
 class elasticBand():
 
 
-    def __init__(self,es_server_url,runstring):
+    def __init__(self,es_server_url,runstring,monBufferSize,fastUpdateModulo):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.istateBuffer = []  
         self.prcinBuffer = {}   # {"lsX": doclist}
@@ -191,6 +191,8 @@ class elasticBand():
                 }
             }
         self.run = runstring
+        self.monBufferSize = monBufferSize
+        self.fastUpdateModulo = fastUpdateModulo
         try:
             self.es.create_index(runstring, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
         except ElasticHttpError as ex:
@@ -230,7 +232,8 @@ class elasticBand():
             self.istateBuffer.append(document)
         except Exception:
             pass
-        if len(self.istateBuffer) == MONBUFFERSIZE:
+        #if len(self.istateBuffer) == MONBUFFERSIZE:
+        if len(self.istateBuffer) == self.monBufferSize and (len(self.istateBuffer)%self.fastUpdateModulo)==0:
             self.flushMonBuffer()
 
     def elasticize_prc_sstate(self,infile):
