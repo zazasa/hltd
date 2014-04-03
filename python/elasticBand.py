@@ -16,7 +16,7 @@ es_server_url = 'http://localhost:9200'
 class elasticBand():
 
 
-    def __init__(self,es_server_url,runstring,monBufferSize,fastUpdateModulo):
+    def __init__(self,es_server_url,runstring,indexSuffix,monBufferSize,fastUpdateModulo):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.istateBuffer = []  
         self.prcinBuffer = {}   # {"lsX": doclist}
@@ -191,8 +191,9 @@ class elasticBand():
         self.run = runstring
         self.monBufferSize = monBufferSize
         self.fastUpdateModulo = fastUpdateModulo
+        self.indexName = runstring + "_"+indexSuffix
         try:
-            self.es.create_index(runstring, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
+            self.es.create_index(self.indexName, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
         except ElasticHttpError as ex:
 #            print "Index already existing - records will be overridden"
             #this is normally fine as the index gets created somewhere across the cluster
@@ -254,7 +255,7 @@ class elasticBand():
         datadict['tp']      = float(document['data'][4]) if not math.isnan(float(document['data'][4])) and not  math.isinf(float(document['data'][4])) else 0.
         datadict['lead']    = float(document['data'][5]) if not math.isnan(float(document['data'][5])) and not  math.isinf(float(document['data'][5])) else 0.
         datadict['nfiles']  = int(document['data'][6])
-        self.es.index(self.run,'prc-s-state',datadict)
+        self.es.index(self.indexName,'prc-s-state',datadict)
 
     def elasticize_prc_out(self,infile):
         document = self.imbue_jsn(infile)
@@ -270,7 +271,7 @@ class elasticBand():
         document['ls']=int(ls[2:])
         document['stream']=stream
         self.prcoutBuffer.setdefault(ls,[]).append(document)
-        #self.es.index(run,'prc-out',document)
+        #self.es.index(self.indexName,'prc-out',document)
         #return int(ls[2:])
 
     def elasticize_fu_out(self,infile):
@@ -288,7 +289,7 @@ class elasticBand():
         document['ls']=int(ls[2:])
         document['stream']=stream
         self.fuoutBuffer.setdefault(ls,[]).append(document)
-        #self.es.index(self.run,'fu-out',document)
+        #self.es.index(self.indexName,'fu-out',document)
         #return int(ls[2:])
 
     def elasticize_prc_in(self,infile):
@@ -305,14 +306,14 @@ class elasticBand():
         document['dest']=os.uname()[1]
         document['process']=int(prc[3:])
         self.prcinBuffer.setdefault(ls,[]).append(document)
-        #self.es.index(self.run,'prc-in',document)
+        #self.es.index(self.indexName,'prc-in',document)
         #os.remove(path+'/'+file)
         #return int(ls[2:])
 
     def flushMonBuffer(self):
         if self.istateBuffer:
             self.logger.info("flushing fast monitor buffer (len: %r) " %len(self.istateBuffer))
-            self.es.bulk_index(self.run,'prc-i-state',self.istateBuffer)
+            self.es.bulk_index(self.indexName,'prc-i-state',self.istateBuffer)
             self.istateBuffer = []
 
     def flushLS(self,ls):
@@ -320,9 +321,9 @@ class elasticBand():
         prcinDocs = self.prcinBuffer.pop(ls) if ls in self.prcinBuffer else None
         prcoutDocs = self.prcoutBuffer.pop(ls) if ls in self.prcoutBuffer else None
         fuoutDocs = self.fuoutBuffer.pop(ls) if ls in self.fuoutBuffer else None
-        if prcinDocs: self.es.bulk_index(self.run,'prc-in',prcinDocs)        
-        if prcoutDocs: self.es.bulk_index(self.run,'prc-out',prcoutDocs)
-        if fuoutDocs: self.es.bulk_index(self.run,'fu-out',fuoutDocs)
+        if prcinDocs: self.es.bulk_index(self.indexName,'prc-in',prcinDocs)        
+        if prcoutDocs: self.es.bulk_index(self.indexName,'prc-out',prcoutDocs)
+        if fuoutDocs: self.es.bulk_index(self.indexName,'fu-out',fuoutDocs)
 
     def flushAll(self):
         self.flushMonBuffer()

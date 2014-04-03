@@ -17,6 +17,7 @@ class hltdConf:
         self.watch_directory = None
         self.ramdisk_subdirectory = 'ramdisk'
         self.fastmon_insert_modulo = 1
+        self.elastic_cluster = None
  
         for sec in cfg.sections():
             for item,value in cfg.items(sec):
@@ -31,6 +32,22 @@ class hltdConf:
         self.cmssw_threads = int(self.cmssw_threads)
         self.service_log_level = getattr(logging,self.service_log_level)
         self.autodetect_parameters()
+
+        #read cluster name from elastic search configuration file (used to specify index name)
+        if not self.elastic_cluster and self.use_elasticsearch == True:
+            f = None
+            try:
+                f=open('/etc/elasticsearch/elasticsearch.yml')
+            except:
+                pass
+            if f is not None:
+                lines = f.readlines()
+                for line in lines:
+                    sline = line.strip()
+                    if line.startswith("cluster.name"):
+                        self.elastic_cluster = line.split(':')[1].strip()
+        if not self.elastic_cluster and self.use_elasticsearch == True and self.role != 'bu':
+            raise Exception("elasticsearch cluster name missing!")
       
     def dump(self):
         logging.info( 'self.exec_directory '+self.exec_directory)
