@@ -225,6 +225,12 @@ class BUEmu:
             return
         self.runnumber = nr
         configtouse = conf.test_bu_config
+        destination_base = None
+        if role == 'fu':
+            destination_base = bu_disk_list[startindex%len(bu_disk_list)]+'/'+conf.ramdisk_subdirectory
+        else:
+            destination_base = conf.watch_directory
+            
 
         new_run_args = [conf.cmssw_script_location+'/startRun.sh',
                         conf.cmssw_base,
@@ -233,7 +239,9 @@ class BUEmu:
                         conf.exec_directory,
                         configtouse,
                         str(nr),
-                        ' ']
+                        '/tmp', #input dir is not needed
+                        destination_base,
+                        '1']
         try:
             self.process = subprocess.Popen(new_run_args,
                                             preexec_fn=preexec_function,
@@ -308,6 +316,7 @@ class OnlineResource:
                         menu,
                         str(runnumber),
                         input_disk,
+                        conf.watch_directory,
                         str(num_threads)]
         logging.info("arg array "+str(new_run_args).translate(None, "'"))
         try:
@@ -846,7 +855,7 @@ class RunRanger:
                             logging.info('end run '+str(nr))
                             if conf.role == 'fu':
                                 runtoend[0].StartWaitForEnd()
-                            elif bu_emulator:
+                            if bu_emulator and bu_emulator.runnumber != None:
                                 bu_emulator.stop()
 
                             logging.info('run '+str(nr)+' removing end-of-run marker')
