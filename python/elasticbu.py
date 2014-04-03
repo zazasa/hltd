@@ -17,7 +17,7 @@ from pyelasticsearch.client import IndexAlreadyExistsError
 from pyelasticsearch.client import ElasticHttpError
 import csv
 
-index_name = "runindex_test"
+index_name = "runindex"
 
 class elasticBandBU:
 
