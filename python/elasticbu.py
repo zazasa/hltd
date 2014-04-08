@@ -42,8 +42,8 @@ class elasticBandBU:
                 }
              },
             "index":{
-                'number_of_shards' : 1,
-                'number_of_replicas' : 1
+                'number_of_shards' : 2,
+                'number_of_replicas' : 2
             },
         }
 
@@ -109,12 +109,16 @@ class elasticBandBU:
                 'properties' : {
                     'fm_date'       :{'type':'date'},
                     'id'            :{'type':'string'},
-                    'broken'        :{'type':'string'},
-                    'used'          :{'type':'string'},
-                    'idles'         :{'type':'string'},
-                    'quarantined'   :{'type':'string'},
-                    'outpud'        :{'type':'string'},
-                    'ramdisk'       :{'type':'string'}
+                    'broken'        :{'type':'integer'},
+                    'used'          :{'type':'integer'},
+                    'idles'         :{'type':'integer'},
+                    'quarantined'   :{'type':'integer'},
+                    'usedDataDir'   :{'type':'integer'},
+                    'totalDataDir'  :{'type':'integer'},
+                    'usedRamdisk'   :{'type':'integer'},
+                    'totalRamdisk'  :{'type':'integer'},
+                    'usedOutput'    :{'type':'integer'},
+                    'totalOutput'   :{'type':'integer'}
                     },
                 '_timestamp' : { 
                     'enabled'   : True,
@@ -128,7 +132,7 @@ class elasticBandBU:
                 'properties' : {
                     'fm_date'       :{'type':'date'},
                     'id'            :{'type':'string'},
-                    'ls'            :{'type':'string'},
+                    'ls'            :{'type':'integer'},
                     'NEvents'       :{'type':'integer'},
                     'NFiles'        :{'type':'integer'},
                     'TotalEvents'   :{'type':'integer'}
@@ -213,14 +217,14 @@ class elasticBandBU:
         self.logger.info(basename+" going into buffer")
         data = infile.data['data']
         data.append(infile.mtime)
-        data.append(infile.ls)
+        data.append(int(infile.ls[2:]))
         
 
         values = [int(f) if f.isdigit() else str(f) for f in data]
         keys = ["NEvents","NFiles","TotalEvents","fm_date","ls"]
         document = dict(zip(keys, values))
 
-        document['id'] = infile.name
+        document['id'] = infile.name+"_"+os.uname()[1]
         document['_parent']= self.runnumber
         documents = [document]
         self.es.bulk_index(index_name,'eols',documents)

@@ -140,7 +140,10 @@ class system_monitor(threading.Thread):
         self.threadEvent = threading.Event()
 
     def rehash(self):
-        self.directory = ['/'+x+'/'+conf.ramdisk_subdirectory+'/appliance/boxes/' for x in bu_disk_list]
+        if conf.role == 'fu':
+            self.directory = ['/'+x+'/'+conf.ramdisk_subdirectory+'/appliance/boxes/' for x in bu_disk_list]
+        else:
+            self.directory = [conf.watch_dir+'/appliance/boxes/']
         self.file = [x+self.hostname for x in self.directory]
         for dir in self.directory:
             try:
@@ -162,25 +165,32 @@ class system_monitor(threading.Thread):
 
                 fp = None
                 for mfile in self.file:
-                    
-                        budir = mfile[:len(conf.bu_base_dir)+3]
-                        outdir = os.path.join(budir,'output')
-                        outdir = os.statvfs(outdir)
-                        outdir = '{0:.0%}'.format(outdir.f_bavail/float(outdir.f_blocks))
-                        ramdisk = os.path.join(budir,'ramdisk')
-                        ramdisk = os.statvfs(ramdisk)
-                        ramdisk = '{0:.0%}'.format(ramdisk.f_bavail/float(ramdisk.f_blocks))
-
-
+                    if conf.role == 'fu':
+                        dirstat = os.statvfs(conf.watch_directory)
                         fp=open(mfile,'w+')
                         fp.write('fm_date='+tstring+'\n')
                         fp.write('idles='+str(len(os.listdir(idles)))+'\n')
                         fp.write('used='+str(len(os.listdir(used)))+'\n')
                         fp.write('broken='+str(len(os.listdir(broken)))+'\n')
                         fp.write('quarantined='+str(len(os.listdir(quarantined)))+'\n')
-                        fp.write('output='+str(outdir+'\n'))
-                        fp.write('ramdisk='+str(ramdisk+'\n'))
+                        fp.write('usedDataDir='+str((dirstat.f_blocks - dirstat.f_bavail)*dirstat.f_bsize)+'\n')
+                        fp.write('totalDataDir='+str(dirstat.f_blocks*dirstat.f_bsize)+'\n')
                         fp.close()
+                    if conf.role == 'bu':
+                        ramdisk = os.statvfs(conf.watch_directory)
+                        outdir = os.statvfs('/fff/output')
+                        fp=open(mfile,'w+')
+
+                        fp.write('idles=0')
+                        fp.write('used=0')
+                        fp.write('broken=0')
+                        fp.write('quarantined=0')
+                        fp.write('usedRamdisk='+str((ramdisk.f_blocks - ramdisk.f_bavail)*ramdisk.f_bsize)+'\n')
+                        fp.write('totalRamdisk='+str(ramdisk.f_blocks*ramdisk.f_bsize)+'\n')
+                        fp.write('usedOutput='+str((outdir.f_blocks - outdir.f_bavail)*outdir.f_bsize)+'\n')
+                        fp.write('totalOutput='+str(outdir.f_blocks*outdir.f_bsize)+'\n')
+                        fp.close()
+                        
                 if conf.role == 'bu':
                     mfile = conf.resource_base+'/disk.jsn'
                     stat=[]
