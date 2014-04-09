@@ -143,7 +143,7 @@ class system_monitor(threading.Thread):
         if conf.role == 'fu':
             self.directory = ['/'+x+'/'+conf.ramdisk_subdirectory+'/appliance/boxes/' for x in bu_disk_list]
         else:
-            self.directory = [conf.watch_dir+'/appliance/boxes/']
+            self.directory = [conf.watch_directory+'/appliance/boxes/']
         self.file = [x+self.hostname for x in self.directory]
         for dir in self.directory:
             try:
