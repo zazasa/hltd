@@ -230,6 +230,9 @@ if True:
         print "global elasticsearch hostname name missing"
         sys.exit(1)
     elastic_host = sys.argv[2]
+    #http prefix is required here
+    if not elastic_host.strip().beginswith('http://'):
+        elastic_host = 'http://'+ elastic_host.strip()
 
 
     if not sys.argv[3]:
@@ -254,6 +257,11 @@ if True:
         print "DB connection parameters missing"
         sys.exit(1)
     dbpwd = sys.argv[6]
+
+    if not sys.argv[7]:
+        print "Username parameter is missing"
+        sys.exit(1)
+    username = sys.argv[7]
 
 
 
@@ -336,7 +344,7 @@ if True:
             essyscfg.commit()
         if type == 'bu':
             escfg.reg('discovery.zen.ping.multicast.enabled','false')
-            escfg.reg('discovery.zen.ping.unicast.hosts','[ \"'+elastic_host2+'\" ]')
+            #escfg.reg('discovery.zen.ping.unicast.hosts','[ \"'+elastic_host2+'\" ]')
             escfg.reg('transport.tcp.compress','true')
             escfg.reg('node.master','true')
             escfg.reg('node.data','false')
@@ -347,7 +355,7 @@ if True:
       #number of cmssw threads (if set)
       nthreads = 1
       try:
-          nthreads = sys.argv[7]
+          nthreads = sys.argv[8]
       except:
           pass
 
@@ -374,7 +382,8 @@ if True:
       if type=='bu':
       
           #get needed info here
-          hltdcfg.reg('elastic_cluster',sys.argv[2],'[Monitoring]')
+          hltdcfg.reg('user',sys.argv[7],'[General]')
+          hltdcfg.reg('elastic_runindex_url',sys.argv[2],'[Monitoring]')
           hltdcfg.removeEntry('watch_directory')
           hltdcfg.commit() 
 
@@ -389,6 +398,7 @@ if True:
           #do_num_threads = True
           #num_threads = nthreads 
  
+          hltdcfg.reg('user',sys.argv[7],'[General]')
           hltdcfg.reg('role','fu','[General]')
           hltdcfg.reg('cmssw_base',cmssw_base,'[CMSSW]')
           hltdcfg.removeEntry('watch_directory')

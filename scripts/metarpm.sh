@@ -1,5 +1,4 @@
 #!/bin/bash -e
-alias python=python2.6
 BUILD_ARCH=noarch
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $SCRIPTDIR/..
@@ -19,6 +18,7 @@ lines[1]=`echo -n ${lines[1]} | tr -d "\n"`
 lines[2]=`echo -n ${lines[2]} | tr -d "\n"`
 lines[3]=`echo -n ${lines[3]} | tr -d "\n"`
 lines[4]=`echo -n ${lines[4]} | tr -d "\n"`
+lines[5]=`echo -n ${lines[5]} | tr -d "\n"`
 else
 lines=("" "" "" "" "")
 fi
@@ -57,6 +57,17 @@ if [ ${#readin} != "0" ]; then
 lines[4]=$readin
 fi
 
+
+echo "job username (press enter for: \"${lines[5]}\"):"
+readin=""
+read readin
+if [ ${#readin} != "0" ]; then
+lines[5]=$readin
+fi
+
+params="${lines[0]} ${lines[1]} ${lines[2]} ${lines[3]} ${lines[4]} ${lines[5]} 1"
+#echo $params
+
 #write cache
 if [ -f $SCRIPTDIR/paramcache ];
 then
@@ -67,6 +78,7 @@ echo ${lines[1]} >> $SCRIPTDIR/paramcache
 echo ${lines[2]} >> $SCRIPTDIR/paramcache
 echo ${lines[3]} >> $SCRIPTDIR/paramcache
 echo ${lines[4]} >> $SCRIPTDIR/paramcache
+echo ${lines[5]} >> $SCRIPTDIR/paramcache
 chmod 500 $SCRIPTDIR/paramcache
 # create a build area
 
@@ -96,12 +108,11 @@ Source: none
 %define _topdir $TOPDIR
 BuildArch: $BUILD_ARCH
 AutoReqProv: no
-Requires:elasticsearch,hltd,cx_Oracle
-#Provides:/usr/share/fff/hltd.conf
-#Provides:/usr/share/fff/elasticsearch
-#Provides:/usr/share/fff/elasticsearch.yml
-#Provides:/usr/share/fff/bus.config
+Requires:elasticsearch > 1.0.2, hltd > 1.3.0, cx_Oracle >= 5.1.2
+
+Provides:/usr/share/fff/configurefff.sh
 Provides:/usr/share/fff/setupmachine.py
+
 Provides:/usr/share/fff/elasticsearch.yml
 Provides:/usr/share/fff/elasticsearch
 Provides:/usr/share/fff/hltd.conf
@@ -119,44 +130,37 @@ mkdir -p \$RPM_BUILD_ROOT
 
 mkdir -p usr/share/fff
 cp $BASEDIR/python/setupmachine.py %{buildroot}/usr/share/fff/setupmachine.py
-#placeholders:
-#touch usr/share/fff/hltd.conf
-#touch usr/share/fff/elasticsearch
-#touch usr/share/fff/elasticsearch.yml
-#touch usr/share/fff/bus.config
+echo "#!/bin/bash" > %{buildroot}/usr/share/fff/configurefff.sh
+echo python2.6 /usr/share/fff/setupmachine.py elasticsearch,hltd $params >> %{buildroot}/usr/share/fff/configurefff.sh 
 
 %files
 %defattr(-, root, root, -)
-/usr/share/fff
-#/usr/share/fff/hltd.conf
-#/usr/share/fff/elasticsearch
-#/usr/share/fff/elasticsearch.yml
-#/usr/share/fff/bus.config
-/usr/share/fff/setupmachine.py
+#/usr/share/fff
+%attr( 755 ,root, root) /usr/share/fff/setupmachine.py
+%attr( 755 ,root, root) /usr/share/fff/setupmachine.pyc
+%attr( 755 ,root, root) /usr/share/fff/setupmachine.pyo
+%attr( 700 ,root, root) /usr/share/fff/configurefff.sh
 
 %post
 echo "post install trigger"
-python /usr/share/fff/setupmachine.py elasticsearch,hltd $lines[0] $lines[1] $lines[2] $lines[3] $lines[4] 1
-#/sbin/service elasticsearch restart
-#/sbin/service hltd restart
 
 %triggerin -- elasticsearch
 echo "triggered on elasticsearch update or install"
-#python /usr/share/fff/setupmachine.py elasticsearch $lines[0] $lines[1] $lines[2] $lines[3] $lines[4] 1
-#/sbin/service elasticsearch restart
-#/sbin/service hltd restart
+python2.6 /usr/share/fff/setupmachine.py elasticsearch $params
+/sbin/service elasticsearch restart
 
 %triggerin -- hltd
 echo "triggered on hltd update or install"
-#python /usr/share/fff/setupmachine.py hltd $lines[0] $lines[1] $lines[2] $lines[3] $lines[4] 1
-#/sbin/service hltd restart
+python2.6 /usr/share/fff/setupmachine.py hltd $params
+killall hltd
+/sbin/service hltd restart
 
 %preun
-python /usr/share/fff/setupmachine.py restore
+python2.6 /usr/share/fff/setupmachine.py restore
 
 EOF
 
-mkdir -p RPMBUILD/{RPMS/{noarch},SPECS,BUILD,SOURCES,SRPMS}
+#mkdir -p RPMBUILD/{RPMS/{noarch},SPECS,BUILD,SOURCES,SRPMS}
 rpmbuild --target noarch --define "_topdir `pwd`/RPMBUILD" -bb fffmeta.spec
 #rm -rf patch-cmssw-tmp
 

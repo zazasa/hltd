@@ -42,8 +42,8 @@ class elasticBandBU:
                 }
              },
             "index":{
-                'number_of_shards' : 2,
-                'number_of_replicas' : 2
+                'number_of_shards' : 1,
+                'number_of_replicas' : 1
             },
         }
 
@@ -217,7 +217,7 @@ class elasticBandBU:
         self.logger.info(basename+" going into buffer")
         data = infile.data['data']
         data.append(infile.mtime)
-        data.append(int(infile.ls[2:]))
+        data.append(infile.ls[2:])
         
 
         values = [int(f) if f.isdigit() else str(f) for f in data]

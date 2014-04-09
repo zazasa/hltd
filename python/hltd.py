@@ -173,22 +173,23 @@ class system_monitor(threading.Thread):
                         fp.write('used='+str(len(os.listdir(used)))+'\n')
                         fp.write('broken='+str(len(os.listdir(broken)))+'\n')
                         fp.write('quarantined='+str(len(os.listdir(quarantined)))+'\n')
-                        fp.write('usedDataDir='+str((dirstat.f_blocks - dirstat.f_bavail)*dirstat.f_bsize)+'\n')
-                        fp.write('totalDataDir='+str(dirstat.f_blocks*dirstat.f_bsize)+'\n')
+                        fp.write('usedDataDir='+str(((dirstat.f_blocks - dirstat.f_bavail)*dirstat.f_bsize)>>20)+'\n')
+                        fp.write('totalDataDir='+str((dirstat.f_blocks*dirstat.f_bsize)>>20)+'\n')
                         fp.close()
                     if conf.role == 'bu':
                         ramdisk = os.statvfs(conf.watch_directory)
                         outdir = os.statvfs('/fff/output')
                         fp=open(mfile,'w+')
 
-                        fp.write('idles=0')
-                        fp.write('used=0')
-                        fp.write('broken=0')
-                        fp.write('quarantined=0')
-                        fp.write('usedRamdisk='+str((ramdisk.f_blocks - ramdisk.f_bavail)*ramdisk.f_bsize)+'\n')
-                        fp.write('totalRamdisk='+str(ramdisk.f_blocks*ramdisk.f_bsize)+'\n')
-                        fp.write('usedOutput='+str((outdir.f_blocks - outdir.f_bavail)*outdir.f_bsize)+'\n')
-                        fp.write('totalOutput='+str(outdir.f_blocks*outdir.f_bsize)+'\n')
+                        fp.write('fm_date='+tstring+'\n')
+                        fp.write('idles=0\n')
+                        fp.write('used=0\n')
+                        fp.write('broken=0\n')
+                        fp.write('quarantined=0\n')
+                        fp.write('usedRamdisk='+str(((ramdisk.f_blocks - ramdisk.f_bavail)*ramdisk.f_bsize)>>20)+'\n')
+                        fp.write('totalRamdisk='+str((ramdisk.f_blocks*ramdisk.f_bsize)>>20)+'\n')
+                        fp.write('usedOutput='+str(((outdir.f_blocks - outdir.f_bavail)*outdir.f_bsize)>>20)+'\n')
+                        fp.write('totalOutput='+str((outdir.f_blocks*outdir.f_bsize)>>20)+'\n')
                         fp.close()
                         
                 if conf.role == 'bu':
@@ -279,7 +280,8 @@ class OnlineResource:
         self.runnumber = None
         self.associateddir = None
         self.lock = lock
-        self.retry_attempts = 0;
+        self.retry_attempts = 0
+        self.quarantined = []
 
     def ping(self):
         if conf.role == 'bu':
@@ -361,6 +363,11 @@ class OnlineResource:
         logging.debug("OnlineResource "+str(self.cpu)+" restart is now disabled")
         if self.watchdog:
             self.watchdog.disableRestart()
+
+    def clearQuarantined(self):
+        for cpu in self.quarantined:
+           os.rename(quarantined+cpu,idles+cpu)
+        self.quarantined = []
 
 class ProcessWatchdog(threading.Thread):
     def __init__(self,resource,lock):
@@ -461,6 +468,7 @@ class ProcessWatchdog(threading.Thread):
                                   )
                     for cpu in self.resource.cpu:
                         os.rename(used+cpu,quarantined+cpu)
+                        self.resource.quarantined.append(cpu)
 
             #successful end= release resource
             elif returncode == 0:
@@ -765,6 +773,7 @@ class Run:
                     resource.join()
                     logging.info('process '+str(resource.process.pid)+' completed')
 #                os.rename(used+resource.cpu,idles+resource.cpu)
+                resource.clearQuarantined()
                 resource.process=None
             self.online_resource_list = []
             if conf.role == 'fu':
