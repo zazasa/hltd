@@ -167,7 +167,7 @@ class elasticBandBU:
     
     def elasticize_modulelegend(self,fullpath):
 
-        self.logger.info(os.path.basename(fullpath)+" going into buffer")
+        self.logger.info(os.path.basename(fullpath))
         stub = self.read_line(fullpath)
         document = {}
         document['_parent']= self.runnumber
@@ -179,7 +179,7 @@ class elasticBandBU:
 
     def elasticize_pathlegend(self,fullpath):
 
-        self.logger.info(os.path.basename(fullpath)+" going into buffer")
+        self.logger.info(os.path.basename(fullpath))
         stub = self.read_line(fullpath)
         document = {}
         document['_parent']= self.runnumber
@@ -201,7 +201,7 @@ class elasticBandBU:
     def elasticize_box(self,infile):
 
         basename = infile.basename
-        self.logger.info(basename+" going into buffer")
+        self.logger.info(basename)
         document = infile.data
         document['_parent']= self.runnumber
         document['id']= basename+'_'+self.runnumber
@@ -210,7 +210,7 @@ class elasticBandBU:
 
     def elasticize_eols(self,infile):
         basename = infile.basename
-        self.logger.info(basename+" going into buffer")
+        self.logger.info(basename)
         data = infile.data['data']
         data.append(infile.mtime)
         data.append(infile.ls)

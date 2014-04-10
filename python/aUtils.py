@@ -243,6 +243,7 @@ class fileHandler(object):
         return True
 
     def moveFile(self,newpath,copy = False):
+        if not self.exists: return True
         oldpath = self.filepath
         newdir = os.path.dirname(newpath)
 
@@ -279,6 +280,7 @@ class fileHandler(object):
         return True
 
     def esCopy(self):
+        if not self.exists: return
         if self.filetype in TO_ELASTICIZE:
             esDir = os.path.join(self.dir,ES_DIR_NAME)
             if os.path.isdir(esDir):

@@ -76,7 +76,7 @@ class InotifyWrapper(threading.Thread):
                       #parent does not implement the function
                       self.parent_.process_default(event)
           except Exception, ex:
-              self.logger.error("exception in inotify run thread: "+ str(ex))
+              self.logger.exception(ex)
 
     def stop(self):
         self.quit = True
