@@ -106,7 +106,7 @@ class elasticBandBU:
                 },
             'boxinfo' : {
                 '_id'        :{'path':'id'},
-                '_parent'    :{'type':'run'},
+                #'_parent'    :{'type':'run'},
                 'properties' : {
                     'fm_date'       :{'type':'date'},
                     'id'            :{'type':'string'},
@@ -150,9 +150,10 @@ class elasticBandBU:
 
 
         try:
+            self.logger.info('writing to elastic index '+index_name)
             self.es.create_index(index_name, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
         except ElasticHttpError as ex:
-            logger.info(ex)
+            self.logger.info(ex)
 #            print "Index already existing - records will be overridden"
             #this is normally fine as the index gets created somewhere across the cluster
             pass
@@ -164,7 +165,7 @@ class elasticBandBU:
             try:
                 self.es.index(index_name,'run',document)
             except ElasticHttpError as ex:
-                logger.info(ex)
+                self.logger.info(ex)
                 pass
 
     def read_line(self,fullpath):
@@ -207,10 +208,10 @@ class elasticBandBU:
     def elasticize_box(self,infile):
 
         basename = infile.basename
-        self.logger.info(basename+" going into buffer")
+        self.logger.debug(basename+" going into buffer")
         document = infile.data
         #document['_parent']= self.runnumber
-        document['id']= basename + '_' + document['fm_date'] + '_' + self.host
+        document['id']= basename + '_' + document['fm_date'].split('.')[0] #strip seconds
         documents = [document]
         self.es.bulk_index(index_name,'boxinfo',documents)
 
@@ -307,7 +308,7 @@ class elasticCollectorBU():
 
 class elasticBoxCollectorBU():
 
-    def __init__(self,exbox):
+    def __init__(self,esbox):
         self.logger = logging.getLogger(self.__class__.__name__)
         
         self.stoprequest = threading.Event()
@@ -347,8 +348,11 @@ class elasticBoxCollectorBU():
         filetype = self.infile.filetype
         eventtype = self.eventtype
         if filetype == BOX:
-            self.logger.info(self.infile.basename)
-            self.es.elasticize_box(self.infile)
+            #self.logger.info(self.infile.basename)
+            try:
+                self.es.elasticize_box(self.infile)
+            except Exception,ex:
+                self.logger.info("Unable to send box info update to elastic server: "+ str(ex))
 
 
 class BoxInfoUpdater(threading.Thread):
@@ -362,7 +366,7 @@ class BoxInfoUpdater(threading.Thread):
     
         self.eventQueue = Queue.Queue()
         self.mr = MonitorRanger()
-        self.mr.setEventQueue(eventQueue)
+        self.mr.setEventQueue(self.eventQueue)
         self.mr.register_inotify_path(boxesDir,boxesMask)
 
         try:
