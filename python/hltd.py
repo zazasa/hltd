@@ -1131,14 +1131,22 @@ class hltd(Daemon2,object):
 
             calculate_threadnumber()
 
+
         """
         the line below is a VERY DIRTY trick to address the fact that
         BU resources are dynamic hence they should not be under /etc
         """
         conf.resource_base = conf.watch_directory+'/appliance' if conf.role == 'bu' else conf.resource_base
 
+        #@SM:is running from symbolic links still needed?
         watch_directory = os.readlink(conf.watch_directory) if os.path.islink(conf.watch_directory) else conf.watch_directory
         resource_base = os.readlink(conf.resource_base) if os.path.islink(conf.resource_base) else conf.resource_base
+
+        #start boxinfo elasticsearch updater
+        boxInfo = None
+        if conf.role == 'bu' and conf.use_elasticsearch:
+            boxInfo = BoxInfoUpdater(watch_directory)
+            boxInfo.start()
 
         runRanger = RunRanger()
         runRanger.register_inotify_path(watch_directory,inotify.IN_CREATE)
@@ -1188,6 +1196,9 @@ class hltd(Daemon2,object):
             runRanger.stop_inotify()
             logging.info("stopping resource ranger inotify helper")
             rr.stop_inotify()
+            if boxInfo is not None:
+                logging.info("stopping boxinfo updater")
+                boxInfo.stop()
             logging.info("stopping system monitor")
             rr.stop_managed_monitor()
             logging.info("closing httpd socket")

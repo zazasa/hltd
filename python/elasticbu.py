@@ -21,11 +21,12 @@ index_name = "runindex"
 
 class elasticBandBU:
 
-    def __init__(self,es_server_url,runnumber,startTime):
+    def __init__(self,es_server_url,runnumber,startTime,runMode=True):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.es = ElasticSearch(es_server_url)
         self.runnumber = str(runnumber)
         self.startTime = startTime
+        self.host = os.uname()[1]
         self.settings = {
             "analysis":{
                 "analyzer": {
@@ -156,14 +157,15 @@ class elasticBandBU:
             #this is normally fine as the index gets created somewhere across the cluster
             pass
         #write run number document
-        document = {}
-        document['runNumber'] = self.runnumber
-        document['startTime'] = startTime
-        try:
-            self.es.index(index_name,'run',document)
-        except ElasticHttpError as ex:
-            logger.info(ex)
-            pass
+        if runMode == True:
+            document = {}
+            document['runNumber'] = self.runnumber
+            document['startTime'] = startTime
+            try:
+                self.es.index(index_name,'run',document)
+            except ElasticHttpError as ex:
+                logger.info(ex)
+                pass
 
     def read_line(self,fullpath):
         with open(fullpath,'r') as fp:
@@ -207,8 +209,8 @@ class elasticBandBU:
         basename = infile.basename
         self.logger.info(basename+" going into buffer")
         document = infile.data
-        document['_parent']= self.runnumber
-        document['id']= basename+'_'+self.runnumber
+        #document['_parent']= self.runnumber
+        document['id']= basename + '_' + document['fm_date'] + '_' + self.host
         documents = [document]
         self.es.bulk_index(index_name,'boxinfo',documents)
 
@@ -297,12 +299,94 @@ class elasticCollectorBU():
             elif filetype in [PATHLEGEND] and self.insertedPathLegend == False:
                 es.elasticize_pathlegend(filepath)
                 self.insertedPathLegend = True          
-            elif filetype == BOX:
-                self.logger.info(self.infile.basename)
-                es.elasticize_box(self.infile)
             elif filetype == EOLS:
                 self.logger.info(self.infile.basename)
                 es.elasticize_eols(self.infile)
+
+
+
+class elasticBoxCollectorBU():
+
+    def __init__(self,exbox):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        
+        self.stoprequest = threading.Event()
+        self.emptyQueue = threading.Event()
+        self.source = False
+        self.infile = False
+        self.es = esbox
+
+    def start(self):
+        self.run()
+
+    def stop(self):
+        self.stoprequest.set()
+
+    def run(self):
+        self.logger.info("Start main loop")
+        while not (self.stoprequest.isSet() and self.emptyQueue.isSet()) :
+            if self.source:
+                try:
+                    event = self.source.get(True,1.0) #blocking with timeout
+                    self.eventtype = event.mask
+                    self.infile = fileHandler(event.fullpath)
+                    self.emptyQueue.clear()
+                    self.process() 
+                except (KeyboardInterrupt,Queue.Empty) as e:
+                    self.emptyQueue.set() 
+            else:
+                time.sleep(1.0)
+        self.logger.info("Stop main loop")
+
+    def setSource(self,source):
+        self.source = source
+
+    def process(self):
+        self.logger.debug("RECEIVED FILE: %s " %(self.infile.basename))
+        filepath = self.infile.filepath
+        filetype = self.infile.filetype
+        eventtype = self.eventtype
+        if filetype == BOX:
+            self.logger.info(self.infile.basename)
+            self.es.elasticize_box(self.infile)
+
+
+class BoxInfoUpdater(threading.Thread):
+
+    def __init__(self,ramdisk):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        threading.Thread.__init__(self)
+
+        boxesDir =  os.path.join(ramdisk,'appliance/boxes')
+        boxesMask = inotify.IN_CLOSE_WRITE 
+    
+        self.eventQueue = Queue.Queue()
+        self.mr = MonitorRanger()
+        self.mr.setEventQueue(eventQueue)
+        self.mr.register_inotify_path(boxesDir,boxesMask)
+
+        try:
+            if conf.elastic_bu_test is not None:
+                self.es = elasticBandBU('http://localhost:9200',0,'',False)
+            else:
+                self.es = elasticBandBU(conf.elastic_runindex_url,0,'',False)
+        except:
+            self.es = elasticBandBU(conf.elastic_runindex_url,0,'',False)
+
+        self.ec = elasticBoxCollectorBU(self.es)
+        self.ec.setSource(self.eventQueue)
+
+    def run(self):
+        self.mr.start_inotify()
+        self.ec.start()
+
+    def stop(self):
+        self.logger.debug("request to stop")
+        if self.mr is not None:
+            self.mr.stop_inotify()
+        self.ec.stop()
+        self.join()
+
 
 if __name__ == "__main__":
     logging.basicConfig(filename=os.path.join(conf.log_dir,"elasticbu.log"),
@@ -330,8 +414,6 @@ if __name__ == "__main__":
     mainMask = inotify.IN_CLOSE_WRITE |  inotify.IN_MOVED_TO
     monDir = os.path.join(dirname,"mon")
     monMask = inotify.IN_CLOSE_WRITE |  inotify.IN_MOVED_TO
-    boxesDir =  os.path.join(dirname[:dirname.rfind('run')],'appliance/boxes')
-    boxesMask = inotify.IN_CLOSE_WRITE 
 
     logger.info("starting elastic for "+mainDir)
     logger.info("starting elastic for "+monDir)
@@ -349,9 +431,7 @@ if __name__ == "__main__":
         #starting inotify thread
         mr = MonitorRanger()
         mr.setEventQueue(eventQueue)
-        #mr.register_inotify_path(watchDir,mask)
         mr.register_inotify_path(monDir,monMask)
-        mr.register_inotify_path(boxesDir,boxesMask)
         mr.register_inotify_path(mainDir,mainMask)
 
         mr.start_inotify()

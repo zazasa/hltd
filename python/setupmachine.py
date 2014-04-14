@@ -15,8 +15,10 @@ busconfig = '/etc/appliance/resources/bus.config'
 elasticsysconf = '/etc/sysconfig/elasticsearch'
 elasticconf = '/etc/elasticsearch/elasticsearch.yml'
 
-dbpwd = 'empty'
 dbhost = 'empty'
+dbsid = 'empty'
+dblogin = 'empty'
+dbpwd = 'empty'
 
 def removeResources():
     try:
@@ -85,7 +87,8 @@ def checkModifiedConfig(lines):
 #daqval
 def getDaqvalBUAddr(hostname):
 
-    con = cx_Oracle.connect('CMS_DAQ2_TEST_HW_CONF_W/'+dbpwd+'@'+dbhost+':10121/int2r_lb.cern.ch',
+    #con = cx_Oracle.connect('CMS_DAQ2_TEST_HW_CONF_W/'+dbpwd+'@'+dbhost+':10121/int2r_lb.cern.ch',
+    con = cx_Oracle.connect(dblogin+'/'+dbpwd+'@'+dbhost+':10121/'+dbsid,
                         cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
     #print con.version
 
@@ -209,10 +212,12 @@ def restoreFileMaybe(file):
 
 #main function
 if True:
-    if not sys.argv[1]:
+
+    argvc = 1
+    if not sys.argv[argvc]:
         print "selection of packages to set up (hltd and/or elastic) missing"
         sys.exit(1)
-    selection = sys.argv[1]
+    selection = sys.argv[argvc]
     #print selection
 
     if selection == 'restore':
@@ -226,44 +231,68 @@ if True:
 
         sys.exit(0)
 
-    if not sys.argv[2]:
-        print "global elasticsearch hostname name missing"
+    argvc += 1
+    reservedValue = sys.argv[argvc]
+
+    argvc += 1
+    if not sys.argv[argvc]:
+        print "global elasticsearch URL name missing"
         sys.exit(1)
-    elastic_host = sys.argv[2]
+    elastic_host = sys.argv[argvc]
     #http prefix is required here
     if not elastic_host.strip().beginswith('http://'):
         elastic_host = 'http://'+ elastic_host.strip()
+        #add default port name for elasticsearch
+    if len(elastic_host.split(':'))<3:
+        elastic_host+=':9200'
 
-
-    if not sys.argv[3]:
+    argvc += 1
+    if not sys.argv[argvc]:
         print "elasticsearch tribe hostname name missing"
         sys.exit(1)
-    elastic_host2 = sys.argv[3]
+    elastic_host2 = sys.argv[argvc]
 
-
-    if not sys.argv[4]:
+    argvc += 1
+    if not sys.argv[argvc]:
         print "CMSSW base missing"
         sys.exit(1)
-    cmssw_base = sys.argv[4]
+    cmssw_base = sys.argv[argvc]
 
-
-    if not sys.argv[5]:
-        print "DB connection parameters missing"
+    argvc += 1
+    if not sys.argv[argvc]:
+        print "DB connection hostname missing"
         sys.exit(1)
-    dbhost = sys.argv[5]
+    dbhost = sys.argv[argvc]
 
-
-    if not sys.argv[6]:
-        print "DB connection parameters missing"
+    argvc += 1
+    if not sys.argv[argvc]:
+        print "DB connection SID missing"
         sys.exit(1)
-    dbpwd = sys.argv[6]
+    dbsid = sys.argv[argvc]
 
-    if not sys.argv[7]:
-        print "Username parameter is missing"
+    argvc += 1
+    if not sys.argv[argvc]:
+        print "DB connection login missing"
         sys.exit(1)
-    username = sys.argv[7]
+    dblogin = sys.argv[argvc]
 
+    argvc += 1
+    if not sys.argv[argvc]:
+        print "DB connection password missing"
+        sys.exit(1)
+    dbpwd = sys.argv[argvc]
 
+    argvc += 1
+    if not sys.argv[argvc]:
+        print "equipment set name missing"
+        sys.exit(1)
+    equipmentset = sys.argv[argvc]
+
+    argvc += 1
+    if not sys.argv[argvc]:
+        print "CMSSW job username parameter is missing"
+        sys.exit(1)
+    username = sys.argv[argvc]
 
 
     cluster,type = getmachinetype()
@@ -351,11 +380,12 @@ if True:
 
         escfg.commit()
 
+    argvc+=1
     if "hltd" in selection:
       #number of cmssw threads (if set)
       nthreads = 1
       try:
-          nthreads = sys.argv[8]
+          nthreads = sys.argv[argvc]
       except:
           pass
 

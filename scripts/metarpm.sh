@@ -4,32 +4,27 @@ SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $SCRIPTDIR/..
 BASEDIR=$PWD
 
-ESMAIN=$1
-ESSECOND=$2
-CMSSWBASE=$3
-DBPARAMS=$4
-NTHREADS=$5
-
 if [ -f $SCRIPTDIR/paramcache ];
 then
-readarray lines < $SCRIPTDIR/paramcache
-lines[0]=`echo -n ${lines[0]} | tr -d "\n"`
-lines[1]=`echo -n ${lines[1]} | tr -d "\n"`
-lines[2]=`echo -n ${lines[2]} | tr -d "\n"`
-lines[3]=`echo -n ${lines[3]} | tr -d "\n"`
-lines[4]=`echo -n ${lines[4]} | tr -d "\n"`
-lines[5]=`echo -n ${lines[5]} | tr -d "\n"`
+  readarray lines < $SCRIPTDIR/paramcache
+  for (( i=0; i < 10; i++ ))
+  do
+    lines[$i]=`echo -n ${lines[$i]} | tr -d "\n"`
+  done
 else
-lines=("" "" "" "" "")
+  for (( i=0; i < 10; i++ ))
+  do
+    lines[$i]=""
+  done
 fi
 
-echo "ES server containg common run index (press enter for \"${lines[0]}\"):"
+echo "ES server URL containg common run index (press enter for \"${lines[0]}\"):"
 readin=""
 read readin
 if [ ${#readin} != "0" ]; then
 lines[0]=$readin
 fi
-echo "ES tribe server (press enter for \"${lines[1]}\"):"
+echo "ES tribe server hostname (press enter for \"${lines[1]}\"):"
 readin=""
 read readin
 if [ ${#readin} != "0" ]; then
@@ -50,35 +45,64 @@ if [ ${#readin} != "0" ]; then
 lines[3]=$readin
 fi
 
-echo "HWCFG DB password (press enter for: \"${lines[4]}\"):"
+echo "HWCFG DB SID (press enter for: \"${lines[4]}\"):"
 readin=""
 read readin
 if [ ${#readin} != "0" ]; then
 lines[4]=$readin
 fi
 
-
-echo "job username (press enter for: \"${lines[5]}\"):"
+echo "HWCFG DB username (press enter for: \"${lines[5]}\"):"
 readin=""
 read readin
 if [ ${#readin} != "0" ]; then
 lines[5]=$readin
 fi
 
-params="${lines[0]} ${lines[1]} ${lines[2]} ${lines[3]} ${lines[4]} ${lines[5]} 1"
-#echo $params
+echo "HWCFG DB password (press enter for: \"${lines[6]}\"):"
+readin=""
+read readin
+if [ ${#readin} != "0" ]; then
+lines[6]=$readin
+fi
+
+echo "Equipment set (press enter for: \"${lines[7]}\"):"
+readin=""
+read readin
+if [ ${#readin} != "0" ]; then
+lines[7]=$readin
+fi
+
+echo "job username (press enter for: \"${lines[8]}\"):"
+readin=""
+read readin
+if [ ${#readin} != "0" ]; then
+lines[8]=$readin
+fi
+
+echo "number of threads per process (press enter for: \"${lines[9]}\"):"
+readin=""
+read readin
+if [ ${#readin} != "0" ]; then
+lines[9]=$readin
+fi
+
+params="true"
+for (( i=0; i < 10; i++ ))
+do
+  params="$params ${lines[i]}"
+done
 
 #write cache
 if [ -f $SCRIPTDIR/paramcache ];
 then
 rm -rf -f $SCRIPTDIR/paramcache
 fi
-echo ${lines[0]} >> $SCRIPTDIR/paramcache
-echo ${lines[1]} >> $SCRIPTDIR/paramcache
-echo ${lines[2]} >> $SCRIPTDIR/paramcache
-echo ${lines[3]} >> $SCRIPTDIR/paramcache
-echo ${lines[4]} >> $SCRIPTDIR/paramcache
-echo ${lines[5]} >> $SCRIPTDIR/paramcache
+for (( i=0; i < 10; i++ ))
+do
+  echo ${lines[$i]} >> $SCRIPTDIR/paramcache
+done
+
 chmod 500 $SCRIPTDIR/paramcache
 # create a build area
 
@@ -116,6 +140,7 @@ Provides:/usr/share/fff/setupmachine.py
 Provides:/usr/share/fff/elasticsearch.yml
 Provides:/usr/share/fff/elasticsearch
 Provides:/usr/share/fff/hltd.conf
+Provides:/etc/init.d/fffmeta
 
 %description
 fffmeta configuration setup package
@@ -127,11 +152,26 @@ fffmeta configuration setup package
 rm -rf \$RPM_BUILD_ROOT
 mkdir -p \$RPM_BUILD_ROOT
 %__install -d "%{buildroot}/usr/share/fff"
+%__install -d "%{buildroot}/etc/init.d"
 
 mkdir -p usr/share/fff
 cp $BASEDIR/python/setupmachine.py %{buildroot}/usr/share/fff/setupmachine.py
 echo "#!/bin/bash" > %{buildroot}/usr/share/fff/configurefff.sh
 echo python2.6 /usr/share/fff/setupmachine.py elasticsearch,hltd $params >> %{buildroot}/usr/share/fff/configurefff.sh 
+
+#TODO:check if elasticsearch / hltd are already running and restart them if they are
+
+mkdir -p etc/init.d/
+echo "#!/bin/bash"                    >> %{buildroot}/etc/init.d/fffmeta
+echo "#"                              >> %{buildroot}/etc/init.d/fffmeta
+echo "# chkconfig:   2345 79 21"      >> %{buildroot}/etc/init.d/fffmeta
+echo "#"                              >> %{buildroot}/etc/init.d/fffmeta
+echo "if [ \\\$1 == \"start\" ]; then"   >> %{buildroot}/etc/init.d/fffmeta
+echo "/usr/share/fff/configurefff.sh" >> %{buildroot}/etc/init.d/fffmeta
+echo "done"                           >> %{buildroot}/etc/init.d/fffmeta
+echo "if [ \\\$1 == \"restart\" ]; then" >> %{buildroot}/etc/init.d/fffmeta
+echo "/usr/share/fff/configurefff.sh" >> %{buildroot}/etc/init.d/fffmeta
+echo "done"                           >> %{buildroot}/etc/init.d/fffmeta
 
 %files
 %defattr(-, root, root, -)
@@ -140,27 +180,30 @@ echo python2.6 /usr/share/fff/setupmachine.py elasticsearch,hltd $params >> %{bu
 %attr( 755 ,root, root) /usr/share/fff/setupmachine.pyc
 %attr( 755 ,root, root) /usr/share/fff/setupmachine.pyo
 %attr( 700 ,root, root) /usr/share/fff/configurefff.sh
+%attr( 755 ,root, root) /etc/init.d/fffmeta
 
 %post
 echo "post install trigger"
+chkconfig fffmeta on
 
 %triggerin -- elasticsearch
 echo "triggered on elasticsearch update or install"
 python2.6 /usr/share/fff/setupmachine.py elasticsearch $params
 /sbin/service elasticsearch restart
+chkconfig elasticsearch on
 
 %triggerin -- hltd
 echo "triggered on hltd update or install"
 python2.6 /usr/share/fff/setupmachine.py hltd $params
 killall hltd
 /sbin/service hltd restart
+chkconfig hltd on
 
 %preun
 python2.6 /usr/share/fff/setupmachine.py restore
+chkconfig fffmeta off
 
 EOF
 
-#mkdir -p RPMBUILD/{RPMS/{noarch},SPECS,BUILD,SOURCES,SRPMS}
 rpmbuild --target noarch --define "_topdir `pwd`/RPMBUILD" -bb fffmeta.spec
-#rm -rf patch-cmssw-tmp
 
