@@ -45,16 +45,17 @@ def countCPUs():
     return resource_count
 
 def getmachinetype():
-      myhost = os.uname()[1]
-      print "running on host ",myhost
-      if   myhost.startswith('dvrubu-') : return 'daqval','fu'
-      elif myhost.startswith('dvbu-') : return 'daqval','bu'
-      elif myhost.startswith('bu-') : return 'prod','bu'
-      elif myhost.startswith('fu-') : return 'prod','fu'
-      elif myhost.startswith('cmsdaq-401b28') : return 'test','fu'
-      else: 
-           print "debug"
-           return 'unknown','unknown'
+    myhost = os.uname()[1]
+    print "running on host ",myhost
+    if   myhost.startswith('dvrubu-') : return 'daqval','fu'
+    elif myhost.startswith('dvbu-') : return 'daqval','bu'
+    elif myhost.startswith('bu-') : return 'prod','bu'
+    elif myhost.startswith('fu-') : return 'prod','fu'
+    elif myhost.startswith('cmsdaq-401b28') : return 'test','fu'
+    elif myhost.startswith('dvfu-') : return 'test','fu'
+    else: 
+       print "debug"
+       return 'unknown','unknown'
 
 def getIPs(hostname):
     try:
