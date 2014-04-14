@@ -5,7 +5,12 @@ import shutil
 sys.path.append('/opt/hltd/python')
 #from fillresources import *
 
-import cx_Oracle
+#for testing enviroment
+try:
+    import cx_Oracle
+except ImportError:
+    pass
+
 import socket
 
 backup_dir = '/usr/share/fff'
