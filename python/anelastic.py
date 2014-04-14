@@ -95,8 +95,8 @@ class LumiSectionRanger():
                 if key not in self.LSHandlerList:
                     self.LSHandlerList[key] = LumiSectionHandler(run,ls,self.activeStreams,self.tempdir,self.outdir,self.jsdfile)
                 self.LSHandlerList[key].processFile(self.infile)
-                if self.LSHandlerList[key].closed.isSet():
-                    self.LSHandlerList.pop(key,None)
+#                if self.LSHandlerList[key].closed.isSet():
+#                    self.LSHandlerList.pop(key,None)
             elif filetype == CRASH:
                 self.processCRASHfile()
             elif filetype == EOR:
@@ -205,7 +205,7 @@ class LumiSectionHandler():
         ls,stream,pid = infile.ls,infile.stream,infile.pid
         outdir = self.outdir
 
-        #if self.closed.isSet(): self.closed.clear()
+        if self.closed.isSet(): self.closed.clear()
         if infile.data:
             #update pidlist
             if stream not in self.pidList[pid]["streamList"]: self.pidList[pid]["streamList"].append(stream)
@@ -226,7 +226,7 @@ class LumiSectionHandler():
         infile = self.infile
         ls,pid = infile.ls,infile.pid
 
-
+        if self.closed.isSet(): self.closed.clear()
         if infile.data:
             numEvents = int(infile.data["data"][0])
             self.totalEvent+=numEvents
