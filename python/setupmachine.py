@@ -88,13 +88,14 @@ def checkModifiedConfig(lines):
 def getDaqvalBUAddr(hostname):
 
     #con = cx_Oracle.connect('CMS_DAQ2_TEST_HW_CONF_W/'+dbpwd+'@'+dbhost+':10121/int2r_lb.cern.ch',
+    #myDAQ_EQCFG_EQSET1 = '/daq2val/eq_140325_attributes'
+
     con = cx_Oracle.connect(dblogin+'/'+dbpwd+'@'+dbhost+':10121/'+dbsid,
                         cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
     #print con.version
 
     cur = con.cursor()
 
-    myDAQ_EQCFG_EQSET1 = '/daq2val/eq_140325_attributes'
     myDAQ_EQCFG_EQSET = 'DAQ_EQCFG_EQSET'
 
     qstring=  "select attr_name, attr_value from \
@@ -190,24 +191,27 @@ class FileManager:
 
 
 def restoreFileMaybe(file):
+    print "restoring ",file
     try:
         try:
             f = open(file,'r')
             lines = f.readlines()
             f.close()
-            shouldNotCopy = checkModifiedConfig(lines)
+            print "restoring ?", checkModifiedConfig(lines)
+            shouldCopy = checkModifiedConfig(lines)
         except:
             #backup also if file got deleted
-            shouldNotCopy = False
+            shouldCopy = True
 
-        if not shouldNotCopy:
+        if shouldCopy:
             backuppath = os.path.join(backup_dir,os.path.basename(file))
             f = open(backuppath)
             blines = f.readlines()
             f.close()
             if  checkModifiedConfig(blines) == False and len(blines)>0:
                 shutil.move(backuppath,file)
-    except:
+    except Exception, ex:
+        print "restoring problem: " , ex
         pass
 
 #main function
@@ -232,15 +236,12 @@ if True:
         sys.exit(0)
 
     argvc += 1
-    reservedValue = sys.argv[argvc]
-
-    argvc += 1
     if not sys.argv[argvc]:
         print "global elasticsearch URL name missing"
         sys.exit(1)
     elastic_host = sys.argv[argvc]
     #http prefix is required here
-    if not elastic_host.strip().beginswith('http://'):
+    if not elastic_host.strip().startswith('http://'):
         elastic_host = 'http://'+ elastic_host.strip()
         #add default port name for elasticsearch
     if len(elastic_host.split(':'))<3:
@@ -349,7 +350,7 @@ if True:
         print "will modify sysconfig elasticsearch configuration"
         #maybe backup vanilla versions
         essysEdited =  checkModifiedConfigInFile(elasticsysconf)
-        if essysEdited == False:
+        if essysEdited == False and type == 'fu': #modified only on FU
           print "elasticsearch sysconfig configuration was not yet modified"
           shutil.copy(elasticsysconf,os.path.join(backup_dir,os.path.basename(elasticsysconf)))
 
@@ -412,7 +413,7 @@ if True:
       if type=='bu':
       
           #get needed info here
-          hltdcfg.reg('user',sys.argv[7],'[General]')
+          hltdcfg.reg('user',username,'[General]')
           hltdcfg.reg('elastic_runindex_url',sys.argv[2],'[Monitoring]')
           hltdcfg.removeEntry('watch_directory')
           hltdcfg.commit() 
@@ -428,7 +429,7 @@ if True:
           #do_num_threads = True
           #num_threads = nthreads 
  
-          hltdcfg.reg('user',sys.argv[7],'[General]')
+          hltdcfg.reg('user',username,'[General]')
           hltdcfg.reg('role','fu','[General]')
           hltdcfg.reg('cmssw_base',cmssw_base,'[CMSSW]')
           hltdcfg.removeEntry('watch_directory')

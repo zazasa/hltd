@@ -66,7 +66,7 @@ if [ ${#readin} != "0" ]; then
 lines[6]=$readin
 fi
 
-echo "Equipment set (press enter for: \"${lines[7]}\"):"
+echo "Equipment set (press enter for: \"${lines[7]}\") - not used:"
 readin=""
 read readin
 if [ ${#readin} != "0" ]; then
@@ -87,7 +87,7 @@ if [ ${#readin} != "0" ]; then
 lines[9]=$readin
 fi
 
-params="true"
+params=""
 for (( i=0; i < 10; i++ ))
 do
   params="$params ${lines[i]}"
@@ -132,7 +132,7 @@ Source: none
 %define _topdir $TOPDIR
 BuildArch: $BUILD_ARCH
 AutoReqProv: no
-Requires:elasticsearch > 1.0.2, hltd > 1.3.0, cx_Oracle >= 5.1.2
+Requires:elasticsearch >= 1.0.2, hltd > 1.3.0, cx_Oracle >= 5.1.2
 
 Provides:/usr/share/fff/configurefff.sh
 Provides:/usr/share/fff/setupmachine.py
@@ -202,6 +202,10 @@ chkconfig hltd on
 %preun
 python2.6 /usr/share/fff/setupmachine.py restore
 chkconfig fffmeta off
+chkconfig elasticsearch off
+chkconfig hltd off
+/sbin/service elasticsearch stop
+/sbin/service hltd stop
 
 EOF
 
