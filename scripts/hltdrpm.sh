@@ -29,8 +29,8 @@ ls
 
 
 echo "Moving files to their destination"
-mkdir -p /var/log/hltd
-mkdir -p /var/log/hltd/pid
+mkdir -p var/log/hltd
+mkdir -p var/log/hltd/pid
 mkdir -p opt/hltd
 mkdir -p etc/init.d
 mkdir -p etc/logrotate.d
@@ -180,7 +180,7 @@ cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > hltd.spec <<EOF
 Name: hltd
-Version: 1.3.0rc2
+Version: 1.3.0rc4
 Release: 0
 Summary: hlt daemon
 License: gpl

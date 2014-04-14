@@ -140,7 +140,10 @@ class system_monitor(threading.Thread):
         self.threadEvent = threading.Event()
 
     def rehash(self):
-        self.directory = ['/'+x+'/ramdisk/appliance/boxes/' for x in bu_disk_list]
+        if conf.role == 'fu':
+            self.directory = ['/'+x+'/'+conf.ramdisk_subdirectory+'/appliance/boxes/' for x in bu_disk_list]
+        else:
+            self.directory = [conf.watch_directory+'/appliance/boxes/']
         self.file = [x+self.hostname for x in self.directory]
         for dir in self.directory:
             try:
@@ -162,25 +165,33 @@ class system_monitor(threading.Thread):
 
                 fp = None
                 for mfile in self.file:
-                    
-                        budir = mfile[:len(conf.bu_base_dir)+3]
-                        outdir = os.path.join(budir,'output')
-                        outdir = os.statvfs(outdir)
-                        outdir = '{0:.0%}'.format(outdir.f_bavail/float(outdir.f_blocks))
-                        ramdisk = os.path.join(budir,'ramdisk')
-                        ramdisk = os.statvfs(ramdisk)
-                        ramdisk = '{0:.0%}'.format(ramdisk.f_bavail/float(ramdisk.f_blocks))
-
-
+                    if conf.role == 'fu':
+                        dirstat = os.statvfs(conf.watch_directory)
                         fp=open(mfile,'w+')
                         fp.write('fm_date='+tstring+'\n')
                         fp.write('idles='+str(len(os.listdir(idles)))+'\n')
                         fp.write('used='+str(len(os.listdir(used)))+'\n')
                         fp.write('broken='+str(len(os.listdir(broken)))+'\n')
                         fp.write('quarantined='+str(len(os.listdir(quarantined)))+'\n')
-                        fp.write('output='+str(outdir+'\n'))
-                        fp.write('ramdisk='+str(ramdisk+'\n'))
+                        fp.write('usedDataDir='+str(((dirstat.f_blocks - dirstat.f_bavail)*dirstat.f_bsize)>>20)+'\n')
+                        fp.write('totalDataDir='+str((dirstat.f_blocks*dirstat.f_bsize)>>20)+'\n')
                         fp.close()
+                    if conf.role == 'bu':
+                        ramdisk = os.statvfs(conf.watch_directory)
+                        outdir = os.statvfs('/fff/output')
+                        fp=open(mfile,'w+')
+
+                        fp.write('fm_date='+tstring+'\n')
+                        fp.write('idles=0\n')
+                        fp.write('used=0\n')
+                        fp.write('broken=0\n')
+                        fp.write('quarantined=0\n')
+                        fp.write('usedRamdisk='+str(((ramdisk.f_blocks - ramdisk.f_bavail)*ramdisk.f_bsize)>>20)+'\n')
+                        fp.write('totalRamdisk='+str((ramdisk.f_blocks*ramdisk.f_bsize)>>20)+'\n')
+                        fp.write('usedOutput='+str(((outdir.f_blocks - outdir.f_bavail)*outdir.f_bsize)>>20)+'\n')
+                        fp.write('totalOutput='+str((outdir.f_blocks*outdir.f_bsize)>>20)+'\n')
+                        fp.close()
+                        
                 if conf.role == 'bu':
                     mfile = conf.resource_base+'/disk.jsn'
                     stat=[]
@@ -225,6 +236,12 @@ class BUEmu:
             return
         self.runnumber = nr
         configtouse = conf.test_bu_config
+        destination_base = None
+        if role == 'fu':
+            destination_base = bu_disk_list[startindex%len(bu_disk_list)]+'/'+conf.ramdisk_subdirectory
+        else:
+            destination_base = conf.watch_directory
+            
 
         new_run_args = [conf.cmssw_script_location+'/startRun.sh',
                         conf.cmssw_base,
@@ -233,7 +250,9 @@ class BUEmu:
                         conf.exec_directory,
                         configtouse,
                         str(nr),
-                        ' ']
+                        '/tmp', #input dir is not needed
+                        destination_base,
+                        '1']
         try:
             self.process = subprocess.Popen(new_run_args,
                                             preexec_fn=preexec_function,
@@ -261,7 +280,8 @@ class OnlineResource:
         self.runnumber = None
         self.associateddir = None
         self.lock = lock
-        self.retry_attempts = 0;
+        self.retry_attempts = 0
+        self.quarantined = []
 
     def ping(self):
         if conf.role == 'bu':
@@ -295,7 +315,7 @@ class OnlineResource:
         independent mounts of the BU - it should not be necessary in due course
         IFF it is necessary, it should address "any" number of mounts, not just 2
         """
-        input_disk = bu_disk_list[startindex%len(bu_disk_list)]+'/ramdisk'
+        input_disk = bu_disk_list[startindex%len(bu_disk_list)]+'/'+conf.ramdisk_subdirectory
         #run_dir = input_disk + '/run' + str(self.runnumber).zfill(conf.run_number_padding)
 
         logging.info("starting process with "+version+" and run number "+str(runnumber))
@@ -308,6 +328,7 @@ class OnlineResource:
                         menu,
                         str(runnumber),
                         input_disk,
+                        conf.watch_directory,
                         str(num_threads)]
         logging.info("arg array "+str(new_run_args).translate(None, "'"))
         try:
@@ -342,6 +363,11 @@ class OnlineResource:
         logging.debug("OnlineResource "+str(self.cpu)+" restart is now disabled")
         if self.watchdog:
             self.watchdog.disableRestart()
+
+    def clearQuarantined(self):
+        for cpu in self.quarantined:
+           os.rename(quarantined+cpu,idles+cpu)
+        self.quarantined = []
 
 class ProcessWatchdog(threading.Thread):
     def __init__(self,resource,lock):
@@ -442,6 +468,7 @@ class ProcessWatchdog(threading.Thread):
                                   )
                     for cpu in self.resource.cpu:
                         os.rename(used+cpu,quarantined+cpu)
+                        self.resource.quarantined.append(cpu)
 
             #successful end= release resource
             elif returncode == 0:
@@ -524,7 +551,7 @@ class Run:
             except Exception, ex:
                 logging.error("could not create mon dir inside the run input directory")
         else:
-            self.rawinputdir= bu_disk_list[0]+'/ramdisk/run' + str(self.runnumber).zfill(conf.run_number_padding)
+            self.rawinputdir= bu_disk_list[0]+'/'+conf.ramdisk_subdirectory+'/run' + str(self.runnumber).zfill(conf.run_number_padding)
 
         self.lock = threading.Lock()
         #conf.use_elasticsearch = False
@@ -539,7 +566,7 @@ class Run:
                     elastic_args = ['/opt/hltd/python/elasticbu.py',self.dirname,str(self.runnumber)]
                 else:
                     logging.info("starting elastic.py with arguments:"+self.dirname)
-                    elastic_args = ['/opt/hltd/python/elastic.py',self.dirname,self.rawinputdir+'/mon',str(expected_processes)]
+                    elastic_args = ['/opt/hltd/python/elastic.py',self.dirname,self.rawinputdir+'/mon',str(expected_processes),conf.elastic_cluster]
 
                 self.elastic_monitor = subprocess.Popen(elastic_args,
                                                         preexec_fn=preexec_function,
@@ -746,6 +773,7 @@ class Run:
                     resource.join()
                     logging.info('process '+str(resource.process.pid)+' completed')
 #                os.rename(used+resource.cpu,idles+resource.cpu)
+                resource.clearQuarantined()
                 resource.process=None
             self.online_resource_list = []
             if conf.role == 'fu':
@@ -806,7 +834,7 @@ class RunRanger:
                 try:
                     logging.info('new run '+str(nr))
                     if conf.role == 'fu':
-                        bu_dir = bu_disk_list[0]+'/ramdisk/'+dirname
+                        bu_dir = bu_disk_list[0]+'/'+conf.ramdisk_subdirectory+'/'+dirname
                         os.symlink(bu_dir+'/jsd',event.fullpath+'/jsd')
                     else:
                         bu_dir = ''
@@ -846,7 +874,7 @@ class RunRanger:
                             logging.info('end run '+str(nr))
                             if conf.role == 'fu':
                                 runtoend[0].StartWaitForEnd()
-                            elif bu_emulator:
+                            if bu_emulator and bu_emulator.runnumber != None:
                                 bu_emulator.stop()
 
                             logging.info('run '+str(nr)+' removing end-of-run marker')
@@ -1084,11 +1112,6 @@ class hltd(Daemon2,object):
         if role is not defined in the configuration (which it shouldn't)
         infer it from the name of the machine
         """
-
-        if not conf.role and 'bu' in os.uname()[1]:
-            conf.role = 'bu'
-        else:
-            conf.role = 'fu'
 
         if conf.role == 'fu':
 

@@ -1,5 +1,6 @@
 import ConfigParser
 import logging
+import os
 
 class hltdConf:
     def __init__(self, conffile):
@@ -13,6 +14,11 @@ class hltdConf:
         self.role = None
         self.elastic_bu_test = None
         self.elastic_runindex_url = None
+        self.watch_directory = None
+        self.ramdisk_subdirectory = 'ramdisk'
+        self.fastmon_insert_modulo = 1
+        self.elastic_cluster = None
+ 
         for sec in cfg.sections():
             for item,value in cfg.items(sec):
                 self.__dict__[item] = value
@@ -25,11 +31,29 @@ class hltdConf:
         self.cmssw_threads_autosplit = int(self.cmssw_threads_autosplit)
         self.cmssw_threads = int(self.cmssw_threads)
         self.service_log_level = getattr(logging,self.service_log_level)
+        self.autodetect_parameters()
+
+        #read cluster name from elastic search configuration file (used to specify index name)
+        if not self.elastic_cluster and self.use_elasticsearch == True:
+            f = None
+            try:
+                f=open('/etc/elasticsearch/elasticsearch.yml')
+            except:
+                pass
+            if f is not None:
+                lines = f.readlines()
+                for line in lines:
+                    sline = line.strip()
+                    if line.startswith("cluster.name"):
+                        self.elastic_cluster = line.split(':')[1].strip()
+        if not self.elastic_cluster and self.use_elasticsearch == True and self.role != 'bu':
+            raise Exception("elasticsearch cluster name missing!")
       
     def dump(self):
         logging.info( 'self.exec_directory '+self.exec_directory)
         logging.info( 'self.user '+self.user)
-        logging.info( 'self.watch_directory '+ self.watch_directory)
+        if conf.watch_directory:
+            logging.info( 'self.watch_directory '+ self.watch_directory)
         logging.info( 'self.watch_prefix '+ self.watch_prefix)
         logging.info( 'self.watch_emu_prefix '+ self.watch_emu_prefix)
         logging.info( 'self.watch_end_prefix '+ self.watch_end_prefix)
@@ -43,8 +67,20 @@ class hltdConf:
         logging.info( 'self.cmssw_arch '+ self.cmssw_arch)
         logging.info( 'self.cmssw_default_version '+ self.cmssw_default_version)
         logging.info( 'self.cmssw_script_location '+ self.cmssw_script_location)
+        logging.info( 'self.cmssw_threads_autosplit '+ str(self.cmssw_threads_autosplit))
+        logging.info( 'self.cmssw_threads '+ str(self.cmssw_threads))
         logging.info( 'self.test_hlt_config '+ self.test_hlt_config1)
         logging.info( 'self.test_bu_config '+ self.test_bu_config)
         logging.info( 'self.service_log_level '+str(self.service_log_level))
+
+    def autodetect_parameters(self):
+        if not self.role and 'bu' in os.uname()[1]:
+            self.role = 'bu'
+        elif not self.role:
+            self.role = 'fu'
+        if not self.watch_directory:
+            if self.role == 'bu': self.watch_directory='/fff/ramdisk'
+            if self.role == 'fu': self.watch_directory='/fff/data'
+
 
 conf = hltdConf('/etc/hltd.conf')
