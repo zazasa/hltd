@@ -237,7 +237,7 @@ if True:
         sys.exit(1)
     elastic_host = sys.argv[2]
     #http prefix is required here
-    if not elastic_host.strip().beginswith('http://'):
+    if not elastic_host.strip().startswith('http://'):
         elastic_host = 'http://'+ elastic_host.strip()
 
 
