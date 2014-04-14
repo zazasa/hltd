@@ -20,8 +20,10 @@ busconfig = '/etc/appliance/resources/bus.config'
 elasticsysconf = '/etc/sysconfig/elasticsearch'
 elasticconf = '/etc/elasticsearch/elasticsearch.yml'
 
-dbpwd = 'empty'
 dbhost = 'empty'
+dbsid = 'empty'
+dblogin = 'empty'
+dbpwd = 'empty'
 
 def removeResources():
     try:
@@ -91,13 +93,15 @@ def checkModifiedConfig(lines):
 #daqval
 def getDaqvalBUAddr(hostname):
 
-    con = cx_Oracle.connect('CMS_DAQ2_TEST_HW_CONF_W/'+dbpwd+'@'+dbhost+':10121/int2r_lb.cern.ch',
+    #con = cx_Oracle.connect('CMS_DAQ2_TEST_HW_CONF_W/'+dbpwd+'@'+dbhost+':10121/int2r_lb.cern.ch',
+    #myDAQ_EQCFG_EQSET1 = '/daq2val/eq_140325_attributes'
+
+    con = cx_Oracle.connect(dblogin+'/'+dbpwd+'@'+dbhost+':10121/'+dbsid,
                         cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
     #print con.version
 
     cur = con.cursor()
 
-    myDAQ_EQCFG_EQSET1 = '/daq2val/eq_140325_attributes'
     myDAQ_EQCFG_EQSET = 'DAQ_EQCFG_EQSET'
 
     qstring=  "select attr_name, attr_value from \
@@ -193,32 +197,37 @@ class FileManager:
 
 
 def restoreFileMaybe(file):
+    print "restoring ",file
     try:
         try:
             f = open(file,'r')
             lines = f.readlines()
             f.close()
-            shouldNotCopy = checkModifiedConfig(lines)
+            print "restoring ?", checkModifiedConfig(lines)
+            shouldCopy = checkModifiedConfig(lines)
         except:
             #backup also if file got deleted
-            shouldNotCopy = False
+            shouldCopy = True
 
-        if not shouldNotCopy:
+        if shouldCopy:
             backuppath = os.path.join(backup_dir,os.path.basename(file))
             f = open(backuppath)
             blines = f.readlines()
             f.close()
             if  checkModifiedConfig(blines) == False and len(blines)>0:
                 shutil.move(backuppath,file)
-    except:
+    except Exception, ex:
+        print "restoring problem: " , ex
         pass
 
 #main function
 if True:
-    if not sys.argv[1]:
+
+    argvc = 1
+    if not sys.argv[argvc]:
         print "selection of packages to set up (hltd and/or elastic) missing"
         sys.exit(1)
-    selection = sys.argv[1]
+    selection = sys.argv[argvc]
     #print selection
 
     if selection == 'restore':
@@ -232,44 +241,65 @@ if True:
 
         sys.exit(0)
 
-    if not sys.argv[2]:
-        print "global elasticsearch hostname name missing"
+    argvc += 1
+    if not sys.argv[argvc]:
+        print "global elasticsearch URL name missing"
         sys.exit(1)
-    elastic_host = sys.argv[2]
+    elastic_host = sys.argv[argvc]
     #http prefix is required here
     if not elastic_host.strip().startswith('http://'):
         elastic_host = 'http://'+ elastic_host.strip()
+        #add default port name for elasticsearch
+    if len(elastic_host.split(':'))<3:
+        elastic_host+=':9200'
 
-
-    if not sys.argv[3]:
+    argvc += 1
+    if not sys.argv[argvc]:
         print "elasticsearch tribe hostname name missing"
         sys.exit(1)
-    elastic_host2 = sys.argv[3]
+    elastic_host2 = sys.argv[argvc]
 
-
-    if not sys.argv[4]:
+    argvc += 1
+    if not sys.argv[argvc]:
         print "CMSSW base missing"
         sys.exit(1)
-    cmssw_base = sys.argv[4]
+    cmssw_base = sys.argv[argvc]
 
-
-    if not sys.argv[5]:
-        print "DB connection parameters missing"
+    argvc += 1
+    if not sys.argv[argvc]:
+        print "DB connection hostname missing"
         sys.exit(1)
-    dbhost = sys.argv[5]
+    dbhost = sys.argv[argvc]
 
-
-    if not sys.argv[6]:
-        print "DB connection parameters missing"
+    argvc += 1
+    if not sys.argv[argvc]:
+        print "DB connection SID missing"
         sys.exit(1)
-    dbpwd = sys.argv[6]
+    dbsid = sys.argv[argvc]
 
-    if not sys.argv[7]:
-        print "Username parameter is missing"
+    argvc += 1
+    if not sys.argv[argvc]:
+        print "DB connection login missing"
         sys.exit(1)
-    username = sys.argv[7]
+    dblogin = sys.argv[argvc]
 
+    argvc += 1
+    if not sys.argv[argvc]:
+        print "DB connection password missing"
+        sys.exit(1)
+    dbpwd = sys.argv[argvc]
 
+    argvc += 1
+    if not sys.argv[argvc]:
+        print "equipment set name missing"
+        sys.exit(1)
+    equipmentset = sys.argv[argvc]
+
+    argvc += 1
+    if not sys.argv[argvc]:
+        print "CMSSW job username parameter is missing"
+        sys.exit(1)
+    username = sys.argv[argvc]
 
 
     cluster,type = getmachinetype()
@@ -326,7 +356,7 @@ if True:
         print "will modify sysconfig elasticsearch configuration"
         #maybe backup vanilla versions
         essysEdited =  checkModifiedConfigInFile(elasticsysconf)
-        if essysEdited == False:
+        if essysEdited == False and type == 'fu': #modified only on FU
           print "elasticsearch sysconfig configuration was not yet modified"
           shutil.copy(elasticsysconf,os.path.join(backup_dir,os.path.basename(elasticsysconf)))
 
@@ -357,11 +387,12 @@ if True:
 
         escfg.commit()
 
+    argvc+=1
     if "hltd" in selection:
       #number of cmssw threads (if set)
       nthreads = 1
       try:
-          nthreads = sys.argv[8]
+          nthreads = sys.argv[argvc]
       except:
           pass
 
@@ -388,7 +419,7 @@ if True:
       if type=='bu':
       
           #get needed info here
-          hltdcfg.reg('user',sys.argv[7],'[General]')
+          hltdcfg.reg('user',username,'[General]')
           hltdcfg.reg('elastic_runindex_url',sys.argv[2],'[Monitoring]')
           hltdcfg.removeEntry('watch_directory')
           hltdcfg.commit() 
@@ -404,7 +435,7 @@ if True:
           #do_num_threads = True
           #num_threads = nthreads 
  
-          hltdcfg.reg('user',sys.argv[7],'[General]')
+          hltdcfg.reg('user',username,'[General]')
           hltdcfg.reg('role','fu','[General]')
           hltdcfg.reg('cmssw_base',cmssw_base,'[CMSSW]')
           hltdcfg.removeEntry('watch_directory')

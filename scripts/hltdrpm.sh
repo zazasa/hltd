@@ -180,7 +180,7 @@ cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > hltd.spec <<EOF
 Name: hltd
-Version: 1.3.0rc4
+Version: 1.3.0rc5
 Release: 0
 Summary: hlt daemon
 License: gpl
@@ -217,7 +217,7 @@ rm -rf /etc/appliance/online/*
 rm -rf /etc/appliance/offline/*
 rm -rf /etc/appliance/except/*
 /opt/hltd/python/fillresources.py
-/sbin/service hltd restart
+#/sbin/service hltd restart #restart delegated to fffmeta!
 %files
 %dir %attr(777, -, -) /var/log/hltd
 %dir %attr(777, -, -) /var/log/hltd/pid
