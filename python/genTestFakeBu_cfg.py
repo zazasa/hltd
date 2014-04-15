@@ -1,5 +1,6 @@
 import FWCore.ParameterSet.Config as cms
 import FWCore.ParameterSet.VarParsing as VarParsing
+import os
 
 options = VarParsing.VarParsing ('analysis')
 cmsswbase = os.path.expandvars('$CMSSW_BASE/')

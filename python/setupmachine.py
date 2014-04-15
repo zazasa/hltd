@@ -53,7 +53,7 @@ def countCPUs():
 
 def getmachinetype():
     myhost = os.uname()[1]
-    print "running on host ",myhost
+    #print "running on host ",myhost
     if   myhost.startswith('dvrubu-') : return 'daqval','fu'
     elif myhost.startswith('dvbu-') : return 'daqval','bu'
     elif myhost.startswith('bu-') : return 'prod','bu'
@@ -197,7 +197,6 @@ class FileManager:
 
 
 def restoreFileMaybe(file):
-    print "restoring ",file
     try:
         try:
             f = open(file,'r')
@@ -210,6 +209,7 @@ def restoreFileMaybe(file):
             shouldCopy = True
 
         if shouldCopy:
+            print "restoring ",file
             backuppath = os.path.join(backup_dir,os.path.basename(file))
             f = open(backuppath)
             blines = f.readlines()
@@ -305,7 +305,6 @@ if True:
     cluster,type = getmachinetype()
     cnhostname = os.uname()[1]+".cms"
 
-    print "running configuration for machine ", cnhostname, " of type ", type, " in cluster", cluster
 
     buName = ''
     if type == 'fu':
@@ -313,9 +312,8 @@ if True:
             addrList =  getDaqvalBUAddr(cnhostname)
             selectedAddr = False
             for addr in addrList:
-                result = os.system("ping -c 1 "+ str(addr[1])+" >/dev/null")
-                os.system("clear")
-                print "debug ping result ", result
+                result = os.system("ping -c 1 "+ str(addr[1])+" >& /dev/null")
+                #os.system("clear")
                 if result == 0:
                     buDataAddr = addr[1]
                     if addr[1].find('.'):
@@ -324,6 +322,8 @@ if True:
                         buName = addr[1]
                     selectedAddr=True
                     break
+                else:
+                    print "failed to ping" + str(addr[1])
             #if none are pingable, first one is picked
             if selectedAddr==False:
                 if len(addrList)>0:
@@ -338,7 +338,7 @@ if True:
                 sys.exit(-1)
  
         elif cluster =='test':
-            addrList = os.uname()[1]
+            addrList = [os.uname()[1]]
             buName = os.uname()[1]
             buDataAddr = os.uname()[1]
         else:
@@ -349,15 +349,16 @@ if True:
        buName = os.uname()[1]
        addrList = buName
 
-    print "detected address", addrList," and name ",buName
+    #print "detected address", addrList," and name ",buName
+    print "running configuration for machine",cnhostname,"of type",type,"in cluster",cluster,"; appliance bu is:",buName
 
     if 'elasticsearch' in selection:
 
-        print "will modify sysconfig elasticsearch configuration"
+        #print "will modify sysconfig elasticsearch configuration"
         #maybe backup vanilla versions
         essysEdited =  checkModifiedConfigInFile(elasticsysconf)
         if essysEdited == False and type == 'fu': #modified only on FU
-          print "elasticsearch sysconfig configuration was not yet modified"
+          #print "elasticsearch sysconfig configuration was not yet modified"
           shutil.copy(elasticsysconf,os.path.join(backup_dir,os.path.basename(elasticsysconf)))
 
         esEdited =  checkModifiedConfigInFile(elasticconf)
@@ -411,7 +412,7 @@ if True:
         f.close()
 
       hltdEdited = checkModifiedConfigInFile(hltdconf)
-      print "was modified?",hltdEdited
+      #print "was modified?",hltdEdited
       if hltdEdited == False:
         shutil.copy(hltdconf,os.path.join(backup_dir,os.path.basename(hltdconf)))
       hltdcfg = FileManager(hltdconf,'=',hltdEdited,' ',' ')
@@ -438,6 +439,7 @@ if True:
           hltdcfg.reg('user',username,'[General]')
           hltdcfg.reg('role','fu','[General]')
           hltdcfg.reg('cmssw_base',cmssw_base,'[CMSSW]')
+          hltdcfg.reg('cmssw_threads',nthreads,'[CMSSW]')
           hltdcfg.removeEntry('watch_directory')
           hltdcfg.commit()
           #get customized info here

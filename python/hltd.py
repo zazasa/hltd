@@ -1099,11 +1099,13 @@ class hltd(Daemon2,object):
                     os.remove(conf.watch_directory+'/populationcontrol')
                 fp = open(conf.watch_directory+'/populationcontrol','w+')
                 fp.close()
-                while 1:
+                count = 10
+                while count:
                     os.stat(conf.watch_directory+'/populationcontrol')
                     sys.stdout.write('o.o')
                     sys.stdout.flush()
                     time.sleep(1.)
+                    count-=1
             except OSError, err:
                 pass
         super(hltd,self).stop()

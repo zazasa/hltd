@@ -162,16 +162,17 @@ class Daemon2:
         # Try killing the daemon process       
         try:
             # signal the daemon to stop
-            timeout = 10.0 #kill timeout
+            timeout = 5.0 #kill timeout
             os.kill(pid, SIGINT)
             #Q: how is the while loop exited ???
             #A: os.kill throws an exception of type OSError
             #   when pid does not exist
             #C: not very elegant but it works
             while 1:
-                if timeout <=0:
+                if timeout <=0.:
+                  sys.stdout.write("terminating with -9...")
                   os.kill(pid,9)
-                  print "terminated after 10 seconds"
+                  sys.stdout.write("terminated after 5 seconds")
                   time.sleep(0.5)
                 os.kill(pid,0)
                 sys.stdout.write('.')

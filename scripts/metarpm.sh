@@ -162,16 +162,23 @@ echo python2.6 /usr/share/fff/setupmachine.py elasticsearch,hltd $params >> %{bu
 #TODO:check if elasticsearch / hltd are already running and restart them if they are
 
 mkdir -p etc/init.d/
-echo "#!/bin/bash"                    >> %{buildroot}/etc/init.d/fffmeta
-echo "#"                              >> %{buildroot}/etc/init.d/fffmeta
-echo "# chkconfig:   2345 79 21"      >> %{buildroot}/etc/init.d/fffmeta
-echo "#"                              >> %{buildroot}/etc/init.d/fffmeta
+echo "#!/bin/bash"                       >> %{buildroot}/etc/init.d/fffmeta
+echo "#"                                 >> %{buildroot}/etc/init.d/fffmeta
+echo "# chkconfig:   2345 79 21"         >> %{buildroot}/etc/init.d/fffmeta
+echo "#"                                 >> %{buildroot}/etc/init.d/fffmeta
 echo "if [ \\\$1 == \"start\" ]; then"   >> %{buildroot}/etc/init.d/fffmeta
-echo "/usr/share/fff/configurefff.sh" >> %{buildroot}/etc/init.d/fffmeta
-echo "done"                           >> %{buildroot}/etc/init.d/fffmeta
+echo "  /usr/share/fff/configurefff.sh"  >> %{buildroot}/etc/init.d/fffmeta
+echo "  exit 0"                          >> %{buildroot}/etc/init.d/fffmeta
+echo "fi"                                >> %{buildroot}/etc/init.d/fffmeta
 echo "if [ \\\$1 == \"restart\" ]; then" >> %{buildroot}/etc/init.d/fffmeta
-echo "/usr/share/fff/configurefff.sh" >> %{buildroot}/etc/init.d/fffmeta
-echo "done"                           >> %{buildroot}/etc/init.d/fffmeta
+echo "/usr/share/fff/configurefff.sh"    >> %{buildroot}/etc/init.d/fffmeta
+echo "  exit 0"                          >> %{buildroot}/etc/init.d/fffmeta
+echo "fi"                                >> %{buildroot}/etc/init.d/fffmeta
+echo "if [ \\\$1 == \"status\" ]; then"  >> %{buildroot}/etc/init.d/fffmeta
+echo "echo fffmeta does not have status" >> %{buildroot}/etc/init.d/fffmeta
+echo "  exit 0"                          >> %{buildroot}/etc/init.d/fffmeta
+echo "fi"                                >> %{buildroot}/etc/init.d/fffmeta
+
 
 %files
 %defattr(-, root, root, -)
@@ -183,29 +190,42 @@ echo "done"                           >> %{buildroot}/etc/init.d/fffmeta
 %attr( 755 ,root, root) /etc/init.d/fffmeta
 
 %post
-echo "post install trigger"
+#echo "post install trigger"
 chkconfig fffmeta on
 
 %triggerin -- elasticsearch
-echo "triggered on elasticsearch update or install"
+#echo "triggered on elasticsearch update or install"
 python2.6 /usr/share/fff/setupmachine.py elasticsearch $params
 /sbin/service elasticsearch restart
 chkconfig elasticsearch on
 
 %triggerin -- hltd
-echo "triggered on hltd update or install"
+#echo "triggered on hltd update or install"
 python2.6 /usr/share/fff/setupmachine.py hltd $params
 killall hltd
 /sbin/service hltd restart
 chkconfig hltd on
 
 %preun
-python2.6 /usr/share/fff/setupmachine.py restore
 chkconfig fffmeta off
 chkconfig elasticsearch off
 chkconfig hltd off
-/sbin/service elasticsearch stop
-/sbin/service hltd stop
+
+/sbin/service elasticsearch stop || true
+#if ["\$?" == "0" ]; then
+#echo success hltd
+#else
+#echo unsuccess hltd
+#fi
+
+/sbin/service hltd stop || true
+#if ["\$?" == "0" ]; then
+#echo success hltd
+#else
+#echo unsuccess hltd
+#fi
+
+python2.6 /usr/share/fff/setupmachine.py restore
 
 EOF
 
