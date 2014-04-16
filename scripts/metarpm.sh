@@ -66,7 +66,7 @@ if [ ${#readin} != "0" ]; then
 lines[6]=$readin
 fi
 
-echo "Equipment set (press enter for: \"${lines[7]}\") - not used:"
+echo "Equipment set (press enter for: \"${lines[7]}\") - type 'latest' to use latest eq set:"
 readin=""
 read readin
 if [ ${#readin} != "0" ]; then
@@ -226,6 +226,9 @@ chkconfig hltd off
 #fi
 
 python2.6 /usr/share/fff/setupmachine.py restore
+
+#TODO:
+#%verifyscript
 
 EOF
 

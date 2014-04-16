@@ -24,6 +24,7 @@ dbhost = 'empty'
 dbsid = 'empty'
 dblogin = 'empty'
 dbpwd = 'empty'
+equipmentset = 'latest'
 
 def removeResources():
     try:
@@ -54,8 +55,8 @@ def countCPUs():
 def getmachinetype():
     myhost = os.uname()[1]
     #print "running on host ",myhost
-    if   myhost.startswith('dvrubu-') : return 'daqval','fu'
-    elif myhost.startswith('dvbu-') : return 'daqval','bu'
+    if   myhost.startswith('dvrubu-') : return 'daq2val','fu'
+    elif myhost.startswith('dvbu-') : return 'daq2val','bu'
     elif myhost.startswith('bu-') : return 'prod','bu'
     elif myhost.startswith('fu-') : return 'prod','fu'
     elif myhost.startswith('cmsdaq-401b28') : return 'test','fu'
@@ -90,11 +91,10 @@ def checkModifiedConfig(lines):
     return False
     
 
-#daqval
-def getDaqvalBUAddr(hostname):
+def getBUAddr(parenteq,hostname):
 
     #con = cx_Oracle.connect('CMS_DAQ2_TEST_HW_CONF_W/'+dbpwd+'@'+dbhost+':10121/int2r_lb.cern.ch',
-    #myDAQ_EQCFG_EQSET1 = '/daq2val/eq_140325_attributes'
+    #equipmentset = 'eq_140325_attributes'
 
     con = cx_Oracle.connect(dblogin+'/'+dbpwd+'@'+dbhost+':10121/'+dbsid,
                         cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
@@ -102,7 +102,7 @@ def getDaqvalBUAddr(hostname):
 
     cur = con.cursor()
 
-    myDAQ_EQCFG_EQSET = 'DAQ_EQCFG_EQSET'
+    #IMPORTANT: first query requires uppercase parent eq, while the latter requires lowercase
 
     qstring=  "select attr_name, attr_value from \
                 DAQ_EQCFG_HOST_ATTRIBUTE ha, \
@@ -115,11 +115,30 @@ def getDaqvalBUAddr(hostname):
                 ha.attr_name like 'myBU%' AND \
                 hn.nic_id = d.nic_id AND \
                 d.dnsname = '" + hostname + "' \
-                AND d.eqset_id = (select eqset_id from "+ myDAQ_EQCFG_EQSET +" \
-                where tag='DAQ2VAL' AND \
-                ctime = (SELECT MAX(CTIME) FROM " + myDAQ_EQCFG_EQSET + " WHERE tag='DAQ2VAL')) order by attr_name"
+                AND d.eqset_id = (select eqset_id from DAQ_EQCFG_EQSET \
+                where tag='"+parenteq.upper()+"' AND \
+                ctime = (SELECT MAX(CTIME) FROM DAQ_EQCFG_EQSET WHERE tag='"+parenteq.upper()+"')) order by attr_name"
 
-    cur.execute(qstring)
+    qstring2= "select attr_name, attr_value from \
+                DAQ_EQCFG_HOST_ATTRIBUTE ha, \
+                DAQ_EQCFG_HOST_NIC hn, \
+                DAQ_EQCFG_DNSNAME d \
+                where \
+                ha.eqset_id=hn.eqset_id AND \
+                hn.eqset_id=d.eqset_id AND \
+                ha.host_id = hn.host_id AND \
+                ha.attr_name like 'myBU%' AND \
+                hn.nic_id = d.nic_id AND \
+                d.dnsname = '" + hostname + "' \
+                AND d.eqset_id = (select child.eqset_id from DAQ_EQCFG_EQSET child, DAQ_EQCFG_EQSET \
+                parent WHERE child.parent_id = parent.eqset_id AND parent.cfgkey = '"+parenteq+"' and child.cfgkey = '"+ equipmentset + "')"
+
+    if equipmentset == 'latest':
+      cur.execute(qstring)
+    else:
+      print "query equipment set",parenteq+'/'+equipmentset
+      cur.execute(qstring2)
+
     retval = []
     for res in cur:
         retval.append(res)
@@ -167,7 +186,7 @@ class FileManager:
                 key = lstrip.split(self.sep)[0].strip()
                 for r in self.regs:
                     if r[0] == key:
-                        self.lines[i] = r[0].strip()+self.os1+self.sep+self.os2+r[1].strip()+'\n'; #ref ?
+                        self.lines[i] = r[0].strip()+self.os1+self.sep+self.os2+r[1].strip()+'\n'
                         r[2]= True
                         break
             except:
@@ -202,7 +221,6 @@ def restoreFileMaybe(file):
             f = open(file,'r')
             lines = f.readlines()
             f.close()
-            print "restoring ?", checkModifiedConfig(lines)
             shouldCopy = checkModifiedConfig(lines)
         except:
             #backup also if file got deleted
@@ -293,7 +311,8 @@ if True:
     if not sys.argv[argvc]:
         print "equipment set name missing"
         sys.exit(1)
-    equipmentset = sys.argv[argvc]
+    if sys.argv[argvc].strip() != '':
+        equipmentset = sys.argv[argvc].strip()
 
     argvc += 1
     if not sys.argv[argvc]:
@@ -308,8 +327,9 @@ if True:
 
     buName = ''
     if type == 'fu':
-        if cluster == 'daqval':
-            addrList =  getDaqvalBUAddr(cnhostname)
+        #TODO: name of the EQset parent dir for prod?
+        if cluster == 'daq2val' or cluster == 'prod': 
+            addrList =  getBUAddr(cluster,cnhostname)
             selectedAddr = False
             for addr in addrList:
                 result = os.system("ping -c 1 "+ str(addr[1])+" >& /dev/null")
@@ -342,7 +362,7 @@ if True:
             buName = os.uname()[1]
             buDataAddr = os.uname()[1]
         else:
-            print "production cluster support not yet implemented !!"
+            print "FU configuration in cluster",cluster,"not supported yet !!"
             sys.exit(-2)
 
     elif type == 'bu':
