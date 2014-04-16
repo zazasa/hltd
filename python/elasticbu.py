@@ -363,6 +363,7 @@ class BoxInfoUpdater(threading.Thread):
 
         boxesDir =  os.path.join(ramdisk,'appliance/boxes')
         boxesMask = inotify.IN_CLOSE_WRITE 
+        logger.info("starting elastic for "+boxesDir)
     
         self.eventQueue = Queue.Queue()
         self.mr = MonitorRanger()
@@ -421,7 +422,6 @@ if __name__ == "__main__":
 
     logger.info("starting elastic for "+mainDir)
     logger.info("starting elastic for "+monDir)
-    logger.info("starting elastic for "+boxesDir)
 
     try:
         logger.info("watch dir" + monDir)
