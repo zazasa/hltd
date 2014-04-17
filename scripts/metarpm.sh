@@ -132,7 +132,7 @@ Source: none
 %define _topdir $TOPDIR
 BuildArch: $BUILD_ARCH
 AutoReqProv: no
-Requires:elasticsearch >= 1.0.2, hltd > 1.3.0, cx_Oracle >= 5.1.2
+Requires:elasticsearch >= 1.0.2, hltd >= 1.3.0, cx_Oracle >= 5.1.2
 
 Provides:/usr/share/fff/configurefff.sh
 Provides:/usr/share/fff/setupmachine.py
