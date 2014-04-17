@@ -372,6 +372,7 @@ if True:
     #print "detected address", addrList," and name ",buName
     print "running configuration for machine",cnhostname,"of type",type,"in cluster",cluster,"; appliance bu is:",buName
 
+    clusterName='appliance_'+buName
     if 'elasticsearch' in selection:
 
         #print "will modify sysconfig elasticsearch configuration"
@@ -387,7 +388,6 @@ if True:
 
         escfg = FileManager(elasticconf,':',esEdited,'',' ')
 
-        clusterName='appliance_'+buName
         escfg.reg('cluster.name',clusterName)
         if type == 'fu':
             essyscfg = FileManager(elasticsysconf,'=',essysEdited)
@@ -458,6 +458,7 @@ if True:
  
           hltdcfg.reg('user',username,'[General]')
           hltdcfg.reg('role','fu','[General]')
+          hltdcfg.reg('elastic_cluster',clusterName,'[Monitoring]')
           hltdcfg.reg('cmssw_base',cmssw_base,'[CMSSW]')
           hltdcfg.reg('cmssw_threads',nthreads,'[CMSSW]')
           hltdcfg.removeEntry('watch_directory')
