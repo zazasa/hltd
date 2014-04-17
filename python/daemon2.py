@@ -1,6 +1,8 @@
 import sys, os, time, atexit
 import procname
 from signal import SIGINT
+from aUtils import * #for stdout and stderr redirection
+
 
 class Daemon2:
     """
@@ -49,6 +51,8 @@ class Daemon2:
             sys.exit(1)
 
         # redirect standard file descriptors
+
+
         sys.stdout.flush()
         sys.stderr.flush()
         si = file(self.stdin, 'r')
@@ -57,6 +61,8 @@ class Daemon2:
         os.dup2(si.fileno(), sys.stdin.fileno())
         os.dup2(so.fileno(), sys.stdout.fileno())
         os.dup2(se.fileno(), sys.stderr.fileno())
+        sys.stderr = stdErrorLog()
+        sys.stdout = stdOutLog()
 
         #change process name
         procname.setprocname("hltd")
@@ -156,16 +162,23 @@ class Daemon2:
         # Try killing the daemon process       
         try:
             # signal the daemon to stop
+            timeout = 5.0 #kill timeout
             os.kill(pid, SIGINT)
             #Q: how is the while loop exited ???
             #A: os.kill throws an exception of type OSError
             #   when pid does not exist
             #C: not very elegant but it works
             while 1:
+                if timeout <=0.:
+                  sys.stdout.write("terminating with -9...")
+                  os.kill(pid,9)
+                  sys.stdout.write("terminated after 5 seconds")
+                  time.sleep(0.5)
                 os.kill(pid,0)
                 sys.stdout.write('.')
                 sys.stdout.flush()
                 time.sleep(0.5)
+                timeout-=0.5
         except OSError, err:
             err = str(err)
             if err.find("No such process") > 0:

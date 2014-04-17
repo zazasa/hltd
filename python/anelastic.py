@@ -12,40 +12,10 @@ import threading
 import Queue
 import json
 import logging
-import hltdconf
 
+
+from hltdconf import *
 from aUtils import *
-
-
-
-    #on notify, put the event file in a queue
-class MonitorRanger:
-
-    def __init__(self,recursiveMode=False):
-        self.logger = logging.getLogger(self.__class__.__name__)
-        self.eventQueue = False
-        self.inotifyWrapper = InotifyWrapper(self,recursiveMode)
-
-    def register_inotify_path(self,path,mask):
-        self.inotifyWrapper.registerPath(path,mask)
-
-    def start_inotify(self):
-        self.inotifyWrapper.start()
-
-    def stop_inotify(self):
-        logging.info("MonitorRanger: Stop inotify wrapper")
-        self.inotifyWrapper.stop()
-        logging.info("MonitorRanger: Join inotify wrapper")
-        self.inotifyWrapper.join()
-        logging.info("MonitorRanger: Inotify wrapper returned")
-
-    def process_default(self, event):
-        self.logger.debug("event: %s on: %s" %(str(event.mask),event.fullpath))
-        if self.eventQueue:
-            self.eventQueue.put(event)
-
-    def setEventQueue(self,queue):
-        self.eventQueue = queue
 
 
 
@@ -97,9 +67,9 @@ class LumiSectionRanger():
             else:
                 time.sleep(0.5)
 
+        self.EOR.esCopy()
         self.EOR.deleteFile()
         self.logger.info("Stop main loop")
-
 
     def flushBuffer(self):
         self.firstStream.set()
@@ -107,6 +77,7 @@ class LumiSectionRanger():
             self.process()
 
         #send the fileEvent to the proper LShandlerand remove closed LSs, or process INI and EOR files
+    
     def process(self):
         
         filetype = self.infile.filetype
@@ -139,9 +110,8 @@ class LumiSectionRanger():
         self.logger.info("%r with errcode: %r" %(basename,errCode))
         for item in lsList.values():
             item.processFile(self.infile)
-
+    
     def processINIfile(self):
-            #get file information
         self.logger.info(self.infile.basename)
         infile = self.infile 
 
@@ -226,7 +196,6 @@ class LumiSectionHandler():
         elif filetype == CRASH: self.processCRASHFile()
 
         self.checkClosure()
-   
 
     def processStreamFile(self):
         self.logger.info(self.infile.basename)
@@ -236,7 +205,7 @@ class LumiSectionHandler():
         ls,stream,pid = infile.ls,infile.stream,infile.pid
         outdir = self.outdir
 
-        if self.closed.isSet(): self.closed.clear()
+        #if self.closed.isSet(): self.closed.clear()
         if infile.data:
             #update pidlist
             if stream not in self.pidList[pid]["streamList"]: self.pidList[pid]["streamList"].append(stream)
@@ -247,6 +216,7 @@ class LumiSectionHandler():
                 outfile.merge(infile)
                 processed = outfile.getFieldByName("Processed")
                 self.logger.info("ls,stream: %r,%r - events %r / %r " %(ls,stream,processed,self.totalEvent))
+                infile.esCopy()
                 infile.deleteFile()
                 return True
         return False
@@ -256,7 +226,7 @@ class LumiSectionHandler():
         infile = self.infile
         ls,pid = infile.ls,infile.pid
 
-
+        #if self.closed.isSet(): self.closed.clear()
         if infile.data:
             numEvents = int(infile.data["data"][0])
             self.totalEvent+=numEvents
@@ -265,11 +235,12 @@ class LumiSectionHandler():
             if pid not in self.pidList: self.pidList[pid] = {"numEvents": 0, "streamList": []}
             self.pidList[pid]["numEvents"]+=numEvents
 
-            if self.infile not in self.indexfileList:
-                self.indexfileList.append(self.infile)
+            if infile not in self.indexfileList:
+                self.indexfileList.append(infile)
+                infile.esCopy()
             return True
         return False
-
+ 
     def processCRASHFile(self):
         if self.infile.pid not in self.pidList: return True
       
@@ -309,7 +280,8 @@ class LumiSectionHandler():
 
     def checkClosure(self):
         if not self.EOLS: return False
-        for outfile in self.outfileList:
+        outfilelist = self.outfileList[:]
+        for outfile in outfilelist:
             stream = outfile.stream
             processed = outfile.getFieldByName("Processed")+outfile.getFieldByName("ErrorEvents")
             if processed == self.totalEvent:
@@ -317,30 +289,35 @@ class LumiSectionHandler():
                 newfilepath = os.path.join(self.outdir,outfile.run,outfile.basename)
 
                     #move output file in rundir
+                outfile.esCopy()
                 if outfile.moveFile(newfilepath):
                     self.outfileList.remove(outfile)
                     
                     #move all dat files in rundir
-                for datfile in self.datfileList:
+                    datfilelist = self.datfileList[:]
+                for datfile in datfilelist:
                     if datfile.stream == stream:
                         newfilepath = os.path.join(self.outdir,datfile.run,datfile.basename)
                         datfile.moveFile(newfilepath)
                         self.datfileList.remove(datfile)
                 
-            if not self.outfileList:
-                #self.EOLS.deleteFile()
+        if not self.outfileList:
+            #self.EOLS.deleteFile()
 
-                #delete all index files
-                for item in self.indexfileList:
-                    item.deleteFile()
+            #delete all index files
+            for item in self.indexfileList:
+                item.deleteFile()
 
-                #close lumisection if all streams are closed
-                self.closed.set()
+            #close lumisection if all streams are closed
+            self.logger.info("closing %r" %self.ls)
+            self.EOLS.esCopy()
+            self.closed.set()
+
 
 if __name__ == "__main__":
-    logging.basicConfig(filename="/tmp/anelastic.log",
+    logging.basicConfig(filename=os.path.join(conf.log_dir,"anelastic.log"),
                     level=logging.INFO,
-                    format='%(levelname)s:%(asctime)s-%(name)s.%(funcName)s - %(message)s',
+                    format='%(levelname)s:%(asctime)s - %(funcName)s - %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger(os.path.basename(__file__))
 
@@ -349,7 +326,7 @@ if __name__ == "__main__":
     sys.stdout = stdOutLog()
 
     eventQueue = Queue.Queue()
-    conf=hltdconf.hltdConf('/etc/hltd.conf')
+    
     dirname = sys.argv[1]
     dirname = os.path.basename(os.path.normpath(dirname))
     watchDir = os.path.join(conf.watch_directory,dirname)

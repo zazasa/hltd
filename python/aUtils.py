@@ -1,17 +1,18 @@
 import sys,traceback
 import os
-import time
+import time,datetime
 import shutil
 import json
 import logging
-import hltdconf
+
+
+from inotifywrapper import InotifyWrapper
+import _inotify as inotify
 
 
 ES_DIR_NAME = "TEMP_ES_DIRECTORY"
-UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,INI,EOLS,EOR,DAT,PDAT,CRASH = range(13)            #file types 
-TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,EOR]
-MONBUFFERSIZE = 50
-
+UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,INI,EOLS,EOR,DAT,PDAT,CRASH,MODULELEGEND,PATHLEGEND,BOX = range(16)            #file types 
+TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,EOR,EOLS]
 
 
 #Output redirection class
@@ -27,7 +28,34 @@ class stdErrorLog:
         self.logger.error(message)
 
 
+    #on notify, put the event file in a queue
+class MonitorRanger:
 
+    def __init__(self,recursiveMode=False):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.eventQueue = False
+        self.inotifyWrapper = InotifyWrapper(self,recursiveMode)
+
+    def register_inotify_path(self,path,mask):
+        self.inotifyWrapper.registerPath(path,mask)
+
+    def start_inotify(self):
+        self.inotifyWrapper.start()
+
+    def stop_inotify(self):
+        logging.info("MonitorRanger: Stop inotify wrapper")
+        self.inotifyWrapper.stop()
+        logging.info("MonitorRanger: Join inotify wrapper")
+        self.inotifyWrapper.join()
+        logging.info("MonitorRanger: Inotify wrapper returned")
+
+    def process_default(self, event):
+        self.logger.debug("event: %s on: %s" %(str(event.mask),event.fullpath))
+        if self.eventQueue:
+            self.eventQueue.put(event)
+
+    def setEventQueue(self,queue):
+        self.eventQueue = queue
 
 
 class fileHandler(object):
@@ -39,9 +67,11 @@ class fileHandler(object):
             if name in ["dir","ext","basename","name"]: self.getFileInfo() 
             elif name in ["filetype"]: self.filetype = self.getFiletype();
             elif name in ["run","ls","stream","index","pid"]: self.getFileHeaders()
-            elif name in ["data"]: self.data = self.getJsonData(); 
+            elif name in ["data"]: self.data = self.getData(); 
             elif name in ["definitions"]: self.getDefinitions()
             elif name in ["host"]: self.host = os.uname()[1];
+        if name in ["ctime"]: self.ctime = self.getTime('c')
+        if name in ["mtime"]: self.mtime = self.getTime('m')
         return self.__dict__[name]
 
     def __init__(self,filepath):
@@ -49,7 +79,16 @@ class fileHandler(object):
         self.filepath = filepath
         self.outDir = self.dir
 
-        
+    def getTime(self,t):
+        if self.exists():
+            if t == 'c':
+                dt=os.path.getctime(self.filepath)
+            elif t == 'm':
+                dt=os.path.getmtime(self.filepath)
+            time = datetime.datetime.utcfromtimestamp(dt).isoformat() 
+            return time
+        return None   
+                
     def getFileInfo(self):
         self.dir = os.path.dirname(self.filepath)
         self.basename = os.path.basename(self.filepath)
@@ -74,6 +113,9 @@ class fileHandler(object):
                 elif "EOR" in name: return EOR
         if ".fast" in filename: return FAST
         if "slow" in filename: return SLOW
+        if ext == ".leg" and "MICROSTATELEGEND" in name: return MODULELEGEND
+        if ext == ".leg" and "PATHLEGEND" in name: return PATHLEGEND
+        if "boxes" in filepath : return BOX
         return UNKNOWN
 
 
@@ -82,6 +124,8 @@ class fileHandler(object):
         name,ext = self.name,self.ext
         splitname = name.split("_")
         if filetype in [STREAM,INI,PDAT,CRASH]: self.run,self.ls,self.stream,self.pid = splitname
+        elif filetype == SLOW: self.run,self.ls,self.pid = splitname
+        elif filetype == FAST: self.run,self.pid = splitname
         elif filetype in [DAT,OUTPUT]: self.run,self.ls,self.stream,self.host = splitname
         elif filetype == INDEX: self.run,self.ls,self.index,self.pid = splitname
         elif filetype == EOLS: self.run,self.ls,self.eols = splitname
@@ -89,6 +133,25 @@ class fileHandler(object):
             self.logger.warning("Bad filetype: %s" %self.filepath)
             self.run,self.ls,self.stream = [None]*3
 
+    def getData(self):
+        if self.ext == '.jsn': return self.getJsonData()
+        elif self.filetype == BOX: return self.getBoxData()
+        return None
+
+    def getBoxData(self,filepath = None):
+        if not filepath: filepath = self.filepath
+        sep = '\n'
+        try:
+            with open(filepath,'r') as fi:
+                data = fi.read()
+                data = data.strip(sep).split(sep)
+                data = dict([d.split('=') for d in data])
+        except StandardError,e:
+            self.logger.exception(e)
+            data = {}
+
+
+        return data
 
         #get data from json file
     def getJsonData(self,filepath = None):
@@ -173,7 +236,6 @@ class fileHandler(object):
         self.logger.info(filepath)
         if os.path.isfile(filepath):
             try:
-                self.esCopy()
                 os.remove(filepath)
             except Exception,e:
                 self.logger.exception(e)
@@ -181,21 +243,28 @@ class fileHandler(object):
         return True
 
     def moveFile(self,newpath,copy = False):
+        if not self.exists(): return True
         oldpath = self.filepath
         newdir = os.path.dirname(newpath)
 
         if not os.path.exists(oldpath): return False
 
         self.logger.info("%s -> %s" %(oldpath,newpath))
-        try:
-            if not os.path.isdir(newdir): os.makedirs(newdir)
-            if copy: shutil.copy(oldpath,newpath)
-            else: 
-                self.esCopy()
-                shutil.move(oldpath,newpath)
-        except OSError,e:
-            self.logger.exception(e)
-            return False
+        retries = 5
+        while True:
+          try:
+              if not os.path.isdir(newdir): os.makedirs(newdir)
+              if copy: shutil.copy(oldpath,newpath)
+              else: 
+                  shutil.move(oldpath,newpath)
+              break
+          except OSError,e:
+              self.logger.exception(e)
+              retries-=1
+              if retries == 0:
+                  return False
+              else:
+                  time.sleep(0.5)
         self.filepath = newpath
         self.getFileInfo()
         return True   
@@ -218,12 +287,23 @@ class fileHandler(object):
         return True
 
     def esCopy(self):
+        if not self.exists(): return
         if self.filetype in TO_ELASTICIZE:
             esDir = os.path.join(self.dir,ES_DIR_NAME)
-            self.logger.debug(esDir)
             if os.path.isdir(esDir):
                 newpath = os.path.join(esDir,self.basename)
-                shutil.copy(self.filepath,newpath)
+                retries = 5
+                while True:
+                    try:
+                        shutil.copy(self.filepath,newpath)
+                        break
+                    except OSError,e:
+                        self.logger.exception(e)
+                        retries-=1
+                        if retries == 0:
+                            raise e
+                        else:
+                            time.sleep(0.5)
 
 
     def merge(self,infile):

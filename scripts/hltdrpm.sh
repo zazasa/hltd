@@ -29,8 +29,11 @@ ls
 
 
 echo "Moving files to their destination"
+mkdir -p var/log/hltd
+mkdir -p var/log/hltd/pid
 mkdir -p opt/hltd
 mkdir -p etc/init.d
+mkdir -p etc/logrotate.d
 mkdir -p etc/appliance/resources/idle
 mkdir -p etc/appliance/resources/online
 mkdir -p etc/appliance/resources/offline
@@ -43,6 +46,7 @@ ls
 cp -r $BASEDIR/python/hltd $TOPDIR/etc/init.d/hltd
 cp -r $BASEDIR/* $TOPDIR/opt/hltd
 cp -r $BASEDIR/etc/hltd.conf $TOPDIR/etc/
+cp -r $BASEDIR/etc/logrotate.d/hltd $TOPDIR/etc/logrotate.d/
 echo "working in $PWD"
 ls opt/hltd
 
@@ -176,7 +180,7 @@ cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > hltd.spec <<EOF
 Name: hltd
-Version: 1.3.0rc1
+Version: 1.3.0
 Release: 0
 Summary: hlt daemon
 License: gpl
@@ -189,6 +193,7 @@ BuildArch: $BUILD_ARCH
 AutoReqProv: no
 Provides:/opt/hltd
 Provides:/etc/hltd.conf
+Provides:/etc/logrotate.d/hltd
 Provides:/etc/init.d/hltd
 Provides:/usr/lib64/python2.6/site-packages/prctl.pyc
 Requires:python,libcap,python-six,python-requests
@@ -202,6 +207,8 @@ fff hlt daemon
 %install
 rm -rf \$RPM_BUILD_ROOT
 mkdir -p \$RPM_BUILD_ROOT
+%__install -d "%{buildroot}/var/log/hltd"
+%__install -d "%{buildroot}/var/log/hltd/pid"
 tar -C $TOPDIR -c opt/hltd | tar -xC \$RPM_BUILD_ROOT
 tar -C $TOPDIR -c etc | tar -xC \$RPM_BUILD_ROOT
 tar -C $TOPDIR -c usr | tar -xC \$RPM_BUILD_ROOT
@@ -210,11 +217,14 @@ rm -rf /etc/appliance/online/*
 rm -rf /etc/appliance/offline/*
 rm -rf /etc/appliance/except/*
 /opt/hltd/python/fillresources.py
-/sbin/service hltd restart
+#/sbin/service hltd restart #restart delegated to fffmeta!
 %files
+%dir %attr(777, -, -) /var/log/hltd
+%dir %attr(777, -, -) /var/log/hltd/pid
 %defattr(-, root, root, -)
 /opt/hltd/
 /etc/hltd.conf
+/etc/logrotate.d/hltd
 /etc/init.d/hltd
 /etc/appliance
 /usr/lib64/python2.6/site-packages/*prctl*

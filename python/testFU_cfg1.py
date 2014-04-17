@@ -13,11 +13,16 @@ options.register ('runNumber',
                   "Run Number")
 
 options.register ('buBaseDir',
-                  '/bu/', # default value
+                  '/fff/BU0', # default value
                   VarParsing.VarParsing.multiplicity.singleton,
                   VarParsing.VarParsing.varType.string,          # string, int, or float
                   "BU base directory")
 
+options.register ('dataDir',
+                  '/fff/data', # default value
+                  VarParsing.VarParsing.multiplicity.singleton,
+                  VarParsing.VarParsing.varType.string,          # string, int, or float
+                  "FU data directory")
 
 options.register ('numThreads',
                   1, # default value
@@ -47,13 +52,13 @@ process.MessageLogger = cms.Service("MessageLogger",
 process.FastMonitoringService = cms.Service("FastMonitoringService",
     sleepTime = cms.untracked.int32(1),
     microstateDefPath = cms.untracked.string( cmsswbase+'/src/EventFilter/Utilities/plugins/microstatedef.jsd' ),
-    fastMicrostateDefPath = cms.untracked.string( cmsswbase+'/src/EventFilter/Utilities/plugins/microstatedeffast.jsd' ),
+    #fastMicrostateDefPath = cms.untracked.string( cmsswbase+'/src/EventFilter/Utilities/plugins/microstatedeffast.jsd' ),
     fastName = cms.untracked.string( 'fastmoni' ),
     slowName = cms.untracked.string( 'slowmoni' ))
 
 process.EvFDaqDirector = cms.Service("EvFDaqDirector",
                                      buBaseDir = cms.untracked.string(options.buBaseDir),
-                                     baseDir = cms.untracked.string("/fff/data"),
+                                     baseDir = cms.untracked.string(options.dataDir),
                                      directorIsBU = cms.untracked.bool(False ),
                                      testModeNoBuilderUnit = cms.untracked.bool(False),
                                      runNumber = cms.untracked.uint32(options.runNumber)

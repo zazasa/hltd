@@ -1,4 +1,4 @@
-import os
+import os,time
 import sys
 from pyelasticsearch.client import ElasticSearch
 from pyelasticsearch.client import IndexAlreadyExistsError
@@ -6,18 +6,23 @@ from pyelasticsearch.client import ElasticHttpError
 import json
 import csv
 import math
-
 import logging
 
-MONBUFFERSIZE = 50
+from aUtils import *
+
+#MONBUFFERSIZE = 50
 es_server_url = 'http://localhost:9200'
 
 class elasticBand():
-    fastmonBuffer = []
 
-    def __init__(self,es_server_url,runstring):
+
+    def __init__(self,es_server_url,runstring,indexSuffix,monBufferSize,fastUpdateModulo):
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.es = ElasticSearch(es_server_url)
+        self.istateBuffer = []  
+        self.prcinBuffer = {}   # {"lsX": doclist}
+        self.prcoutBuffer = {}
+        self.fuoutBuffer = {}
+        self.es = ElasticSearch(es_server_url) 
         self.settings = {
             "analysis":{
                 "analyzer": {
@@ -42,16 +47,18 @@ class elasticBand():
         self.run_mapping = {
             'prc-i-state' : {
                 'properties' : {
-                    'macro' : {'type' : 'integer'},
-                    'mini'  : {'type' : 'integer'},
-                    'micro' : {'type' : 'integer'},
-                    'tp'    : {'type' : 'double' },
-                    'lead'  : {'type' : 'double' },
-                    'nfiles': {'type' : 'integer'}
+                    'macro'     : {'type' : 'integer'},
+                    'mini'      : {'type' : 'integer'},
+                    'micro'     : {'type' : 'integer'},
+                    'tp'        : {'type' : 'double' },
+                    'lead'      : {'type' : 'double' },
+                    'nfiles'    : {'type' : 'integer'},
+                    'fm_date'   : {'type' : 'date'   }
                     },
                 '_timestamp' : { 
-                    'enabled' : True,
-                    'store'   : "yes"
+                    'enabled'   : True,
+                    'store'     : "yes",
+                    "path"      : "fm_date"
                     },
                 '_ttl'       : { 'enabled' : True,                             
                                  'default' :  '5m'} 
@@ -182,28 +189,33 @@ class elasticBand():
                 }
             }
         self.run = runstring
+        self.monBufferSize = monBufferSize
+        self.fastUpdateModulo = fastUpdateModulo
+        self.indexName = runstring + "_"+indexSuffix
         try:
-            self.es.create_index(runstring, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
+            self.es.create_index(self.indexName, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
         except ElasticHttpError as ex:
 #            print "Index already existing - records will be overridden"
             #this is normally fine as the index gets created somewhere across the cluster
             pass
 
-    def imbue_jsn(self,path,file):
-        with open(os.path.join(path,file),'r') as fp:
+    def imbue_jsn(self,infile):
+        with open(infile.filepath,'r') as fp:
             document = json.load(fp)
             return document
 
-    def imbue_csv(self,path,file):
-        with open(os.path.join(path,file),'r') as fp:
+    def imbue_csv(self,infile):
+        with open(infile.filepath,'r') as fp:
             fp.readline()
             row = fp.readline().split(',')
             return row
     
-    def elasticize_prc_istate(self,path,file):
-
-        self.logger.debug(os.path.basename(file)+" going into buffer")
-        stub = self.imbue_csv(path,file)
+    def elasticize_prc_istate(self,infile):
+        filepath = infile.filepath
+        self.logger.debug("%r going into buffer" %filepath)
+        #mtime = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(os.path.getmtime(filepath)))
+        mtime = infile.mtime
+        stub = self.imbue_csv(infile)
         document = {}
         if len(stub) == 0 or stub[0]=='\n':
           return;
@@ -214,24 +226,19 @@ class elasticBand():
             document['tp']    = float(stub[4])
             document['lead']  = float(stub[5])
             document['nfiles']= int(stub[6])
-            self.fastmonBuffer.append(document)
+            document['fm_date'] = str(mtime)
+            self.istateBuffer.append(document)
         except Exception:
             pass
-        if len(self.fastmonBuffer) == MONBUFFERSIZE:
-            self.flushBuffer()
+        #if len(self.istateBuffer) == MONBUFFERSIZE:
+        if len(self.istateBuffer) == self.monBufferSize and (len(self.istateBuffer)%self.fastUpdateModulo)==0:
+            self.flushMonBuffer()
 
-    def flushBuffer(self):
-        self.logger.info("flushing fast monitor buffer (len: %r) " %len(self.fastmonBuffer))
-        self.es.bulk_index(self.run,'prc-i-state',self.fastmonBuffer)
-        self.fastmonBuffer = []
-
-
-    def elasticize_prc_sstate(self,path,file):
-        document = self.imbue_jsn(path,file)
-        tokens=file.split('.')[0].split('_')
+    def elasticize_prc_sstate(self,infile):
+        document = self.imbue_jsn(infile)
         datadict = {}
-        datadict['ls'] = int(tokens[1][2:])
-        datadict['process'] = tokens[2]
+        datadict['ls'] = int(infile.ls[2:])
+        datadict['process'] = infile.pid
         if document['data'][0] != "N/A":
           datadict['macro']   = [int(f) for f in document['data'][0].strip('[]').split(',')]
         else:
@@ -247,52 +254,49 @@ class elasticBand():
         datadict['tp']      = float(document['data'][4]) if not math.isnan(float(document['data'][4])) and not  math.isinf(float(document['data'][4])) else 0.
         datadict['lead']    = float(document['data'][5]) if not math.isnan(float(document['data'][5])) and not  math.isinf(float(document['data'][5])) else 0.
         datadict['nfiles']  = int(document['data'][6])
-        self.es.index(self.run,'prc-s-state',datadict)
-        os.remove(path+'/'+file)
+        self.es.index(self.indexName,'prc-s-state',datadict)
 
-    def elasticize_prc_out(self,path,file):
-        document = self.imbue_jsn(path,file)
-        tokens=file.split('.')[0].split('_')
-        run=tokens[0]
-        ls=tokens[1]
-        stream=tokens[2]
-        document['data'] = [int(f) if f.isdigit() else str(f) for f in document['data']]
-        
-        values = document["data"]
+    def elasticize_prc_out(self,infile):
+        document = self.imbue_jsn(infile)
+        run=infile.run
+        ls=infile.ls
+        stream=infile.stream
+
+        values = [int(f) if f.isdigit() else str(f) for f in document['data']]
         keys = ["in","out","errorEvents","ReturnCodeMask","Filelist","InputFiles"]
         datadict = dict(zip(keys, values))
 
         document['data']=datadict
         document['ls']=int(ls[2:])
         document['stream']=stream
-        self.es.index(self.run,'prc-out',document)
-        return int(ls[2:])
+        self.prcoutBuffer.setdefault(ls,[]).append(document)
+        #self.es.index(self.indexName,'prc-out',document)
+        #return int(ls[2:])
 
-    def elasticize_fu_out(self,path,file):
+    def elasticize_fu_out(self,infile):
         
-        document = self.imbue_jsn(path,file)
-        tokens=file.split('.')[0].split('_')
-        run=tokens[0]
-        ls=tokens[1]
-        stream=tokens[2]
-        document['data'] = [int(f) if f.isdigit() else str(f) for f in document['data']]
+        document = self.imbue_jsn(infile)
+        run=infile.run
+        ls=infile.ls
+        stream=infile.stream
 
-        values = document["data"]
+        values= [int(f) if f.isdigit() else str(f) for f in document['data']]
         keys = ["in","out","errorEvents","ReturnCodeMask","Filelist","InputFiles"]
         datadict = dict(zip(keys, values))
         
         document['data']=datadict
         document['ls']=int(ls[2:])
         document['stream']=stream
-        self.es.index(self.run,'fu-out',document)
-        return int(ls[2:])
+        self.fuoutBuffer.setdefault(ls,[]).append(document)
+        #self.es.index(self.indexName,'fu-out',document)
+        #return int(ls[2:])
 
-    def elasticize_prc_in(self,path,file):
-        document = self.imbue_jsn(path,file)
-        tokens=file.split('.')[0].split('_')
-        ls=tokens[1]
-        index=tokens[2]
-        prc=tokens[3]
+    def elasticize_prc_in(self,infile):
+        document = self.imbue_jsn(infile)
+        ls=infile.ls
+        index=infile.index
+        prc=infile.pid
+
         document['data'] = [int(f) if f.isdigit() else str(f) for f in document['data']]
         datadict = {'out':document['data'][0]}
         document['data']=datadict
@@ -300,7 +304,33 @@ class elasticBand():
         document['index']=int(index[5:])
         document['dest']=os.uname()[1]
         document['process']=int(prc[3:])
-        self.es.index(self.run,'prc-in',document)
-#        os.remove(path+'/'+file)
-        return int(ls[2:])
+        self.prcinBuffer.setdefault(ls,[]).append(document)
+        #self.es.index(self.indexName,'prc-in',document)
+        #os.remove(path+'/'+file)
+        #return int(ls[2:])
+
+    def flushMonBuffer(self):
+        if self.istateBuffer:
+            self.logger.info("flushing fast monitor buffer (len: %r) " %len(self.istateBuffer))
+            self.es.bulk_index(self.indexName,'prc-i-state',self.istateBuffer)
+            self.istateBuffer = []
+
+    def flushLS(self,ls):
+        self.logger.info("flushing %r" %ls)
+        prcinDocs = self.prcinBuffer.pop(ls) if ls in self.prcinBuffer else None
+        prcoutDocs = self.prcoutBuffer.pop(ls) if ls in self.prcoutBuffer else None
+        fuoutDocs = self.fuoutBuffer.pop(ls) if ls in self.fuoutBuffer else None
+        if prcinDocs: self.es.bulk_index(self.indexName,'prc-in',prcinDocs)        
+        if prcoutDocs: self.es.bulk_index(self.indexName,'prc-out',prcoutDocs)
+        if fuoutDocs: self.es.bulk_index(self.indexName,'fu-out',fuoutDocs)
+
+    def flushAll(self):
+        self.flushMonBuffer()
+        lslist = list(  set(self.prcinBuffer.keys()) | 
+                        set(self.prcoutBuffer.keys()) |
+                        set(self.fuoutBuffer.keys()) )
+        for ls in lslist:
+            self.flushLS(ls)
+
+        
 

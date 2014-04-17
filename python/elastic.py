@@ -9,15 +9,9 @@ import threading
 import Queue
 
 import elasticBand
-import hltdconf
 
-from anelastic import *
+from hltdconf import *
 from aUtils import *
-
-
-
-class BadIniFile(Exception):
-    pass
 
 class elasticCollector():
     stoprequest = threading.Event()
@@ -25,9 +19,12 @@ class elasticCollector():
     source = False
     infile = False
     
-    def __init__(self, esDir):
+    def __init__(self, esDir, inMonDir):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.esDirName = esDir
+        self.inputMonDir = inMonDir
+        self.movedModuleLegend = False
+        self.movedPathLegend = False
 
     def start(self):
         self.run()
@@ -50,7 +47,7 @@ class elasticCollector():
             else:
                 time.sleep(0.5)
 
-        es.flushBuffer()
+        es.flushAll()
         self.logger.info("Stop main loop")
 
 
@@ -59,44 +56,71 @@ class elasticCollector():
 
     def process(self):
         self.logger.debug("RECEIVED FILE: %s " %(self.infile.basename))
-        filepath = self.infile.filepath
-        filetype = self.infile.filetype
-        eventtype = self.eventtype
+        infile = self.infile
+        filetype = infile.filetype
+        eventtype = self.eventtype    
         if eventtype & inotify.IN_CLOSE_WRITE:
-            if self.esDirName in self.infile.dir:
-                if filetype in [INDEX,STREAM,OUTPUT]:   self.elasticize(filepath,filetype)
-                if filetype in [EOR]: self.stop()
-                self.infile.deleteFile()
-            elif filetype in [FAST,SLOW]:
-                self.elasticize(filepath,filetype)
-                if filetype == SLOW: self.infile.deleteFile()
+            if filetype in [FAST,SLOW]:
+                self.elasticize()
+            elif self.esDirName in infile.dir:
+                if filetype in [INDEX,STREAM,OUTPUT]:self.elasticize()
+                elif filetype in [EOLS]:self.elasticizeLS()
+                elif filetype in [EOR]: 
+                    self.stop()
+                    self.infile.deleteFile()
+            elif filetype in [MODULELEGEND] and self.movedModuleLegend == False:
+                try:
+                    if not os.path.exists(self.inputMonDir+'/microstatelegend.leg'):
+                        self.infile.moveFile(self.inputMonDir+'/microstatelegend.leg')
+                except Exception,ex:
+                    logger.error(ex)
+                    pass
+                self.movedModuleLegend = True
+            elif filetype in [PATHLEGEND] and self.movedPathLegend == False:
+                try:
+                    if not os.path.exists(self.inputMonDir+'/pathlegend.leg'):
+                        self.infile.moveFile(self.inputMonDir+'/pathlegend.leg')
+                except Exception,ex:
+                    logger.error(ex)
+                    pass
+                self.movedPathLegend = True
 
-
-    def elasticize(self,filepath,filetype):
-        self.logger.debug(filepath)
-        path = os.path.dirname(filepath)
-        name = os.path.basename(filepath)
-        if es and os.path.isfile(filepath):
+    def elasticize(self):
+        infile = self.infile
+        filetype = infile.filetype
+        name = infile.name
+        if es and os.path.isfile(infile.filepath):
             if filetype == FAST: 
-                es.elasticize_prc_istate(path,name)
+                es.elasticize_prc_istate(infile)
                 self.logger.debug(name+" going into prc-istate")
             elif filetype == SLOW: 
-                es.elasticize_prc_sstate(path,name)      
-                self.logger.debug(name+" going into prc-sstate")       
+                es.elasticize_prc_sstate(infile)      
+                self.logger.debug(name+" going into prc-sstate")     
+                self.infile.deleteFile()  
             elif filetype == INDEX: 
                 self.logger.info(name+" going into prc-in")
-                es.elasticize_prc_in(path,name)
+                es.elasticize_prc_in(infile)
+                self.infile.deleteFile()
             elif filetype == STREAM:
                 self.logger.info(name+" going into prc-out")
-                es.elasticize_prc_out(path,name)
+                es.elasticize_prc_out(infile)
+                self.infile.deleteFile()
             elif filetype == OUTPUT:
                 self.logger.info(name+" going into fu-out")
-                es.elasticize_fu_out(path,name)
+                es.elasticize_fu_out(infile)
+                self.infile.deleteFile()
+
+    def elasticizeLS(self):
+        ls = self.infile.ls
+        es.flushLS(ls)
+        self.infile.deleteFile()
+
+
 
 if __name__ == "__main__":
-    logging.basicConfig(filename="/tmp/elastic.log",
+    logging.basicConfig(filename=os.path.join(conf.log_dir,"elastic.log"),
                     level=logging.INFO,
-                    format='%(levelname)s:%(asctime)s-%(name)s.%(funcName)s - %(message)s',
+                    format='%(levelname)s:%(asctime)s - %(funcName)s - %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger(os.path.basename(__file__))
 
@@ -109,8 +133,11 @@ if __name__ == "__main__":
     
     eventQueue = Queue.Queue()
 
-    conf=hltdconf.hltdConf('/etc/hltd.conf')
     dirname = sys.argv[1]
+    inmondir = sys.argv[2]
+    expected_processes = int(sys.argv[3])
+    indexSuffix = sys.argv[4]
+    update_modulo=conf.fastmon_insert_modulo
     dirname = os.path.basename(os.path.normpath(dirname))
     watchDir = os.path.join(conf.watch_directory,dirname)
     outputDir = conf.micromerge_output
@@ -142,10 +169,10 @@ if __name__ == "__main__":
         mr.register_inotify_path(tempDir,tempMask)
         mr.start_inotify()
 
-        es = elasticBand.elasticBand('http://localhost:9200',dirname)
+        es = elasticBand.elasticBand('http://localhost:9200',dirname,indexSuffix,expected_processes,update_modulo)
 
         #starting elasticCollector thread
-        ec = elasticCollector(ES_DIR_NAME)
+        ec = elasticCollector(ES_DIR_NAME,inmondir)
         ec.setSource(eventQueue)
         ec.start()
 
