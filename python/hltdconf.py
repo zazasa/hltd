@@ -14,6 +14,7 @@ class hltdConf:
         self.role = None
         self.elastic_bu_test = None
         self.elastic_runindex_url = None
+        self.elastic_runindex_name = 'runindex'
         self.watch_directory = None
         self.ramdisk_subdirectory = 'ramdisk'
         self.fastmon_insert_modulo = 1

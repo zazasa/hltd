@@ -324,6 +324,12 @@ if True:
     cluster,type = getmachinetype()
     cnhostname = os.uname()[1]+".cms"
 
+    if cluster == 'daq2val':
+        runindex_name = 'runindex'
+    if cluster == 'daq2':
+        runindex_name = 'runindex_prod' 
+    else:
+        runindex_name = 'runindex_test' 
 
     buName = ''
     if type == 'fu':
@@ -441,6 +447,7 @@ if True:
           #get needed info here
           hltdcfg.reg('user',username,'[General]')
           hltdcfg.reg('elastic_runindex_url',sys.argv[2],'[Monitoring]')
+          hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
           hltdcfg.removeEntry('watch_directory')
           hltdcfg.commit() 
 

@@ -404,7 +404,6 @@ if __name__ == "__main__":
     sys.stderr = stdErrorLog()
     sys.stdout = stdOutLog()
 
-
     eventQueue = Queue.Queue()
 
     es_server = sys.argv[0]
@@ -412,6 +411,7 @@ if __name__ == "__main__":
     runnumber = sys.argv[2]
     dt=os.path.getctime(dirname)
     startTime = datetime.datetime.utcfromtimestamp(dt).isoformat()
+    index_name = conf.elastic_runindex_name
     
     #EoR file path to watch for
 
