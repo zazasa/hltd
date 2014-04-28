@@ -57,8 +57,8 @@ def getmachinetype():
     #print "running on host ",myhost
     if   myhost.startswith('dvrubu-') : return 'daq2val','fu'
     elif myhost.startswith('dvbu-') : return 'daq2val','bu'
-    elif myhost.startswith('bu-') : return 'prod','bu'
-    elif myhost.startswith('fu-') : return 'prod','fu'
+    elif myhost.startswith('bu-') : return 'daq2','bu'
+    elif myhost.startswith('fu-') : return 'daq2','fu'
     elif myhost.startswith('cmsdaq-401b28') : return 'test','fu'
     elif myhost.startswith('dvfu-') : return 'test','fu'
     else: 
@@ -327,8 +327,7 @@ if True:
 
     buName = ''
     if type == 'fu':
-        #TODO: name of the EQset parent dir for prod?
-        if cluster == 'daq2val' or cluster == 'prod': 
+        if cluster == 'daq2val' or cluster == 'daq2': 
             addrList =  getBUAddr(cluster,cnhostname)
             selectedAddr = False
             for addr in addrList:
