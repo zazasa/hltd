@@ -359,38 +359,49 @@ class BoxInfoUpdater(threading.Thread):
 
     def __init__(self,ramdisk):
         self.logger = logging.getLogger(self.__class__.__name__)
-        threading.Thread.__init__(self)
-
-        boxesDir =  os.path.join(ramdisk,'appliance/boxes')
-        boxesMask = inotify.IN_CLOSE_WRITE 
-        self.logger.info("starting elastic for "+boxesDir)
-    
-        self.eventQueue = Queue.Queue()
-        self.mr = MonitorRanger()
-        self.mr.setEventQueue(self.eventQueue)
-        self.mr.register_inotify_path(boxesDir,boxesMask)
 
         try:
-            if conf.elastic_bu_test is not None:
-                self.es = elasticBandBU('http://localhost:9200',0,'',False)
-            else:
-                self.es = elasticBandBU(conf.elastic_runindex_url,0,'',False)
-        except:
-            self.es = elasticBandBU(conf.elastic_runindex_url,0,'',False)
+            threading.Thread.__init__(self)
 
-        self.ec = elasticBoxCollectorBU(self.es)
-        self.ec.setSource(self.eventQueue)
+            boxesDir =  os.path.join(ramdisk,'appliance/boxes')
+            boxesMask = inotify.IN_CLOSE_WRITE 
+            self.logger.info("starting elastic for "+boxesDir)
+    
+            self.eventQueue = Queue.Queue()
+            self.mr = MonitorRanger()
+            self.mr.setEventQueue(self.eventQueue)
+            self.mr.register_inotify_path(boxesDir,boxesMask)
+
+        except Exception,ex:
+            self.logger.error(str(ex))
 
     def run(self):
-        self.mr.start_inotify()
-        self.ec.start()
+        try:
+            try:
+                if conf.elastic_bu_test is not None:
+                    self.es = elasticBandBU('http://localhost:9200',0,'',False)
+                else:
+                    self.es = elasticBandBU(conf.elastic_runindex_url,0,'',False)
+            except:
+                self.es = elasticBandBU(conf.elastic_runindex_url,0,'',False)
+
+            self.ec = elasticBoxCollectorBU(self.es)
+            self.ec.setSource(self.eventQueue)
+
+            self.mr.start_inotify()
+            self.ec.start()
+        except Exception,ex:
+            self.logger.error(str(ex))
 
     def stop(self):
-        self.logger.debug("request to stop")
-        if self.mr is not None:
-            self.mr.stop_inotify()
-        self.ec.stop()
-        self.join()
+        try:
+            self.logger.debug("request to stop")
+            if self.mr is not None:
+                self.mr.stop_inotify()
+            self.ec.stop()
+            self.join()
+        except Exception,ex:
+            self.logger.error(str(ex))
 
 
 if __name__ == "__main__":

@@ -25,6 +25,8 @@ dbsid = 'empty'
 dblogin = 'empty'
 dbpwd = 'empty'
 equipmentset = 'latest'
+default_eqset_daq2val = 'eq_140325_attributes'
+default_eqset_daq2 = 'FILLME'
 
 def removeResources():
     try:
@@ -95,6 +97,12 @@ def getBUAddr(parenteq,hostname):
 
     #con = cx_Oracle.connect('CMS_DAQ2_TEST_HW_CONF_W/'+dbpwd+'@'+dbhost+':10121/int2r_lb.cern.ch',
     #equipmentset = 'eq_140325_attributes'
+
+    if equipmentset == 'default':
+        if parenteq == 'daq2val':
+            equipmentset == default_eqset_daq2val
+        if parenteq == 'daq2':
+            equipmentset == default_eqset_daq2
 
     con = cx_Oracle.connect(dblogin+'/'+dbpwd+'@'+dbhost+':10121/'+dbsid,
                         cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
@@ -248,14 +256,17 @@ if True:
     selection = sys.argv[argvc]
     #print selection
 
-    if selection == 'restore':
-        restoreFileMaybe(hltdconf)
-        restoreFileMaybe(elasticsysconf)
-        restoreFileMaybe(elasticconf)
-        try:
-            os.remove(os.path.join(backup_dir,os.path.basename(busconfig)))
-        except:
-            pass
+    if 'restore' in selection:
+        if 'hltd' in selection:
+            restoreFileMaybe(hltdconf)
+        if 'elasticsearch' in selection:
+            restoreFileMaybe(elasticsysconf)
+            restoreFileMaybe(elasticconf)
+        if 'hltd' in selection:
+            try:
+                os.remove(os.path.join(backup_dir,os.path.basename(busconfig)))
+            except:
+                pass
 
         sys.exit(0)
 
@@ -326,7 +337,7 @@ if True:
 
     if cluster == 'daq2val':
         runindex_name = 'runindex'
-    if cluster == 'daq2':
+    elif cluster == 'daq2':
         runindex_name = 'runindex_prod' 
     else:
         runindex_name = 'runindex_test' 

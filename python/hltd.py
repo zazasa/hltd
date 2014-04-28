@@ -557,7 +557,7 @@ class Run:
         self.lock = threading.Lock()
         #conf.use_elasticsearch = False
             #note: start elastic.py first!
-        if conf.use_elasticsearch:
+        if conf.use_elasticsearch == True:
             try:
                 if conf.elastic_bu_test is not None:
                     logging.info("starting elasticbu.py testing mode with arguments:"+self.dirname)
@@ -737,7 +737,7 @@ class Run:
                     self.anelastic_monitor.terminate()
             except Exception as ex:
                 logging.info("exception encountered in shutting down anelastic.py " + str(ex))
-            if conf.use_elasticsearch:
+            if conf.use_elasticsearch == True:
                 try:
                     if self.elastic_monitor:
                         self.elastic_monitor.terminate()
@@ -780,7 +780,7 @@ class Run:
             if conf.role == 'fu':
                 self.changeMarkerMaybe(Run.COMPLETE)
                 self.anelastic_monitor.wait()
-            if conf.use_elasticsearch:
+            if conf.use_elasticsearch == True:
                 self.elastic_monitor.wait()
 
         except Exception as ex:
@@ -1147,7 +1147,7 @@ class hltd(Daemon2,object):
 
         #start boxinfo elasticsearch updater
         boxInfo = None
-        if conf.role == 'bu' and conf.use_elasticsearch:
+        if conf.role == 'bu' and conf.use_elasticsearch == True:
             boxInfo = BoxInfoUpdater(watch_directory)
             boxInfo.start()
 

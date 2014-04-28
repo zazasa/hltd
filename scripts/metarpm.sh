@@ -66,7 +66,7 @@ if [ ${#readin} != "0" ]; then
 lines[6]=$readin
 fi
 
-echo "Equipment set (press enter for: \"${lines[7]}\") - type 'latest' to use latest eq set:"
+echo "Equipment set (press enter for: \"${lines[7]}\") - type 'latest' to use latest eq set or 'default' for default one:"
 readin=""
 read readin
 if [ ${#readin} != "0" ]; then
@@ -195,37 +195,43 @@ chkconfig fffmeta on
 
 %triggerin -- elasticsearch
 #echo "triggered on elasticsearch update or install"
+python2.6 /usr/share/fff/setupmachine.py restore,elasticsearch
 python2.6 /usr/share/fff/setupmachine.py elasticsearch $params
 /sbin/service elasticsearch restart
 chkconfig elasticsearch on
 
 %triggerin -- hltd
 #echo "triggered on hltd update or install"
+python2.6 /usr/share/fff/setupmachine.py restore,hltd
 python2.6 /usr/share/fff/setupmachine.py hltd $params
 killall hltd
 /sbin/service hltd restart
 chkconfig hltd on
 
 %preun
-chkconfig fffmeta off
-chkconfig elasticsearch off
-chkconfig hltd off
 
-/sbin/service elasticsearch stop || true
-#if ["\$?" == "0" ]; then
-#echo success hltd
-#else
-#echo unsuccess hltd
-#fi
+if [ \$1 == 0 ]; then 
 
-/sbin/service hltd stop || true
-#if ["\$?" == "0" ]; then
-#echo success hltd
-#else
-#echo unsuccess hltd
-#fi
+  chkconfig fffmeta off
+  chkconfig elasticsearch off
+  chkconfig hltd off
 
-python2.6 /usr/share/fff/setupmachine.py restore
+  /sbin/service elasticsearch stop || true
+  #if ["\$?" == "0" ]; then
+  #echo success hltd
+  #else
+  #echo unsuccess hltd
+  #fi
+
+  /sbin/service hltd stop || true
+  #if ["\$?" == "0" ]; then
+  #echo success hltd
+  #else
+  #echo unsuccess hltd
+  #fi
+
+  python2.6 /usr/share/fff/setupmachine.py restore,hltd,elasticsearch
+fi
 
 #TODO:
 #%verifyscript
