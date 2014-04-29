@@ -410,7 +410,7 @@ class BoxInfoUpdater(threading.Thread):
         except Exception,ex:
             self.logger.error(str(ex))
 
-class RunCompletedChecker(threading.Thread)
+class RunCompletedChecker(threading.Thread):
 
     def __init__(self,nr,nresources):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -418,6 +418,7 @@ class RunCompletedChecker(threading.Thread)
         self.nresources = nresources
         self.url = 'http://localhost:9200/run'+str(nr)+'*/fu-complete/_count'
         self.urlclose = 'http://localhost:9200/run'+str(nr)+'*/_close'
+        self.stop = False
         try:
             threading.Thread.__init__(self)
 
@@ -426,16 +427,21 @@ class RunCompletedChecker(threading.Thread)
 
     def run(self):
         try:
-            while True:
-            resp = requests.post(url, '')
-            data = json.load(resp.content)
-            if int(data['count']) == self.nresources:
-                #all hosts are finished, close the index
-                resp = requests.post(urlclose)
-                self.logger.info('closed appliance ES index for run '+str(self.nr))
+            while self.stop == False:
+                resp = requests.post(url, '')
+                data = json.load(resp.content)
+                if int(data['count']) == self.nresources:
+                    #all hosts are finished, close the index
+                    resp = requests.post(urlclose)
+                    self.logger.info('closed appliance ES index for run '+str(self.nr))
+                    break
                 #TODO:write completition time to global ES index
         except Exception,ex:
             self.logger.error('Error in run completition check:i ' +str(ex))
+
+    def stop(self):
+        self.stop = True
+    
 
 if __name__ == "__main__":
     logging.basicConfig(filename=os.path.join(conf.log_dir,"elasticbu.log"),

@@ -142,7 +142,7 @@ class LumiSectionRanger():
         self.EOR = self.infile
         self.EOR.esCopy()
 
-    def processCompleteFile(self)
+    def processCompleteFile(self):
         self.logger.info("received run complete file")
         self.complete = self.infile
         self.stop()

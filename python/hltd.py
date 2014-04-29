@@ -733,6 +733,12 @@ class Run:
                     resource.process=None
                 elif conf.role == 'bu':
                     resource.NotifyShutdown()
+                    if self.endChecker:
+                        try:
+                            self.endChecker.stop()
+                            seld.endChecker.join()
+                        except Exception,ex:
+                            pass
 
             self.online_resource_list = []
             try:
@@ -755,8 +761,7 @@ class Run:
 
     def StartWaitForEnd(self):
         self.is_active_run = False
-        if conf.role == 'fu':
-            self.changeMarkerMaybe(Run.STOPPING)
+        self.changeMarkerMaybe(Run.STOPPING)
         try:
             self.waitForEndThread = threading.Thread(target = self.WaitForEnd)
             self.waitForEndThread.start()
