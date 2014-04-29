@@ -212,6 +212,7 @@ mkdir -p \$RPM_BUILD_ROOT
 tar -C $TOPDIR -c opt/hltd | tar -xC \$RPM_BUILD_ROOT
 tar -C $TOPDIR -c etc | tar -xC \$RPM_BUILD_ROOT
 tar -C $TOPDIR -c usr | tar -xC \$RPM_BUILD_ROOT
+#rm \$RPM_BUILD_ROOT/opt/hltd/python/setupmachine.py
 %post
 rm -rf /etc/appliance/online/*
 rm -rf /etc/appliance/offline/*

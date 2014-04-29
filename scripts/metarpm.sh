@@ -80,7 +80,7 @@ if [ ${#readin} != "0" ]; then
 lines[8]=$readin
 fi
 
-echo "number of threads per process (press enter for: \"${lines[9]}\"):"
+echo "number of threads per process (press enter for: ${lines[9]}):"
 readin=""
 read readin
 if [ ${#readin} != "0" ]; then

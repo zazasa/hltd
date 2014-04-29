@@ -55,9 +55,6 @@ class hltdConf:
         logging.info( 'self.user '+self.user)
         if conf.watch_directory:
             logging.info( 'self.watch_directory '+ self.watch_directory)
-        logging.info( 'self.watch_prefix '+ self.watch_prefix)
-        logging.info( 'self.watch_emu_prefix '+ self.watch_emu_prefix)
-        logging.info( 'self.watch_end_prefix '+ self.watch_end_prefix)
         logging.info( 'self.bu_base_dir '+ self.bu_base_dir)
         logging.info( 'self.mount_command '+ self.mount_command)
 #        logging.info( 'self.role '+ self.role)

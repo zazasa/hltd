@@ -30,6 +30,7 @@ from inotifywrapper import InotifyWrapper
 import _inotify as inotify
 
 from elasticbu import BoxInfoUpdater
+from elasticbu import RunCompletedChecker
 
 idles = conf.resource_base+'/idle/'
 used = conf.resource_base+'/online/'
@@ -476,7 +477,7 @@ class ProcessWatchdog(threading.Thread):
 
                 logging.info('releasing resource, exit0 meaning end of run '+str(self.resource.cpu))
                 # generate an end-of-run marker if it isn't already there - it will be picked up by the RunRanger
-                endmarker = conf.watch_directory+'/'+conf.watch_end_prefix+str(self.resource.runnumber)
+                endmarker = conf.watch_directory+'/end'+str(self.resource.runnumber)
                 stoppingmarker = self.resource.associateddir+'/'+Run.STOPPING
                 completemarker = self.resource.associateddir+'/'+Run.COMPLETE
                 if not os.path.exists(endmarker):
@@ -518,7 +519,8 @@ class Run:
         self.is_active_run = False
         self.anelastic_monitor = None
         self.elastic_monitor = None   
-        self.elastic_test = None   
+        self.elastic_test = None
+        self.endChecker = None
         
         self.arch = None
         self.version = None
@@ -560,11 +562,12 @@ class Run:
         if conf.use_elasticsearch == True:
             try:
                 if conf.elastic_bu_test is not None:
+                    #test mode
                     logging.info("starting elasticbu.py testing mode with arguments:"+self.dirname)
-                    elastic_args = ['/opt/hltd/python/elasticbu.py',self.rawinputdir,str(self.runnumber)]
+                    elastic_args = ['/opt/hltd/python/elasticbu.py',self.rawinputdir,conf.watch_directory,str(self.runnumber)]
                 elif conf.role == "bu":
                     logging.info("starting elasticbu.py with arguments:"+self.dirname)
-                    elastic_args = ['/opt/hltd/python/elasticbu.py',self.dirname,str(self.runnumber)]
+                    elastic_args = ['/opt/hltd/python/elasticbu.py',self.dirname,conf.watch_directory,str(self.runnumber)]
                 else:
                     logging.info("starting elastic.py with arguments:"+self.dirname)
                     elastic_args = ['/opt/hltd/python/elastic.py',self.dirname,self.rawinputdir+'/mon',str(expected_processes),conf.elastic_cluster]
@@ -829,7 +832,7 @@ class RunRanger:
         dirname=event.fullpath[event.fullpath.rfind("/")+1:]
         #@@EM
         logging.info('RunRanger: new filename '+dirname)
-        if dirname.startswith(conf.watch_prefix):
+        if dirname.startswith('run'):
             nr=int(dirname[3:])
             if nr!=0:
                 try:
@@ -848,7 +851,7 @@ class RunRanger:
                     logging.exception("RunRanger: unexpected exception encountered in forking hlt slave")
                     logging.error(ex)
 
-        elif dirname.startswith(conf.watch_emu_prefix):
+        elif dirname.startswith('emu'):
             nr=int(dirname[3:])
             if nr!=0:
                 try:
@@ -863,7 +866,7 @@ class RunRanger:
 
                 os.remove(event.fullpath)
 
-        elif dirname.startswith(conf.watch_end_prefix):
+        elif dirname.startswith('end'):
             # need to check is stripped name is actually an integer to serve
             # as run number
             if dirname[3:].isdigit():
@@ -900,6 +903,21 @@ class RunRanger:
                 logging.error('request to end run '+str(nr)
                               +' which is NOT a run number - this should '
                               +'*never* happen')
+
+        elif dirname.startswith('ending'):
+            #BU mode only
+            if conf.role == 'bu' and conf.use_elasticsearch == True and dirname[3:].isdigit():
+                os.remove(event.fullpath)
+                nr=int(dirname[3:])
+                if nr!=0:
+                    try:
+                        runtoend = filter(lambda x: x.runnumber==nr,run_list)
+                        if len(runtoend)==1:
+                            logging.info('start checking completition of run '+str(nr))
+                            runtoend[0].endChecker = RunCompletedChecker(nr,len(runtoend[0].online_resource_list))
+                            runtoend[0].endChecker.start()
+                    except Exception,ex:
+                        logging.error('failure to start run completition checker: '+str(ex))
 
         elif dirname.startswith('herod') and conf.role == 'fu':
             os.remove(event.fullpath)

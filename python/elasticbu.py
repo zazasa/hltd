@@ -17,6 +17,9 @@ from pyelasticsearch.client import IndexAlreadyExistsError
 from pyelasticsearch.client import ElasticHttpError
 import csv
 
+import requests
+import simplejson as json
+
 index_name = "runindex"
 
 class elasticBandBU:
@@ -235,7 +238,7 @@ class elasticBandBU:
 class elasticCollectorBU():
 
     
-    def __init__(self, inMonDir, inRunDir, rn):
+    def __init__(self, inMonDir, inRunDir, watchdir, rn):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.inputMonDir = inMonDir
         
@@ -244,6 +247,7 @@ class elasticCollectorBU():
         self.insertedModuleLegend = False
         self.insertedPathLegend = False
         self.eorCheckPath = inRunDir + '/run' +  str(rn) + '_ls0000_EoR.jsn'
+        self.endingFilePath = watchdir+'/ending'+ str(rn)
         
         self.stoprequest = threading.Event()
         self.emptyQueue = threading.Event()
@@ -280,6 +284,9 @@ class elasticCollectorBU():
                         endtime = datetime.datetime.utcfromtimestamp(dt).isoformat()
                         es.elasticize_runend_time(endtime)
                         self.runCreated = True
+                    #create endingXXXXXX file to signal main process to look for completition in appliance ES cluster
+                    endingFile = open(self.endingFilePath, 'w+')
+                    close(endingFile)
                     break
         self.logger.info("Stop main loop")
 
@@ -403,6 +410,32 @@ class BoxInfoUpdater(threading.Thread):
         except Exception,ex:
             self.logger.error(str(ex))
 
+class RunCompletedChecker(threading.Thread)
+
+    def __init__(self,nr,nresources):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.nr = nr
+        self.nresources = nresources
+        self.url = 'http://localhost:9200/run'+str(nr)+'*/fu-complete/_count'
+        self.urlclose = 'http://localhost:9200/run'+str(nr)+'*/_close'
+        try:
+            threading.Thread.__init__(self)
+
+        except Exception,ex:
+            self.logger.error(str(ex))
+
+    def run(self):
+        try:
+            while True:
+            resp = requests.post(url, '')
+            data = json.load(resp.content)
+            if int(data['count']) == self.nresources:
+                #all hosts are finished, close the index
+                resp = requests.post(urlclose)
+                self.logger.info('closed appliance ES index for run '+str(self.nr))
+                #TODO:write completition time to global ES index
+        except Exception,ex:
+            self.logger.error('Error in run completition check:i ' +str(ex))
 
 if __name__ == "__main__":
     logging.basicConfig(filename=os.path.join(conf.log_dir,"elasticbu.log"),
@@ -419,7 +452,8 @@ if __name__ == "__main__":
 
     es_server = sys.argv[0]
     dirname = sys.argv[1]
-    runnumber = sys.argv[2]
+    watchdir = sys.argv[2]
+    runnumber = sys.argv[3]
     dt=os.path.getctime(dirname)
     startTime = datetime.datetime.utcfromtimestamp(dt).isoformat()
     index_name = conf.elastic_runindex_name
@@ -460,7 +494,7 @@ if __name__ == "__main__":
             es = elasticBandBU(conf.elastic_runindex_url,runnumber,startTime)
 
         #starting elasticCollector thread
-        ec = elasticCollectorBU(monDir,dirname, runnumber.zfill(conf.run_number_padding))
+        ec = elasticCollectorBU(monDir,dirname, watchdir, runnumber.zfill(conf.run_number_padding))
         ec.setSource(eventQueue)
         ec.start()
 
