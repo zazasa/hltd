@@ -26,7 +26,7 @@ dblogin = 'empty'
 dbpwd = 'empty'
 equipmentset = 'latest'
 default_eqset_daq2val = 'eq_140325_attributes'
-default_eqset_daq2 = 'FILLME'
+default_eqset_daq2 = 'eq_140430_mounttest'
 
 def removeResources():
     try:
@@ -95,14 +95,15 @@ def checkModifiedConfig(lines):
 
 def getBUAddr(parenteq,hostname):
 
+    global equipmentset
     #con = cx_Oracle.connect('CMS_DAQ2_TEST_HW_CONF_W/'+dbpwd+'@'+dbhost+':10121/int2r_lb.cern.ch',
     #equipmentset = 'eq_140325_attributes'
 
     if equipmentset == 'default':
         if parenteq == 'daq2val':
-            equipmentset == default_eqset_daq2val
+            equipmentset = default_eqset_daq2val
         if parenteq == 'daq2':
-            equipmentset == default_eqset_daq2
+            equipmentset = default_eqset_daq2
 
     con = cx_Oracle.connect(dblogin+'/'+dbpwd+'@'+dbhost+':10121/'+dbsid,
                         cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
@@ -145,6 +146,7 @@ def getBUAddr(parenteq,hostname):
       cur.execute(qstring)
     else:
       print "query equipment set",parenteq+'/'+equipmentset
+      #print '\n',qstring2
       cur.execute(qstring2)
 
     retval = []
