@@ -361,7 +361,7 @@ if True:
                     selectedAddr=True
                     break
                 else:
-                    print "failed to ping" + str(addr[1])
+                    print "failed to ping",str(addr[1])
             #if none are pingable, first one is picked
             if selectedAddr==False:
                 if len(addrList)>0:
