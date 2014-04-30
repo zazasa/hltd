@@ -24,7 +24,7 @@ dbhost = 'empty'
 dbsid = 'empty'
 dblogin = 'empty'
 dbpwd = 'empty'
-equipmentset = 'latest'
+equipmentSet = 'latest'
 default_eqset_daq2val = 'eq_140325_attributes'
 default_eqset_daq2 = 'eq_140430_mounttest'
 
@@ -93,17 +93,17 @@ def checkModifiedConfig(lines):
     return False
     
 
-def getBUAddr(parenteq,hostname):
+def getBUAddr(parentTag,hostname):
 
-    global equipmentset
+    global equipmentSet
     #con = cx_Oracle.connect('CMS_DAQ2_TEST_HW_CONF_W/'+dbpwd+'@'+dbhost+':10121/int2r_lb.cern.ch',
-    #equipmentset = 'eq_140325_attributes'
+    #equipmentSet = 'eq_140325_attributes'
 
-    if equipmentset == 'default':
-        if parenteq == 'daq2val':
-            equipmentset = default_eqset_daq2val
-        if parenteq == 'daq2':
-            equipmentset = default_eqset_daq2
+    if equipmentSet == 'default':
+        if parentTag == 'daq2val':
+            equipmentSet = default_eqset_daq2val
+        if parentTag == 'daq2':
+            equipmentSet = default_eqset_daq2
 
     con = cx_Oracle.connect(dblogin+'/'+dbpwd+'@'+dbhost+':10121/'+dbsid,
                         cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
@@ -125,8 +125,8 @@ def getBUAddr(parenteq,hostname):
                 hn.nic_id = d.nic_id AND \
                 d.dnsname = '" + hostname + "' \
                 AND d.eqset_id = (select eqset_id from DAQ_EQCFG_EQSET \
-                where tag='"+parenteq.upper()+"' AND \
-                ctime = (SELECT MAX(CTIME) FROM DAQ_EQCFG_EQSET WHERE tag='"+parenteq.upper()+"')) order by attr_name"
+                where tag='"+parentTag.upper()+"' AND \
+                ctime = (SELECT MAX(CTIME) FROM DAQ_EQCFG_EQSET WHERE tag='"+parentTag.upper()+"')) order by attr_name"
 
     qstring2= "select attr_name, attr_value from \
                 DAQ_EQCFG_HOST_ATTRIBUTE ha, \
@@ -140,12 +140,14 @@ def getBUAddr(parenteq,hostname):
                 hn.nic_id = d.nic_id AND \
                 d.dnsname = '" + hostname + "' \
                 AND d.eqset_id = (select child.eqset_id from DAQ_EQCFG_EQSET child, DAQ_EQCFG_EQSET \
-                parent WHERE child.parent_id = parent.eqset_id AND parent.cfgkey = '"+parenteq+"' and child.cfgkey = '"+ equipmentset + "')"
+                parent WHERE child.parent_id = parent.eqset_id AND parent.cfgkey = '"+parentTag+"' and child.cfgkey = '"+ equipmentSet + "')"
 
-    if equipmentset == 'latest':
+    #NOTE: to query squid master for the FU, replace 'myBU%' with 'mySquidMaster%'
+
+    if equipmentSet == 'latest':
       cur.execute(qstring)
     else:
-      print "query equipment set",parenteq+'/'+equipmentset
+      print "query equipment set",parentTag+'/'+equipmentSet
       #print '\n',qstring2
       cur.execute(qstring2)
 
@@ -325,7 +327,7 @@ if True:
         print "equipment set name missing"
         sys.exit(1)
     if sys.argv[argvc].strip() != '':
-        equipmentset = sys.argv[argvc].strip()
+        equipmentSet = sys.argv[argvc].strip()
 
     argvc += 1
     if not sys.argv[argvc]:
