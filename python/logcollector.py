@@ -22,11 +22,11 @@ from hltdconf import *
 
 terminate = False
 #message type
-MLMSG,EXCEPTION,EVENTLOG,UNFORMATTED = range(4)
+MLMSG,EXCEPTION,EVENTLOG,UNFORMATTED,STACKTRACE = range(5)
 #message severity
 DEBUGLEVEL,INFOLEVEL,WARNINGLEVEL,ERRORLEVEL,FATALLEVEL = range(5)
 
-typeStr=['MessageLogger','Exception','EventLog','Unformatted']
+typeStr=['messagelogger','exception','eventlog','unformatted','stacktrace']
 severityStr=['DEBUG','INFO','WARNING','ERROR','FATAL']
 
 #test defaults
@@ -117,6 +117,21 @@ class CMSSWLogEventException(CMSSWLogEvent):
 #                    self.document['message'].append('\n')
 
 
+class CMSSWLogEventStackTrace(CMSSWLogEvent):
+
+    def __init__(self,pid,firstLine):
+        CMSSWLogEvent.__init__(self,pid,STACKTRACE,FATALLEVEL,severity,firstLine,True)
+
+    def decode(self):
+        self.fillComon()
+        #collect all lines
+        for i in range(0,len(message)-1):
+            self.document['message'].append(self.message[i])
+#
+
+
+#TODO: logs caused after signals (SIGSEGV, SIGABRT, SIGBUS...)
+
 class CMSSWLogParser(threading.Thread):
 
     def __init__(self,path,pid,queue):
@@ -155,6 +170,10 @@ class CMSSWLogParser(threading.Thread):
                     break
                 if self.abort == False:
                     self.threadEvent.wait(2)
+
+        #consider last event finished and queue if not completed
+        if self.abort == False and self.currentEvent:
+            self.putInQueue(currentEvent)
         close(f)
 
         #if self.abort: logwriter.stop()
@@ -167,9 +186,13 @@ class CMSSWLogParser(threading.Thread):
         if not self.currentEvent:
             #check lines to ignore / count etc.
             while pos < max:
+                if len(buf[pos])==0:
+                    continue
+                elif buf[pos].startswith('----- Begin Processing'):
+                    self.putInQueue(CMSSWLogEvent(pid,EVENTLOG,DEBUGLEVEL,buf[pos]))
+                    pos+=1
+                    continue
                 if buf[pos].startswith('%MSG-d'):
-                    type = MLMSG
-                    severity = DEBUGLEVEL
                     self.currentEvent = CMSSWLogEventML(self.pid,DEBUGLEVEL,buf[pos])
                 elif buf[pos].startswith('%MSG-i'):
                     self.currentEvent = CMSSWLogEventML(self.pid,INFOLEVEL,buf[pos])
@@ -177,12 +200,28 @@ class CMSSWLogParser(threading.Thread):
                     self.currentEvent = CMSSWLogEventML(self.pid,WARNINGLEVEL,buf[pos])
                 elif buf[pos].startswith('%MSG-e'):
                     self.currentEvent = CMSSWLogEventML(self.pid,ERRORLEVEL,buf[pos])
-                elif buf[pos].startswith('----- Begin Fatal Exception'):
-                    self.currentEvent = CMSSWLogEventML(self.pid,buf[pos])
-                elif buf[pos].startswith('----- Begin Processing'):
-                    self.putInQueue(CMSSWLogEvent(pid,EVENTLOG,DEBUGLEVEL,buf[pos]))
-                    pos+=1
-                    continue
+                if buf[pos].startswith('%MSG-d'):
+                    self.currentEvent = CMSSWLogEventML(self.pid,DEBUGLEVEL,buf[pos])
+                elif buf[pos].startswith('----- Begin Fatal Exception'): 
+                    #TODO:should enable stack trace below (also with MSG-e for fpe,illegal instr.,sigsegv and bus error)
+                    #and disable opening other multilines
+                    #sometimes looks like: %MSG-e FatalSystemSignal:  ExceptionGenerator:a
+                    #or %MSG-e Root_Error:  ExceptionGenerator:a  ...... floating point exception
+                    #TODO:catch assertion
+                    self.currentEvent = CMSSWLogEventException(self.pid,buf[pos])
+                elif buf[pos].startswith('There was a crash.')  #-8
+                    #or buf[pos].startswith('A fatal signal') #
+                    or buf[pos].startswith('A fatal system signal') #most of signals
+                    or buf[pos].startswith('Aborted (core dumped)'): #-5
+
+                    #these are usually caused by intentionally sent signal:
+                    #or buf[pos].startswith('Trace/breakpoint trap (core dumped)') #-4
+                    #or buf[pos].startswith('Hangup') #-1
+                    #or buf[pos].startswith('Quit') #-2
+                    #or buf[pos].startswith('User defined signal 1') #-10
+                    #or buf[pos].startswith('Terminated') #-15
+                    #will be completed when file closes
+                    self.currentEvent = CMSSWLogEventStackTrace(self.pid,buf[pos])
                 else:
                     self.putInQueue(CMSSWLogEvent(pid,UNFORMATTED,DEBUGLEVEL,buf[pos]))
                     pos+=1
