@@ -387,3 +387,24 @@ class Aggregator(object):
     def action_cat(self,data1,data2):
         if data2: return str(data1)+","+str(data2)
         else: return str(data1)
+
+
+#class ErrorStreamDesc(object):
+#
+#    def __init__(self,run,ls,pid,ErrorEvents,ReturnCode,FileList):
+#        self.run = run
+#        self.ls = ls
+#        self.pid = pid
+#        self.filename = 
+#        self.document['Processed'] = ErrorEvents
+#        self.document['Accepted'] = ErrorEvents
+#        self.document['ErrorEvents'] = ErrorEvents
+#        self.document['ReturnCodeMask'] = ReturnCode
+#        self.document['FileList']=FileList
+#        self.ReturnCodeMask = ReturnCodeMask
+#        self.FileList = FileList
+#
+#    def writeErrorStreamJson(filepath):
+#        try:
+#            with open(filepath,"w") as fi:
+#                json.dump(document,fi)

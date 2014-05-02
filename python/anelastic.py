@@ -269,6 +269,16 @@ class LumiSectionHandler():
             if outfile.stream in streamDiff:
                 outfile.merge(file2merge)
 
+        #error stream
+        #pidFileList = []
+        #for file in self.indexfileList.append(infile):
+        #    pidstr = '_pid'+str(pid).zfill(5)
+        #    if pidstr in file:
+        #        pidFileList.append(file)
+        #errorStreamDesc = ErrorStreamDesc(self.run,self.ls,pid,numEvents,errCode,pidFileList)
+        #errorStreamDesc.writeErrorStream()
+                
+
     def processDATFile(self):
         self.logger.info(self.infile.basename)
         stream = self.infile.stream
