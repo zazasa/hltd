@@ -29,13 +29,15 @@ DEBUGLEVEL,INFOLEVEL,WARNINGLEVEL,ERRORLEVEL,FATALLEVEL = range(5)
 typeStr=['MessageLogger','Exception','EventLog','Unformatted']
 severityStr=['DEBUG','INFO','WARNING','ERROR','FATAL']
 
-#defaults
-READBULK=20
-history = 5
+#test defaults
+readonce=32
+bulkinsertMin
+history = 8
 saveHistory = False
 logThreshold = 1 #(INFO)
+contextLogThreshold = 0 #(DEBUG)
 
-#datetime_fmt = "30-Apr-2014 16:50:32 CEST"
+#cmssw date and time: "30-Apr-2014 16:50:32 CEST"
 datetime_fmt = "%d-%M-%Y %H:%M:%S %Z"
 
 hostname = os.uname()[1]
@@ -51,7 +53,7 @@ class CMSSWLogEvent(object):
         self.message = [firstLine]
         #maybe should be skipped if we don't store these events
         if findTimestamp:
-          self.document['timestamp'] = datetime.datetime.utcnow().isoformat()
+            self.document['timestamp'] = datetime.datetime.utcnow().isoformat()
       
     def append(self,line):
         self.message.append(line)
@@ -70,7 +72,7 @@ class CMSSWLogEvent(object):
 class CMSSWLogEventML(CMSSWLogEvent):
 
     def __init__(self,pid,severity,firstLine):
-        self.CMSSWLogEvent(pid,MLMSG,severity,firstLine,False)
+        CMSSWLogEvent.__init__(self,pid,MLMSG,severity,firstLine,False)
 
     def decode(self):
         self.fillComon()
@@ -93,7 +95,7 @@ class CMSSWLogEventML(CMSSWLogEvent):
 class CMSSWLogEventException(CMSSWLogEvent):
 
     def __init__(self,pid,firstLine):
-        self.CMSSWLogEvent(pid,EXCEPTION,FATALLEVEL,severity,firstLine,False)
+        CMSSWLogEvent.__init__(self,pid,EXCEPTION,FATALLEVEL,severity,firstLine,False)
 
     def decode(self):
         self.fillComon()
@@ -140,7 +142,7 @@ class CMSSWLogParser(threading.Thread):
 
         #seenHeader = False
         while self.abort == False:
-            buf = f.readlines(READBULK)
+            buf = f.readlines(readonce)
             if len(buf)>0:
                 self.process(buf)
             else:
@@ -223,7 +225,7 @@ class CMSSWLogParser(threading.Thread):
 
             event.decode()
             mainQueue.put(event)
-        elif saveHistory:
+        elif saveHistory and event.severity>=contextLogThreshold:
             historyFIFO.append(event)
  
     def stop(self):
@@ -236,16 +238,14 @@ class CMSSWLogESWriter(threading.Thread):
     def __init__(self,run):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.es = ElasticSearch('http://localhost:9200')
-        self.index_name = index_name
         self.queue = Queue.Queue()
+        self.parsers = {}
+        self.numParsers=0
         self.stop = False
         self.threadEvent = threading.Event()
 
-        self.parsers = {}
-        self.numParsers=0
-
         #try to create elasticsearch index for run logging
-        index_name = 'cmsswlog_run'+str(self.run)+'_'+conf.elastic_cluster
+        self.index_name = 'cmsswlog_run'+str(self.run)+'_'+conf.elastic_cluster
         self.settings = {
             "analysis":{
                 "analyzer": {
@@ -264,9 +264,9 @@ class CMSSWLogESWriter(threading.Thread):
             "index":{
                 'number_of_shards' : 16,
                 'number_of_replicas' : 16
-            },
+            }
         }
-        #todo:close index entry
+        #todo:close index entry, id & parent-child for context logs?
         self.run_mapping = {
             'cmsswlog' : {
 
@@ -293,16 +293,17 @@ class CMSSWLogESWriter(threading.Thread):
             }
         }
 
+        #try to create index if not already created from other nodes
         try:
-            self.logger.info('writing to elastic index '+index_name)
-            self.es.create_index(index_name, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
+            self.logger.info('writing to elastic index '+self.index_name)
+            self.es.create_index(self.index_name, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
         except ElasticHttpError as ex:
             self.logger.info(ex)
             pass
 
     def run(self):
         while self.abort == False:
-            if queue.qsize>6:#rule of the thumb
+            if queue.qsize>bulkinsertMin:
                 documents = []
                 while self.abort == False:
                     try:
@@ -411,7 +412,7 @@ class CMSSWLogCollector(object):
             for e in elements:
                if e.startswith('run'):
                    run = int(e[3:])
-            if e.startswith('pid'):
+               if e.startswith('pid'):
                    pid = int(e[3:])
             return run,pid
         except Exception,ex:
@@ -441,9 +442,10 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGINT, signalHandler)
 
-    #TODO
+    #TODO:hltd log parser
     hltdlogdir = '/var/log/hltd'
-    hltdlogs = ['hltd.log','anelastic.log','elastic.log','elasticbu.log']
+    hltdlog = 'hltd.log'
+    hltdrunlogs = ['hltd.log','anelastic.log','elastic.log','elasticbu.log']
 
     cmsswlogdir = ['/var/log/hltd/pid']
     mask = inotify.IN_CREATE | inotify.IN_CLOSE_WRITE  # cmssw log files
