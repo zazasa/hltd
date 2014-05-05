@@ -191,6 +191,9 @@ class CMSSWLogParser(threading.Thread):
             logger.info('detected termination of the CMSSW process '+str(self.pid)+', finishing.')
         f.close()
         self.closed=True
+        #prepend file with 'old_' prefix so that it can be deleted later
+        fpath, fname = os.path.split(self.path)
+        os.rename(self.path,fpath+'/old_'+fname)
 
     def process(self,buf,offset=0):
         max = len(buf)
@@ -309,7 +312,7 @@ class CMSSWLogESWriter(threading.Thread):
 #                'number_of_shards' : 1,
 #                'number_of_replicas' : 1
                 'number_of_shards' : 16,
-                'number_of_replicas' : 16
+                'number_of_replicas' : 1
             }
         }
         #todo:close index entry, id & parent-child for context logs?
@@ -439,6 +442,7 @@ class CMSSWLogCollector(object):
 
     def process_IN_CREATE(self, event):
         if self.stop: return
+        if event.fullpath.startswith('old_'): return
         self.logger.info("new cmssw log file found: "+event.fullpath)
         #find run number and pid
 
@@ -509,6 +513,21 @@ if __name__ == "__main__":
     hltdrunlogs = ['hltd.log','anelastic.log','elastic.log','elasticbu.log']
 
     cmsswlogdir = '/var/log/hltd/pid'
+
+    #TODO:do this check on run based intervals
+    #existing_cmsswlogs = os.listdir(hltdlogdir)
+    #current_dt = datetime.datetime.now() 
+    #for file in existing_cmsswlogs:
+    #   if file.startswith('old_'):
+    #       try:
+    #           file_dt = os.path.getmtime(file)
+    #           if (current_dt - file_dt).totalHours > 92:
+    #               #delete file if not modified for more than 4 days
+    #               os.remove(file)
+    #       except:
+    #           #maybe permissions were insufficient
+    #           pass
+
     mask = inotify.IN_CREATE # | inotify.IN_CLOSE_WRITE  # cmssw log files
     logger.info("starting CMSSW log collector for "+cmsswlogdir)
     clc = None
