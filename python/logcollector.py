@@ -4,6 +4,7 @@ import sys,traceback
 import os
 import time
 import shutil
+import signal
 
 import filecmp
 from inotifywrapper import InotifyWrapper
@@ -19,8 +20,10 @@ from pyelasticsearch.client import IndexAlreadyExistsError
 from pyelasticsearch.client import ElasticHttpError
 
 from hltdconf import *
+from aUtils import stdOutLog,stdErrorLog
 
 terminate = False
+threadEventRef = None
 #message type
 MLMSG,EXCEPTION,EVENTLOG,UNFORMATTED,STACKTRACE = range(5)
 #message severity
@@ -31,7 +34,7 @@ severityStr=['DEBUG','INFO','WARNING','ERROR','FATAL']
 
 #test defaults
 readonce=32
-bulkinsertMin
+bulkinsertMin = 8
 history = 8
 saveHistory = False
 logThreshold = 1 #(INFO)
@@ -209,10 +212,11 @@ class CMSSWLogParser(threading.Thread):
                     #or %MSG-e Root_Error:  ExceptionGenerator:a  ...... floating point exception
                     #TODO:catch assertion
                     self.currentEvent = CMSSWLogEventException(self.pid,buf[pos])
-                elif buf[pos].startswith('There was a crash.')  #-8
-                    #or buf[pos].startswith('A fatal signal') #
-                    or buf[pos].startswith('A fatal system signal') #most of signals
-                    or buf[pos].startswith('Aborted (core dumped)'): #-5
+                #else signals: -8, ... or -
+                elif buf[pos].startswith('There was a crash.') \
+                    or buf[pos].startswith('A fatal system signal') \
+                    or buf[pos].startswith('Aborted (core dumped)'):
+                    #or buf[pos].startswith('A fatal signal') # 
 
                     #these are usually caused by intentionally sent signal:
                     #or buf[pos].startswith('Trace/breakpoint trap (core dumped)') #-4
@@ -416,8 +420,8 @@ class CMSSWLogCollector(object):
         logging.info("MonitorRanger: Join inotify wrapper")
         self.inotifyWrapper.join()
         logging.info("MonitorRanger: Inotify wrapper returned")
-        for key in indices:
-            indices[key].stop()
+        for key in self.indices:
+            self.indices[key].stop()
 
     def process_IN_CREATE(self, event):
         if self.stop: return
@@ -459,10 +463,18 @@ class CMSSWLogCollector(object):
             return None,None
  
 
-def signalHandler():
+def signalHandler(p1,p2):
     global terminate
+    global threadEventRef
     terminate = True
-    threadEventRef.set()
+    if threadEventRef:
+        threadEventRef.set()
+
+def registerSignal(eventRef):
+    global threadEventRef
+    threadEventRef = threadEvent
+    signal.signal(signal.SIGINT, signalHandler)
+    
 
 if __name__ == "__main__":
     logging.basicConfig(filename=os.path.join(conf.log_dir,"logcollector.log"),
@@ -471,42 +483,40 @@ if __name__ == "__main__":
                     datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger(os.path.basename(__file__))
 
+    logger.info('starting logcollector')
     #STDOUT AND ERR REDIRECTIONS
     sys.stderr = stdErrorLog()
     sys.stdout = stdOutLog()
 
-    self.threadEvent = threading.Event()
-    global threadEventRef
-    threadEventRef = self.threadEvent
-
-    signal.signal(signal.SIGINT, signalHandler)
+    threadEvent = threading.Event()
+    registerSignal(threadEvent)
 
     #TODO:hltd log parser
     hltdlogdir = '/var/log/hltd'
     hltdlog = 'hltd.log'
     hltdrunlogs = ['hltd.log','anelastic.log','elastic.log','elasticbu.log']
 
-    cmsswlogdir = ['/var/log/hltd/pid']
+    cmsswlogdir = '/var/log/hltd/pid'
     mask = inotify.IN_CREATE | inotify.IN_CLOSE_WRITE  # cmssw log files
     logger.info("starting CMSSW log collector for "+cmsswlogdir)
-    mr = None
+    clc = None
     try:
 
         #starting inotify thread
-        mr = MonitorRanger(logger)
-        mr.register_inotify_path(cmsswlogdir,mask)
-        mr.start_inotify()
+        clc = CMSSWLogCollector(logger)
+        clc.register_inotify_path(cmsswlogdir,mask)
+        clc.start_inotify()
 
     except Exception,e:
         logger.exception("error: "+str(e))
         sys.exit(1)
 
     while terminate == False:
-        self.threadEvent.wait(5)
+        threadEvent.wait(5)
 
     logging.info("Closing notifier")
-    if mr is not None:
-        mr.stop_inotify()
+    if clc is not None:
+        clc.stop_inotify()
 
     logging.info("Quit")
     sys.exit(0)

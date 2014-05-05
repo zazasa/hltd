@@ -569,6 +569,11 @@ class Run:
                     logging.info("starting elasticbu.py with arguments:"+self.dirname)
                     elastic_args = ['/opt/hltd/python/elasticbu.py',self.dirname,conf.watch_directory,str(self.runnumber)]
                 else:
+
+                    logging.info("starting elastic.py with arguments:"+self.dirname)
+                    elastic_args = ['/opt/hltd/python/logcollector.py',]
+                    self.elastic_logger = subprocess.Popen(['/opt/hltd/python/logcollector.py'],preexec_fn=preexec_function,close_fds=True)
+
                     logging.info("starting elastic.py with arguments:"+self.dirname)
                     elastic_args = ['/opt/hltd/python/elastic.py',self.dirname,self.rawinputdir+'/mon',str(expected_processes),conf.elastic_cluster]
 
@@ -1174,6 +1179,12 @@ class hltd(Daemon2,object):
             boxInfo = BoxInfoUpdater(watch_directory)
             boxInfo.start()
 
+        logCollector = None
+        if conf.role == 'fu' and conf.use_elasticsearch == True:
+            logging.info("starting logcollector.py")
+            logcolleccor_args = ['/opt/hltd/python/logcollector.py',]
+            logCollector = subprocess.Popen(['/opt/hltd/python/logcollector.py'],preexec_fn=preexec_function,close_fds=True)
+
         runRanger = RunRanger()
         runRanger.register_inotify_path(watch_directory,inotify.IN_CREATE)
         runRanger.start_inotify()
@@ -1225,6 +1236,8 @@ class hltd(Daemon2,object):
             if boxInfo is not None:
                 logging.info("stopping boxinfo updater")
                 boxInfo.stop()
+            if logCollector is not None:
+                logCollector.terminate()
             logging.info("stopping system monitor")
             rr.stop_managed_monitor()
             logging.info("closing httpd socket")
