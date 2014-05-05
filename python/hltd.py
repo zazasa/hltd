@@ -569,11 +569,6 @@ class Run:
                     logging.info("starting elasticbu.py with arguments:"+self.dirname)
                     elastic_args = ['/opt/hltd/python/elasticbu.py',self.dirname,conf.watch_directory,str(self.runnumber)]
                 else:
-
-                    logging.info("starting elastic.py with arguments:"+self.dirname)
-                    elastic_args = ['/opt/hltd/python/logcollector.py',]
-                    self.elastic_logger = subprocess.Popen(['/opt/hltd/python/logcollector.py'],preexec_fn=preexec_function,close_fds=True)
-
                     logging.info("starting elastic.py with arguments:"+self.dirname)
                     elastic_args = ['/opt/hltd/python/elastic.py',self.dirname,self.rawinputdir+'/mon',str(expected_processes),conf.elastic_cluster]
 
