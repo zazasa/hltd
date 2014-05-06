@@ -416,11 +416,12 @@ class CMSSWLogESWriter(threading.Thread):
 
 class CMSSWLogCollector(object):
 
-    def __init__(self,logger):
+    def __init__(self,logger,dir):
         self.logger = logger
         self.inotifyWrapper = InotifyWrapper(self,False)
         self.indices = {}
         self.stop = False
+        self.dir = dir
 
         #start another queue to fill events into elasticsearch
 
@@ -451,6 +452,7 @@ class CMSSWLogCollector(object):
             if rn not in self.indices:
                 self.indices[rn] = CMSSWLogESWriter(rn)
                 self.indices[rn].start()
+                #self.deleteOldLogs()#TODO:debug
             self.indices[rn].addParser(event.fullpath,pid)
 
         #cleanup
@@ -477,7 +479,24 @@ class CMSSWLogCollector(object):
         except Exception,ex:
             logger.warn('problem parsing log file name: '+str(ex))
             return None,None
+
  
+    def deleteOldLogs(self):
+
+        existing_cmsswlogs = os.listdir(self.dir)
+        current_dt = datetime.datetime.now() 
+        for file in existing_cmsswlogs:
+           if file.startswith('old_'):
+               try:
+                   file_dt = os.path.getmtime(file)
+                   if (current_dt - file_dt).totalHours > 48:
+                       #delete file if not modified for more than 4 days
+                       os.remove(file)
+               except:
+                   #maybe permissions were insufficient
+                   pass
+
+
 
 def signalHandler(p1,p2):
     global terminate
@@ -511,22 +530,7 @@ if __name__ == "__main__":
     hltdlogdir = '/var/log/hltd'
     hltdlog = 'hltd.log'
     hltdrunlogs = ['hltd.log','anelastic.log','elastic.log','elasticbu.log']
-
     cmsswlogdir = '/var/log/hltd/pid'
-
-    #TODO:do this check on run based intervals
-    #existing_cmsswlogs = os.listdir(hltdlogdir)
-    #current_dt = datetime.datetime.now() 
-    #for file in existing_cmsswlogs:
-    #   if file.startswith('old_'):
-    #       try:
-    #           file_dt = os.path.getmtime(file)
-    #           if (current_dt - file_dt).totalHours > 92:
-    #               #delete file if not modified for more than 4 days
-    #               os.remove(file)
-    #       except:
-    #           #maybe permissions were insufficient
-    #           pass
 
     mask = inotify.IN_CREATE # | inotify.IN_CLOSE_WRITE  # cmssw log files
     logger.info("starting CMSSW log collector for "+cmsswlogdir)
@@ -534,7 +538,7 @@ if __name__ == "__main__":
     try:
 
         #starting inotify thread
-        clc = CMSSWLogCollector(logger)
+        clc = CMSSWLogCollector(logger,cmsswlogdir)
         clc.register_inotify_path(cmsswlogdir,mask)
         clc.start_inotify()
 
