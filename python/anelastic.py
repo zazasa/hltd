@@ -273,11 +273,15 @@ class LumiSectionHandler():
     def processEOLSFile(self):
         self.logger.info(self.infile.basename)
         ls = self.infile.ls
+        try:
+            if os.stat(infile.filepath).st_size>0:
+                #self-triggered inotify event, this lumihandler should be deleted
+                self.closed.set()
+                return False
+        except:
+            pass
         if self.EOLS:
-            try:
-                if os.stat(infile.filepath).st_size==0:
-                    self.logger.warning("LS %s already closed" %repr(ls))
-            except:pass
+            self.logger.warning("LS %s already closed" %repr(ls))
             return False
         self.EOLS = self.infile
         #self.infile.deleteFile()   #cmsRUN create another EOLS if it will be delete too early
@@ -316,18 +320,19 @@ class LumiSectionHandler():
             #close lumisection if all streams are closed
             self.logger.info("closing %r" %self.ls)
             self.EOLS.esCopy()
+            self.writeLumiInfo()
             self.closed.set()
             #update EOLS file with event processing statistics
-            self.writeLumiInfo()
 
     def writeLumiInfo(self):
-        document = { 'data':[self.totalEvent,self.totalFiles,self.totalEvent],
-                      'definition':'',
-                      'source':os.uname()[1] }
+        document = { 'data':[str(self.totalEvent),str(self.totalFiles),str(self.totalEvent)],
+                     'definition':'',
+                     'source':os.uname()[1] }
         try:
-            with open(self.EOLS.filepath,"w+") as fi:
-                json.dump(document,fi)
-        except: logging.exception("unable to write to " %filename)
+            if os.stat(self.EOLS.filepath).st_size==0:
+                with open(self.EOLS.filepath,"w+") as fi:
+                    json.dump(document,fi,sort_keys=True)
+        except: logging.exception("unable to write to " %self.EOLS.filepath)
              
 
 if __name__ == "__main__":
