@@ -167,6 +167,7 @@ class LumiSectionHandler():
         self.EOLS = None               #EOLS file
         self.closed = threading.Event() #True if all files are closed/moved
         self.totalEvent = 0
+        self.totalFiles = 0
         
         self.initOutFiles()
 
@@ -230,6 +231,7 @@ class LumiSectionHandler():
         if infile.data:
             numEvents = int(infile.data["data"][0])
             self.totalEvent+=numEvents
+            self.totalFiles+=1
             
             #update pidlist
             if pid not in self.pidList: self.pidList[pid] = {"numEvents": 0, "streamList": []}
@@ -272,7 +274,10 @@ class LumiSectionHandler():
         self.logger.info(self.infile.basename)
         ls = self.infile.ls
         if self.EOLS:
-            self.logger.warning("LS %s already closed" %repr(ls))
+            try:
+                if os.stat(infile.filepath).st_size==0:
+                    self.logger.warning("LS %s already closed" %repr(ls))
+            except:pass
             return False
         self.EOLS = self.infile
         #self.infile.deleteFile()   #cmsRUN create another EOLS if it will be delete too early
@@ -312,7 +317,18 @@ class LumiSectionHandler():
             self.logger.info("closing %r" %self.ls)
             self.EOLS.esCopy()
             self.closed.set()
+            #update EOLS file with event processing statistics
+            self.writeLumiInfo()
 
+    def writeLumiInfo(self):
+        document = { 'data':[self.totalEvent,self.totalFiles,self.totalEvent],
+                      'definition':'',
+                      'source':os.uname()[1] }
+        try:
+            with open(self.EOLS.filepath,"w+") as fi:
+                json.dump(document,fi)
+        except: logging.exception("unable to write to " %filename)
+             
 
 if __name__ == "__main__":
     logging.basicConfig(filename=os.path.join(conf.log_dir,"anelastic.log"),
