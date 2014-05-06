@@ -211,30 +211,34 @@ class CMSSWLogParser(threading.Thread):
                     self.currentEvent = CMSSWLogEventML(self.pid,INFOLEVEL,buf[pos])
                 elif buf[pos].startswith('%MSG-w'):
                     self.currentEvent = CMSSWLogEventML(self.pid,WARNINGLEVEL,buf[pos])
+
                 elif buf[pos].startswith('%MSG-e'):
                     self.currentEvent = CMSSWLogEventML(self.pid,ERRORLEVEL,buf[pos])
+                    #some msg-e are printed when signal is caught:
+                    #ill.instr., SIGSEGV,BUS ERR: %MSG-e FatalSystemSignal:  ExceptionGenerator:a
+                    #FPE: %MSG-e Root_Error:  ExceptionGenerator:a  ...... floating point exception
+
                 elif buf[pos].startswith('%MSG-d'):
+                    #should not be present in production
                     self.currentEvent = CMSSWLogEventML(self.pid,DEBUGLEVEL,buf[pos])
+
                 elif buf[pos].startswith('----- Begin Fatal Exception'): 
-                    #TODO:should enable stack trace below (also with MSG-e for fpe,illegal instr.,sigsegv and bus error)
-                    #and disable opening other multilines
-                    #sometimes looks like: %MSG-e FatalSystemSignal:  ExceptionGenerator:a
-                    #or %MSG-e Root_Error:  ExceptionGenerator:a  ...... floating point exception
-                    #TODO:catch assertion
                     self.currentEvent = CMSSWLogEventException(self.pid,buf[pos])
-                #else signals: -8, ... or -
+
+                #signals not caught as exception (last is assert)
                 elif buf[pos].startswith('There was a crash.') \
                     or buf[pos].startswith('A fatal system signal') \
+                    or (buf[pos].startswith('cmsRun:') and  buf[pos].endswith('failed.\n')) \
                     or buf[pos].startswith('Aborted (core dumped)'):
-                    #or buf[pos].startswith('A fatal signal') # 
 
-                    #these are usually caused by intentionally sent signal:
+                    #disabled for now:
+                    #or buf[pos].startswith('A fatal signal') # 
                     #or buf[pos].startswith('Trace/breakpoint trap (core dumped)') #-4
                     #or buf[pos].startswith('Hangup') #-1
                     #or buf[pos].startswith('Quit') #-2
                     #or buf[pos].startswith('User defined signal 1') #-10
                     #or buf[pos].startswith('Terminated') #-15
-                    #will be completed when file closes
+
                     self.currentEvent = CMSSWLogEventStackTrace(self.pid,buf[pos])
                 elif buf[pos]=='\n':
                     pass
@@ -416,12 +420,15 @@ class CMSSWLogESWriter(threading.Thread):
 
 class CMSSWLogCollector(object):
 
-    def __init__(self,logger,dir):
+    def __init__(self,logger,dir,loglevel):
         self.logger = logger
         self.inotifyWrapper = InotifyWrapper(self,False)
         self.indices = {}
         self.stop = False
         self.dir = dir
+
+        global logThreshold
+        logThreshold = loglevel
 
         #start another queue to fill events into elasticsearch
 
@@ -523,6 +530,17 @@ if __name__ == "__main__":
     sys.stderr = stdErrorLog()
     sys.stdout = stdOutLog()
 
+    cmsswloglevel = 1
+    try:
+        cmsswloglevel_name = conf.es_cmssw_log_level.upper().strip()
+        if cmsswloglevel_name == 'DISABLED':
+            cmsswloglevel = -1
+        else:
+            cmsswloglevel = [i for i,x in enumerate(severityStr) if x == cmsswloglevel_name][0]
+    except:
+        logger.info("No valid es_cmssw_log_level configuration. Quit")
+        sys.exit(0)
+
     threadEvent = threading.Event()
     registerSignal(threadEvent)
 
@@ -535,16 +553,21 @@ if __name__ == "__main__":
     mask = inotify.IN_CREATE # | inotify.IN_CLOSE_WRITE  # cmssw log files
     logger.info("starting CMSSW log collector for "+cmsswlogdir)
     clc = None
-    try:
+
+    if cmsswloglevel>=0:
+      try:
 
         #starting inotify thread
-        clc = CMSSWLogCollector(logger,cmsswlogdir)
+        clc = CMSSWLogCollector(logger,cmsswlogdir,cmsswloglevel)
         clc.register_inotify_path(cmsswlogdir,mask)
         clc.start_inotify()
 
-    except Exception,e:
+      except Exception,e:
         logger.exception("error: "+str(e))
         sys.exit(1)
+
+    else:
+        logger.info('CMSSW logging is disabled')
 
     while terminate == False:
         threadEvent.wait(5)
