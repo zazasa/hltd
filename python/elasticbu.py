@@ -366,6 +366,7 @@ class BoxInfoUpdater(threading.Thread):
 
     def __init__(self,ramdisk):
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.stop = False
 
         try:
             threading.Thread.__init__(self)
@@ -384,13 +385,16 @@ class BoxInfoUpdater(threading.Thread):
 
     def run(self):
         try:
-            try:
+            while self.stop==False:
+              try:
                 if conf.elastic_bu_test is not None:
                     self.es = elasticBandBU('http://localhost:9200',0,'',False)
+                    break;
                 else:
                     self.es = elasticBandBU(conf.elastic_runindex_url,0,'',False)
-            except:
-                self.es = elasticBandBU(conf.elastic_runindex_url,0,'',False)
+                    break;
+              except:
+                time.sleep(5)
 
             self.ec = elasticBoxCollectorBU(self.es)
             self.ec.setSource(self.eventQueue)
@@ -402,6 +406,7 @@ class BoxInfoUpdater(threading.Thread):
 
     def stop(self):
         try:
+            self.stop=True
             self.logger.debug("request to stop")
             if self.mr is not None:
                 self.mr.stop_inotify()

@@ -93,7 +93,23 @@ def cleanup_mountpoints():
                     os.makedirs('/'+conf.bu_base_dir+str(i))
                 except OSError:
                     pass
-                if os.system("ping -c 1 "+line.strip())==0:
+                attemptsLeft = 8
+                while attemptsLeft>0:
+                    #by default ping waits 10 seconds
+                    p_begin = datetime.now()
+                    if os.system("ping -c 1 "+line.strip())==0:
+                        break
+                    else:
+                        p_end = datetime.now()
+                        logging.warn('unable to ping '+line.strip())
+                        dt = p_end - p_begin
+                        if dt.seconds < 10:
+                            time.sleep(10-dt.seconds)
+                    attemptsLeft-=1
+                if attemptsLeft==0:
+                    logging.fatal('hltd was unable to ping BU '+line.strip())
+                    sys.exit(1)
+                else:
                     logging.info("trying to mount "+line.strip()+':/ '+'/'+conf.bu_base_dir+str(i))
                     try:
                         subprocess.check_call(
@@ -110,8 +126,6 @@ def cleanup_mountpoints():
                         logging.error("Error calling mount in cleanup_mountpoints for "+line.strip()+':/',
                              '/'+conf.bu_base_dir+str(i))
                         logging.error(str(err2.returncode))
-                else:
-                    logging.error("Cannot ping BU "+line.strip())
 
                 i+=1
     except Exception as ex:
