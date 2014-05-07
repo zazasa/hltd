@@ -122,7 +122,7 @@ cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > fffmeta.spec <<EOF
 Name: fffmeta
-Version: 1.3.1
+Version: 1.3.2
 Release: 0
 Summary: hlt daemon
 License: gpl
@@ -132,7 +132,7 @@ Source: none
 %define _topdir $TOPDIR
 BuildArch: $BUILD_ARCH
 AutoReqProv: no
-Requires:elasticsearch >= 1.0.2, hltd >= 1.3.1, cx_Oracle >= 5.1.2
+Requires:elasticsearch >= 1.0.2, hltd >= 1.3.2, cx_Oracle >= 5.1.2
 
 Provides:/usr/share/fff/configurefff.sh
 Provides:/usr/share/fff/setupmachine.py
