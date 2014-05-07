@@ -43,10 +43,16 @@ process.options = cms.untracked.PSet(
     maxChildProcesses = cms.untracked.int32(0)
     )
 )
+
 process.MessageLogger = cms.Service("MessageLogger",
-                                    cout = cms.untracked.PSet(threshold = cms.untracked.string( "INFO" )
-                                                              ),
-                                    destinations = cms.untracked.vstring( 'cout' )
+                                    destinations = cms.untracked.vstring( 'cout' ),
+                                    cout = cms.untracked.PSet( FwkReport =
+                                                               cms.untracked.PSet(reportEvery = cms.untracked.int32(10),
+                                                                                  optionalPSet = cms.untracked.bool(True),
+                                                                                  #limit = cms.untracked.int32(10000000)
+                                                                                  ),
+                                                               threshold = cms.untracked.string( "INFO" )
+                                                               )
                                     )
 
 process.FastMonitoringService = cms.Service("FastMonitoringService",

@@ -450,7 +450,8 @@ class CMSSWLogCollector(object):
 
     def process_IN_CREATE(self, event):
         if self.stop: return
-        if event.fullpath.startswith('old_'): return
+        if event.fullpath.startswith('old_') or not event.fullpath.endswith('.log'):
+            return
         self.logger.info("new cmssw log file found: "+event.fullpath)
         #find run number and pid
 
