@@ -294,9 +294,9 @@ class CMSSWLogESWriter(threading.Thread):
 
         #try to create elasticsearch index for run logging
         if not conf.elastic_cluster:
-            self.index_name = 'log_run'+str(self.rn).zfill(6)
+            self.index_name = 'log_run'+str(self.rn).zfill(conf.run_number_padding)
         else:
-            self.index_name = 'log_run'+str(self.rn).zfill(6)+'_'+conf.elastic_cluster
+            self.index_name = 'log_run'+str(self.rn).zfill(conf.run_number_padding)+'_'+conf.elastic_cluster
         self.settings = {
             "analysis":{
                 "analyzer": {

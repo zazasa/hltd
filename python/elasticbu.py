@@ -416,8 +416,9 @@ class RunCompletedChecker(threading.Thread):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.nr = nr
         self.nresources = nresources
-        self.url = 'http://localhost:9200/run'+str(nr)+'*/fu-complete/_count'
-        self.urlclose = 'http://localhost:9200/run'+str(nr)+'*/_close'
+        self.url = 'http://localhost:9200/run'+str(nr).zfill(conf.run_number_padding)+'*/fu-complete/_count'
+        self.urlclose = 'http://localhost:9200/run'+str(nr).zfill(conf.run_number_padding)+'*/_close'
+        self.logurlclose = 'http://localhost:9200/log_run'+str(nr).zfill(conf.run_number_padding)+'*/_close'
         self.stop = False
         try:
             threading.Thread.__init__(self)
@@ -434,6 +435,10 @@ class RunCompletedChecker(threading.Thread):
                     #all hosts are finished, close the index
                     resp = requests.post(urlclose)
                     self.logger.info('closed appliance ES index for run '+str(self.nr))
+                    #wait a bit for log index to be filled up
+                    time.sleep(5)
+                    resp = requests.post(logurlclose)
+                    self.logger.info('closed appliance ES log index for run '+str(self.nr))
                     break
                 #TODO:write completition time to global ES index
         except Exception,ex:
