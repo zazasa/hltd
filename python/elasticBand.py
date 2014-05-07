@@ -179,6 +179,18 @@ class elasticBand():
                     'store'   : "yes"
                     }
                 },
+
+            'fu-complete' : {
+                'properties' : {
+                    'host'     : {'type' : 'string'},
+                    'fm_date'   : {'type' : 'date' }
+                    },
+                '_timestamp' : { 
+                    'enabled'   : True,
+                    'store'     : "yes",
+                    "path"      : "fm_date"
+                    },
+                },
             'bu-out': {
                 'properties' : {
                     'definition': {'type': 'string'},
@@ -308,6 +320,13 @@ class elasticBand():
         #self.es.index(self.indexName,'prc-in',document)
         #os.remove(path+'/'+file)
         #return int(ls[2:])
+
+    def elasticize_fu_complete(self,timestamp):
+        document = {}
+        run=infile.run
+        document['host']=os.uname()[1]
+        document['fm_date']=timestamp
+        self.es.index(index_name,'fu-complete',document)
 
     def flushMonBuffer(self):
         if self.istateBuffer:

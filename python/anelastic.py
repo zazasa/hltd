@@ -32,6 +32,7 @@ class LumiSectionRanger():
         self.eventtype = None
         self.infile = None
         self.EOR = None  #EORfile Object
+        self.complete = None  #complete file Object
         self.outdir = outdir
         self.tempdir = tempdir
         self.jsdfile = None
@@ -67,8 +68,7 @@ class LumiSectionRanger():
             else:
                 time.sleep(0.5)
 
-        self.EOR.esCopy()
-        self.EOR.deleteFile()
+        self.complete.esCopy()
         self.logger.info("Stop main loop")
 
     def flushBuffer(self):
@@ -101,6 +101,8 @@ class LumiSectionRanger():
                 self.processCRASHfile()
             elif filetype == EOR:
                 self.processEORFile()
+            elif filetype == COMPLETE:
+                self.processCompleteFile()
     
     def processCRASHfile(self):
         #send CRASHfile to every LSHandler
@@ -138,6 +140,11 @@ class LumiSectionRanger():
     def processEORFile(self):
         self.logger.info(self.infile.basename)
         self.EOR = self.infile
+        self.EOR.esCopy()
+
+    def processCompleteFile(self):
+        self.logger.info("received run complete file")
+        self.complete = self.infile
         self.stop()
 
     def checkClosure(self):
@@ -263,6 +270,16 @@ class LumiSectionHandler():
         for outfile in self.outfileList:
             if outfile.stream in streamDiff:
                 outfile.merge(file2merge)
+
+        #error stream
+        #pidFileList = []
+        #for file in self.indexfileList.append(infile):
+        #    pidstr = '_pid'+str(pid).zfill(5)
+        #    if pidstr in file:
+        #        pidFileList.append(file)
+        #errorStreamDesc = ErrorStreamDesc(self.run,self.ls,pid,numEvents,errCode,pidFileList)
+        #errorStreamDesc.writeErrorStream()
+                
 
     def processDATFile(self):
         self.logger.info(self.infile.basename)
