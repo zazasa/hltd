@@ -353,7 +353,8 @@ if True:
             addrList =  getBUAddr(cluster,cnhostname)
             selectedAddr = False
             for addr in addrList:
-                result = os.system("ping -c 1 "+ str(addr[1])+" >& /dev/null")
+                #result = os.system("ping -c 1 "+ str(addr[1])+" >& /dev/null")
+                result = 0#ping disabled for now
                 #os.system("clear")
                 if result == 0:
                     buDataAddr = addr[1]
