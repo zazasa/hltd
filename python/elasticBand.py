@@ -29,20 +29,20 @@ class elasticBand():
                     "prefix-test-analyzer": {
                         "type": "custom",
                         "tokenizer": "prefix-test-tokenizer"
-                        }
-                    },
+                    }
+                },
                 "tokenizer": {
                     "prefix-test-tokenizer": {
                         "type": "path_hierarchy",
                         "delimiter": "_"
-                        }
                     }
-             },
+                }
+            },
             "index":{
                 'number_of_shards' : 16,
                 'number_of_replicas' : 1
-                }
             }
+        }
 
         self.run_mapping = {
             'prc-i-state' : {
@@ -54,15 +54,16 @@ class elasticBand():
                     'lead'      : {'type' : 'double' },
                     'nfiles'    : {'type' : 'integer'},
                     'fm_date'   : {'type' : 'date'   }
-                    },
+                },
                 '_timestamp' : { 
                     'enabled'   : True,
                     'store'     : "yes",
                     "path"      : "fm_date"
-                    },
-                '_ttl'       : { 'enabled' : True,                             
-                                 'default' :  '5m'} 
                 },
+                '_ttl'       : { 'enabled' : True,                             
+                                 'default' :  '5m'
+                } 
+            },
             'prc-s-state' : {
                 'properties' : {
                     'macro'  : {'type' : 'integer'},
@@ -73,8 +74,8 @@ class elasticBand():
                     'nfiles' : {'type' : 'integer'},            
                     'ls'     : {'type' : 'integer'},
                     'process': {'type' : 'string'}
-                    },
                 },
+            },
             'fu-s-state' : {
                 'properties' : {
                     'macro'  : {'type' : 'integer'},
@@ -85,13 +86,13 @@ class elasticBand():
                     'nfiles' : {'type' : 'integer'},            
                     'ls'     : {'type' : 'integer'},
                     'machine': {'type' : 'string'}
-                    }
-                },
+                }
+            },
             'prc-out': {
                 '_routing' :{
                     'required' : True,
                     'path'     : 'source'
-                    },
+                },
                 'properties' : {
                     'definition': {'type': 'string'},
                     'data' : { 'properties' : {
@@ -99,11 +100,11 @@ class elasticBand():
                             'out': { 'type' : 'integer'},
                             'file': { 'type' : 'string'}
                             }           
-                               },
+                    },
                     'ls' : { 
                         'type' : 'integer',
                         'store': "yes"
-                        },
+                    },
                     'stream' : {'type' : 'string'},
                     'source' : {
                         'type' : 'string',
@@ -111,28 +112,28 @@ class elasticBand():
                         'search_analyzer': "keyword",
                         'store' : "yes",
                         'index' : "analyzed"
-                        }
-                    },
+                    }
+                },
                 '_timestamp' : { 
                     'enabled' : True,
                     'store'   : "yes"
-                     }
-                },
+                }
+            },
             'prc-in': {
                 '_routing' :{
                     'required' : True,
                     'path'     : 'dest'
-                    },
+                },
                 'properties' : {
                     'definition': {'type': 'string'},
                     'data' : { 'properties' : {
                             'out'    : { 'type' : 'integer'}
                             }
-                               },
+                    },
                     'ls'     : { 
                         'type' : 'integer',
                         'store': "yes"
-                        },
+                    },
                     'index'  : { 'type' : 'integer' },
                     'source' : { 'type' : 'string'  },
                     'dest' : {
@@ -143,17 +144,17 @@ class elasticBand():
                         'index' : "analyzed",
                         },
                     'process' : { 'type' : 'integer' }
-                    },
+                },
                 '_timestamp' : { 
                     'enabled' : True,
                     'store'   : "yes"
-                    }
-                },
+                }
+            },
             'fu-out': {
                 '_routing' :{
                     'required' : True,
                     'path'     : 'source'
-                    },
+                },
                 'properties' : {
                     'definition': {'type': 'string'},
                     'data' : { 'properties' : {
@@ -164,42 +165,62 @@ class elasticBand():
                                     'name' : { 'type' : 'string'}
                                     }
                                 }
-                            }
-                               },
+                             }
+                    },
                     'ls' : { 'type' : 'integer' },
                     'stream' : {'type' : 'string'},
                     'source' : {
                         'type' : 'string',
                         'index_analyzer': 'prefix-test-analyzer',
                         'search_analyzer': "keyword"
-                        }
-                    },
+                    }
+                },
                 '_timestamp' : { 
                     'enabled' : True,
                     'store'   : "yes"
-                    }
-                },
-
+                }
+            },
             'fu-complete' : {
                 'properties' : {
                     'host'     : {'type' : 'string'},
                     'fm_date'   : {'type' : 'date' }
-                    },
+                },
                 '_timestamp' : { 
                     'enabled'   : True,
                     'store'     : "yes",
                     "path"      : "fm_date"
-                    },
                 },
+            },
             'bu-out': {
                 'properties' : {
                     'definition': {'type': 'string'},
                     'out': { 'type' : 'integer'},
                     'ls' : { 'type' : 'integer' },
                     'source' : {'type' : 'string'}
-                    }
                 }
+            },
+            'cmsswlog' : {
+                '_timestamp' : { 
+                    'enabled'   : True,
+                    'store'     : "yes"
+                },
+                #'_ttl'       : { 'enabled' : True,
+                #              'default' :  '15d'} 
+                #},
+                'properties' : {
+                    'host'      : {'type' : 'string'},
+                    'pid'       : {'type' : 'integer'},
+                    'type'      : {'type' : 'string'},
+                    'severity'  : {'type' : 'string'},
+                    'category'  : {'type' : 'string'},
+                    'info1'     : {'type' : 'string'},
+                    'info2'     : {'type' : 'string'},
+                    'message'   : {'type' : 'string'},
+                    'msgtime' : {'type' : 'date','format':'dd-MMM-YYYY HH:mm:ss'}
+                    #'context'   : {'type' : 'string'}
+                 }
             }
+        }
         self.run = runstring
         self.monBufferSize = monBufferSize
         self.fastUpdateModulo = fastUpdateModulo

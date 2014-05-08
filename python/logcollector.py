@@ -38,7 +38,7 @@ severityStr=['DEBUG','INFO','WARNING','ERROR','FATAL']
 readonce=32
 bulkinsertMin = 8
 history = 8
-saveHistory = False
+saveHistory = False #experimental
 logThreshold = 1 #(INFO)
 contextLogThreshold = 0 #(DEBUG)
 
@@ -157,7 +157,7 @@ class CMSSWLogParser(threading.Thread):
         self.currentEvent = None
         self.threadEvent = threading.Event()
 
-        self.historyFifo = collections.deque(history*[0], history)
+        self.historyFIFO = collections.deque(history*[0], history)
 
     def run(self):
         #decode run number and pid from file name
@@ -283,7 +283,6 @@ class CMSSWLogESWriter(threading.Thread):
     def __init__(self,rn):
         threading.Thread.__init__(self)
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.es = ElasticSearch('http://localhost:9200')
         self.queue = Queue.Queue()
         self.parsers = {}
         self.numParsers=0
@@ -293,66 +292,12 @@ class CMSSWLogESWriter(threading.Thread):
         self.abort = False
 
         #try to create elasticsearch index for run logging
-        if not conf.elastic_cluster:
-            self.index_name = 'log_run'+str(self.rn).zfill(conf.run_number_padding)
-        else:
-            self.index_name = 'log_run'+str(self.rn).zfill(conf.run_number_padding)+'_'+conf.elastic_cluster
-        self.settings = {
-            "analysis":{
-                "analyzer": {
-                    "prefix-test-analyzer": {
-                        "type": "custom",
-                        "tokenizer": "prefix-test-tokenizer"
-                    }
-                },
-                "tokenizer": {
-                    "prefix-test-tokenizer": {
-                        "type": "path_hierarchy",
-                        "delimiter": "_"
-                    }
-                }
-             },
-            "index":{
-#                'number_of_shards' : 1,
-#                'number_of_replicas' : 1
-                'number_of_shards' : 16,
-                'number_of_replicas' : 1
-            }
-        }
-        #todo:close index entry, id & parent-child for context logs?
-        self.run_mapping = {
-            'cmsswlog' : {
-
-#                '_timestamp' : { 
-#                    'enabled'   : True,
-#                    'store'     : "yes",
-#                    "path"      : "timestamp"
-#                    },
-#                '_ttl'       : { 'enabled' : True,                             
-#                                 'default' :  '15d'} 
-#                },
-                'properties' : {
-                    'host'      : {'type' : 'string'},
-                    'pid'       : {'type' : 'integer'},
-                    'type'      : {'type' : 'string'},
-                    'severity'  : {'type' : 'string'},
-                    'category'  : {'type' : 'string'},
-                    'info1'     : {'type' : 'string'},
-                    'info2'     : {'type' : 'string'},
-                    'message'   : {'type' : 'string'},
-                    'msgtime' : {'type' : 'date','format':'dd-MMM-YYYY HH:mm:ss'}
-#                    'context'   : {'type' : 'string'}
-                 }
-            }
-        }
-
-        #try to create index if not already created from other nodes
-        try:
-            self.logger.info('writing to elastic index '+self.index_name)
-            self.es.create_index(self.index_name, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
-        except ElasticHttpError as ex:
-            self.logger.info(ex)
-            pass
+        #if not conf.elastic_cluster:
+        #    self.index_name = 'log_run'+str(self.rn).zfill(conf.run_number_padding)
+        #else:
+        self.index_runstring = 'run'+str(self.rn).zfill(conf.run_number_padding)
+        self.index_suffix = conf.elastic_cluster
+        self.eb = elasticBand.elasticBand('http://localhost:9200',self.index_runstring,self.index_suffix,0,0)
 
     def run(self):
         while self.abort == False:
@@ -366,7 +311,7 @@ class CMSSWLogESWriter(threading.Thread):
                         break
                 if len(documents)>0:
                     try:
-                        self.es.bulk_index(self.index_name,'cmsswlog',documents)
+                        self.eb.es.bulk_index(self.index_name,'cmsswlog',documents)
                     except Exception,ex:
                         logger.error("es bulk index:"+str(ex))
             elif self.queue.qsize()>0:
@@ -374,7 +319,7 @@ class CMSSWLogESWriter(threading.Thread):
                         try:
                             evt = self.queue.get(False)
                             try:
-                                self.es.index(self.index_name,'cmsswlog',evt.document)
+                                self.eb.es.index(self.index_name,'cmsswlog',evt.document)
                             except Exception,ex: 
                                 logger.error("es index:"+str(ex))
                         except Queue.Empty:
@@ -383,7 +328,6 @@ class CMSSWLogESWriter(threading.Thread):
                 if self.doStop == False and self.abort == False:
                     self.threadEvent.wait(1)
                 else: break 
-
 
     def stop(self):
         for key in self.parsers.keys():
