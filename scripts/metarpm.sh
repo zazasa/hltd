@@ -134,12 +134,12 @@ BuildArch: $BUILD_ARCH
 AutoReqProv: no
 Requires:elasticsearch >= 1.0.2, hltd >= 1.3.2, cx_Oracle >= 5.1.2
 
-Provides:/usr/share/fff/configurefff.sh
-Provides:/usr/share/fff/setupmachine.py
+Provides:/opt/fff/configurefff.sh
+Provides:/opt/fff/setupmachine.py
 
-Provides:/usr/share/fff/elasticsearch.yml
-Provides:/usr/share/fff/elasticsearch
-Provides:/usr/share/fff/hltd.conf
+Provides:/opt/fff/elasticsearch.yml
+Provides:/opt/fff/elasticsearch
+Provides:/opt/fff/hltd.conf
 Provides:/etc/init.d/fffmeta
 
 %description
@@ -151,13 +151,13 @@ fffmeta configuration setup package
 %install
 rm -rf \$RPM_BUILD_ROOT
 mkdir -p \$RPM_BUILD_ROOT
-%__install -d "%{buildroot}/usr/share/fff"
+%__install -d "%{buildroot}/opt/fff"
 %__install -d "%{buildroot}/etc/init.d"
 
-mkdir -p usr/share/fff
-cp $BASEDIR/python/setupmachine.py %{buildroot}/usr/share/fff/setupmachine.py
-echo "#!/bin/bash" > %{buildroot}/usr/share/fff/configurefff.sh
-echo python2.6 /usr/share/fff/setupmachine.py elasticsearch,hltd $params >> %{buildroot}/usr/share/fff/configurefff.sh 
+mkdir -p opt/fff
+cp $BASEDIR/python/setupmachine.py %{buildroot}/opt/fff/setupmachine.py
+echo "#!/bin/bash" > %{buildroot}/opt/fff/configurefff.sh
+echo python2.6 /opt/fff/setupmachine.py elasticsearch,hltd $params >> %{buildroot}/opt/fff/configurefff.sh 
 
 #TODO:check if elasticsearch / hltd are already running and restart them if they are
 
@@ -167,11 +167,11 @@ echo "#"                                 >> %{buildroot}/etc/init.d/fffmeta
 echo "# chkconfig:   2345 79 21"         >> %{buildroot}/etc/init.d/fffmeta
 echo "#"                                 >> %{buildroot}/etc/init.d/fffmeta
 echo "if [ \\\$1 == \"start\" ]; then"   >> %{buildroot}/etc/init.d/fffmeta
-echo "  /usr/share/fff/configurefff.sh"  >> %{buildroot}/etc/init.d/fffmeta
+echo "  /opt/fff/configurefff.sh"  >> %{buildroot}/etc/init.d/fffmeta
 echo "  exit 0"                          >> %{buildroot}/etc/init.d/fffmeta
 echo "fi"                                >> %{buildroot}/etc/init.d/fffmeta
 echo "if [ \\\$1 == \"restart\" ]; then" >> %{buildroot}/etc/init.d/fffmeta
-echo "/usr/share/fff/configurefff.sh"    >> %{buildroot}/etc/init.d/fffmeta
+echo "/opt/fff/configurefff.sh"    >> %{buildroot}/etc/init.d/fffmeta
 echo "  exit 0"                          >> %{buildroot}/etc/init.d/fffmeta
 echo "fi"                                >> %{buildroot}/etc/init.d/fffmeta
 echo "if [ \\\$1 == \"status\" ]; then"  >> %{buildroot}/etc/init.d/fffmeta
@@ -182,11 +182,11 @@ echo "fi"                                >> %{buildroot}/etc/init.d/fffmeta
 
 %files
 %defattr(-, root, root, -)
-#/usr/share/fff
-%attr( 755 ,root, root) /usr/share/fff/setupmachine.py
-%attr( 755 ,root, root) /usr/share/fff/setupmachine.pyc
-%attr( 755 ,root, root) /usr/share/fff/setupmachine.pyo
-%attr( 700 ,root, root) /usr/share/fff/configurefff.sh
+#/opt/fff
+%attr( 755 ,root, root) /opt/fff/setupmachine.py
+%attr( 755 ,root, root) /opt/fff/setupmachine.pyc
+%attr( 755 ,root, root) /opt/fff/setupmachine.pyo
+%attr( 700 ,root, root) /opt/fff/configurefff.sh
 %attr( 755 ,root, root) /etc/init.d/fffmeta
 
 %post
@@ -195,16 +195,27 @@ chkconfig fffmeta on
 
 %triggerin -- elasticsearch
 #echo "triggered on elasticsearch update or install"
-python2.6 /usr/share/fff/setupmachine.py restore,elasticsearch
-python2.6 /usr/share/fff/setupmachine.py elasticsearch $params
+python2.6 /opt/fff/setupmachine.py restore,elasticsearch
+python2.6 /opt/fff/setupmachine.py elasticsearch $params
 /sbin/service elasticsearch restart
 chkconfig elasticsearch on
 
 %triggerin -- hltd
 #echo "triggered on hltd update or install"
-python2.6 /usr/share/fff/setupmachine.py restore,hltd
-python2.6 /usr/share/fff/setupmachine.py hltd $params
+python2.6 /opt/fff/setupmachine.py restore,hltd
+python2.6 /opt/fff/setupmachine.py hltd $params
 killall hltd
+
+#adjust ownership of unpriviledged child process log files
+
+if [ -f /var/log/hltd/elastic.log ]; then
+chown ${lines[8]} /var/log/hltd/elastic.log
+fi
+
+if [ -f /var/log/hltd/anelastic.log ]; then
+chown ${lines[8]} /var/log/hltd/anelastic.log
+fi
+
 /sbin/service hltd restart
 chkconfig hltd on
 
@@ -230,7 +241,7 @@ if [ \$1 == 0 ]; then
   #echo unsuccess hltd
   #fi
 
-  python2.6 /usr/share/fff/setupmachine.py restore,hltd,elasticsearch
+  python2.6 /opt/fff/setupmachine.py restore,hltd,elasticsearch
 fi
 
 #TODO:
