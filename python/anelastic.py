@@ -305,18 +305,19 @@ class LumiSectionHandler():
                 self.logger.info("%r,%r complete" %(self.ls,outfile.stream))
                 newfilepath = os.path.join(self.outdir,outfile.run,outfile.basename)
 
-                    #move output file in rundir
-                outfile.esCopy()
-                if outfile.moveFile(newfilepath):
-                    self.outfileList.remove(outfile)
-                    
-                    #move all dat files in rundir
-                    datfilelist = self.datfileList[:]
+                #move all dat files in rundir
+                datfilelist = self.datfileList[:]
                 for datfile in datfilelist:
                     if datfile.stream == stream:
                         newfilepath = os.path.join(self.outdir,datfile.run,datfile.basename)
                         datfile.moveFile(newfilepath)
                         self.datfileList.remove(datfile)
+
+                #move output file in rundir
+                outfile.esCopy()
+                if outfile.moveFile(newfilepath):
+                    self.outfileList.remove(outfile)
+ 
                 
         if not self.outfileList:
             #self.EOLS.deleteFile()
