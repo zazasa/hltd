@@ -435,15 +435,13 @@ class RunCompletedChecker(threading.Thread):
         try:
             while self.stop == False:
                 resp = requests.post(url, '')
-                data = json.load(resp.content)
+                data = json.loads(resp.content)
                 if int(data['count']) == self.nresources:
                     #all hosts are finished, close the index
+                    #wait a bit for log entries to be filled up
+                    time.sleep(5)
                     resp = requests.post(urlclose)
                     self.logger.info('closed appliance ES index for run '+str(self.nr))
-                    #wait a bit for log index to be filled up
-                    time.sleep(5)
-                    resp = requests.post(logurlclose)
-                    self.logger.info('closed appliance ES log index for run '+str(self.nr))
                     break
                 #TODO:write completition time to global ES index
         except Exception,ex:
