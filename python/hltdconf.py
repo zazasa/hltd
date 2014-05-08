@@ -25,7 +25,7 @@ class hltdConf:
                 self.__dict__[item] = value
 
         self.run_number_padding = int(self.run_number_padding)
-        self.use_elasticsearch = bool(self.use_elasticsearch==True)
+        self.use_elasticsearch = bool(self.use_elasticsearch=="True")
         self.cgi_port = int(self.cgi_port)
         self.process_restart_delay_sec = float(self.process_restart_delay_sec)
         self.process_restart_limit = int(self.process_restart_limit)
