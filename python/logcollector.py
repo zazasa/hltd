@@ -54,8 +54,7 @@ def calculateLexicalId(string):
     pos = string.find('-:')
     if (pos==-1 and len(string)>STRMAX) or pos>STRMAX:
         pos=80
-    return zlib.adler32(re.sub("[0-9+\- ]", "",string[:pos]))
-    
+    return zlib.adler32(re.sub("[0-9\+\- ]", "",string[:pos]))
 
 class CMSSWLogEvent(object):
 
@@ -324,11 +323,20 @@ class CMSSWLogParser(threading.Thread):
             if saveHistory and event.severity >= WARNINGLEVEL:
                 while historyFIFO.count():
                     e = historyFIFO.popleft()
-                    e.decode()
-                    mainQueue.put(e)
+                    try:
+                        e.decode()
+                        mainQueue.put(e)
+                    except Exception,ex:
+                        logger.error('failed to parse log, exception: ' + str(ex))
+                        logger.error('on message content: '+str(e.message))
+            try:
+                event.decode()
+                self.mainQueue.put(event)
 
-            event.decode()
-            self.mainQueue.put(event)
+            except Exception,ex:
+                logger.error('failed to parse log, exception: ' + str(ex))
+                logger.error('on message content: '+str(e.message))
+
         elif saveHistory and event.severity>=contextLogThreshold:
             self.historyFIFO.append(event)
  
@@ -463,7 +471,7 @@ class CMSSWLogCollector(object):
             if rn not in self.indices:
                 self.indices[rn] = CMSSWLogESWriter(rn)
                 self.indices[rn].start()
-                #self.deleteOldLogs()#TODO:debug
+                #self.deleteOldLogs()#not deleting for now
             self.indices[rn].addParser(event.fullpath,pid)
 
         #cleanup

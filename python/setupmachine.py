@@ -70,8 +70,9 @@ def getmachinetype():
 def getIPs(hostname):
     try:
         ips = socket.gethostbyname_ex(hostname)
-    except socket.gaierror:
-        ips=[]
+    except socket.gaierror, ex:
+        print 'unable to get ',hostname,'IP address:',str(ex)
+        raise ex
     return ips
 
 def checkModifiedConfigInFile(file):
