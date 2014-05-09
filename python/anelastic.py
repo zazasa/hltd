@@ -295,7 +295,6 @@ class LumiSectionHandler():
             processed = outfile.getFieldByName("Processed")+outfile.getFieldByName("ErrorEvents")
             if processed == self.totalEvent:
                 self.logger.info("%r,%r complete" %(self.ls,outfile.stream))
-                newfilepath = os.path.join(self.outdir,outfile.run,outfile.basename)
 
                 #move all dat files in rundir
                 datfilelist = self.datfileList[:]
@@ -306,6 +305,7 @@ class LumiSectionHandler():
                         self.datfileList.remove(datfile)
 
                 #move output file in rundir
+                newfilepath = os.path.join(self.outdir,outfile.run,outfile.basename)
                 outfile.esCopy()
                 if outfile.moveFile(newfilepath):
                     self.outfileList.remove(outfile)
