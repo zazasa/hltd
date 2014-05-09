@@ -13,6 +13,7 @@ import _inotify as inotify
 ES_DIR_NAME = "TEMP_ES_DIRECTORY"
 UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,INI,EOLS,EOR,COMPLETE,DAT,PDAT,CRASH,MODULELEGEND,PATHLEGEND,BOX = range(17)            #file types 
 TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,EOLS,EOR,COMPLETE]
+TEMPEXT = ".recv"
 
 
 #Output redirection class
@@ -254,10 +255,13 @@ class fileHandler(object):
         retries = 5
         while True:
           try:
+              newpath+=TEMPEXT
               if not os.path.isdir(newdir): os.makedirs(newdir)
               if copy: shutil.copy(oldpath,newpath)
               else: 
                   shutil.move(oldpath,newpath)
+              #renaming
+              shutil.move(newpath,newpath.replace(TEMPEXT,""))
               break
           except OSError,e:
               self.logger.exception(e)

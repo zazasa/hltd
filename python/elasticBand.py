@@ -94,11 +94,11 @@ class elasticBand():
                     'path'     : 'source'
                 },
                 'properties' : {
-                    'definition': {'type': 'string'},
+                    #'definition': {'type': 'string'},
                     'data' : { 'properties' : {
                             'in' : { 'type' : 'integer'},
                             'out': { 'type' : 'integer'},
-                            'file': { 'type' : 'string'}
+                            'file': { 'type' : 'string','index' : 'not_analyzed'}
                             }           
                     },
                     'ls' : { 
@@ -125,14 +125,14 @@ class elasticBand():
                     'path'     : 'dest'
                 },
                 'properties' : {
-                    'definition': {'type': 'string'},
+                    #'definition': {'type': 'string',"index" : "not_analyzed"},
                     'data' : { 'properties' : {
                             'out'    : { 'type' : 'integer'}
                             }
                     },
                     'ls'     : { 
                         'type' : 'integer',
-                        'store': "yes"
+                        'store': 'yes'
                     },
                     'index'  : { 'type' : 'integer' },
                     'source' : { 'type' : 'string'  },
@@ -156,19 +156,19 @@ class elasticBand():
                     'path'     : 'source'
                 },
                 'properties' : {
-                    'definition': {'type': 'string'},
+                    #'definition': {'type': 'string',"index" : "not_analyzed"},
                     'data' : { 'properties' : {
                             'in' : { 'type' : 'integer'},
                             'out': { 'type' : 'integer'},
                             'files': {
                                 'properties' : {
-                                    'name' : { 'type' : 'string'}
+                                    'name' : { 'type' : 'string',"index" : "not_analyzed"}
                                     }
                                 }
                              }
                     },
                     'ls' : { 'type' : 'integer' },
-                    'stream' : {'type' : 'string'},
+                    'stream' : {'type' : 'string'}#,"index" : "not_analyzed"},
                     'source' : {
                         'type' : 'string',
                         'index_analyzer': 'prefix-test-analyzer',
@@ -193,10 +193,10 @@ class elasticBand():
             },
             'bu-out': {
                 'properties' : {
-                    'definition': {'type': 'string'},
+                    #'definition': {'type': 'string',"index" : "not_analyzed"},
                     'out': { 'type' : 'integer'},
                     'ls' : { 'type' : 'integer' },
-                    'source' : {'type' : 'string'}
+                    'source' : {'type' : 'string'}#,"index" : "not_analyzed"}
                 }
             },
             'cmsswlog' : {
@@ -210,13 +210,23 @@ class elasticBand():
                 'properties' : {
                     'host'      : {'type' : 'string'},
                     'pid'       : {'type' : 'integer'},
-                    'type'      : {'type' : 'string'},
-                    'severity'  : {'type' : 'string'},
+                    'type'      : {'type' : 'string',"index" : "not_analyzed"},
+                    'severity'  : {'type' : 'string',"index" : "not_analyzed"},
                     'category'  : {'type' : 'string'},
-                    'info1'     : {'type' : 'string'},
-                    'info2'     : {'type' : 'string'},
-                    'message'   : {'type' : 'string'},
+#                    'info1'     : {'type' : 'string'},
+#                    'info2'     : {'type' : 'string'},
+
+                    'fwkState'     : {'type' : 'string',,"index" : "not_analyzed"},
+                    'module'     : {'type' : 'string',,"index" : "not_analyzed"},
+                    'moduleInstance'     : {'type' : 'string',,"index" : "not_analyzed"},
+                    'moduleCall'     : {'type' : 'string',,"index" : "not_analyzed"},
+                    'lumi'     : {'type' : 'integer'},
+                    'eventInPrc'     : {'type' : 'long'},
+
+                    'message'   : {'type' : 'string'}"index" : "not_analyzed"},
+                    'lexicalId' : {'type' : 'string',"index" : "not_analyzed"},
                     'msgtime' : {'type' : 'date','format':'dd-MMM-YYYY HH:mm:ss'}
+                    'msgtimezone' : {'type' : 'string'}
                     #'context'   : {'type' : 'string'}
                  }
             }
