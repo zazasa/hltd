@@ -7,6 +7,8 @@ import datetime
 import pytz
 import shutil
 import signal
+import re
+import zlib
 
 import filecmp
 from inotifywrapper import InotifyWrapper
@@ -41,11 +43,19 @@ history = 8
 saveHistory = False #experimental
 logThreshold = 1 #(INFO)
 contextLogThreshold = 0 #(DEBUG)
-
+STRMAX=80
 #cmssw date and time: "30-Apr-2014 16:50:32 CEST"
 #datetime_fmt = "%d-%b-%Y %H:%M:%S %Z"
 
 hostname = os.uname()[1]
+
+def calculateLexicalId(string):
+
+    pos = string.find('-:')
+    if (pos==-1 and len(string)>STRMAX) or pos>STRMAX:
+        pos=80
+    return zlib.adler32(re.sub("[0-9+\- ]", "",string[:pos]))
+    
 
 class CMSSWLogEvent(object):
 
@@ -69,7 +79,7 @@ class CMSSWLogEvent(object):
     def decode(self):
         self.fillComon()
         self.document['message']=self.message[0]
-        self.document['lexicalId']=re.sub("[^0-9]", "",self.message[0])
+        self.document['lexicalId']=calculateLexicalId(self.message[0])
 
              
 class CMSSWLogEventML(CMSSWLogEvent):
@@ -77,21 +87,64 @@ class CMSSWLogEventML(CMSSWLogEvent):
     def __init__(self,pid,severity,firstLine):
         CMSSWLogEvent.__init__(self,pid,MLMSG,severity,firstLine)
 
+    def parseSubInfo(self,str,category):
+        if info1=='(NoModuleName)':
+            self.document['module']=category
+        else
+            #module in some cases
+            tokens = info1.split('@')
+            tokens2 = tokens[0].split(':')
+            self.document['module'] = tokens2[0]
+            if len(tokens2)>1:
+                self.document['moduleInstance'] = tokens2[1]
+            if len(tokens)>1:
+                self.document['moduleCall'] = tokens[1]
+        elif info1=='(NoModuleName)';
+            self.document['module']=category
+
     def decode(self):
         CMSSWLogEvent.fillCommon(self)
         headerInfo = filter(None,self.message[0].split(' '))
-        self.document['category'] = headerInfo[1].rstrip(':')
-        self.document['info1'] = headerInfo[2]
-        self.document['info2'] = headerInfo[6].rstrip(' :\n')
+        category =  headerInfo[1].rstrip(':')
+        self.document['category'] = category
+        info1 =  headerInfo[2]
+        info2 =  headerInfo[6].rstrip(':\n')
+
+        #parse various header formats
+        if info2=='pre-events':
+            parseSubInfo(info1,category)
+        elif info2.startswith('Post') or info2.startswith('Pre'):
+            self.document['fwkState']=info2
+            if info2!=info1:
+                parseSubInfo(info1,category)
+        elif info1.startswith('Pre') or info2.startswith('Post'):
+            self.document['fwkState']=info1
+            if info2 == 'Run:':
+                if len(headerInfo)>=10:
+                    if headerInfo[8]=='Lumi:':
+                        istr = int(headerInfo[9].rstrip('\n'))
+                        if istr.isdigit():
+                            document['lumi']=int(istr)
+                    elif headerInfo[8]=='Event:':
+                        istr = int(headerInfo[9].rstrip('\n'))
+                        if istr.isdigit():
+                            document['eventInPrc']=int(istr)
+
+        #self.document['info1'] = headerInfo[2]
+        #self.document['info2'] = headerInfo[6].rstrip(' :\n')
         #capture lumi info if present
-        if headerInfo[6]=='Run':
-            try:
-                self.document['info2']=headerInfo[8]+headerInfo[9].rstrip(' :\n')
-            except:
-                pass
+        #if headerInfo[6]=='Run':
+        #    try:
+        #        self.document['info2']=headerInfo[8]+headerInfo[9].rstrip(' :\n')
+        #    except:
+        #        pass
+
         self.document['msgtime']=headerInfo[3]+' '+headerInfo[4]
+        self.document['msgtimezone']=headerInfo[5]
         if len(self.message)>1:
             for i in range(1,len(self.message)):
+                if i==1:
+                    self.document['lexicalId']=calculateLexicalId(self.message[i])
                 if i==len(self.message)-1: 
                     self.message[i]=self.message[i].rstrip('\n')
                 if 'message' in self.document:
@@ -112,6 +165,7 @@ class CMSSWLogEventException(CMSSWLogEvent):
         zone = headerInfo[6].rstrip('-')
         if zone == 'CEST':zone='CET'
         self.document['msgtime']=headerInfo[4]+' '+headerInfo[5]
+        self.document['msgtimezone']=zone
         if len(self.message)>1:
             line2 = filter(None,self.message[1].split(' '))
             self.document['category'] = line2[4]
@@ -120,6 +174,8 @@ class CMSSWLogEventException(CMSSWLogEvent):
             self.document['info2'] = line3[2].rstrip(' :\n')
         if len(self.message)>4:
             for i in range(4,len(self.message)):
+                if i==4:
+                    self.document['lexicalId']=calculateLexicalId(self.message[i])
                 if i==len(self.message)-1: 
                     self.message[i]=self.message[i].rstrip('\n')
                 if 'message' in self.document:
@@ -135,6 +191,8 @@ class CMSSWLogEventStackTrace(CMSSWLogEvent):
 
     def decode(self):
         CMSSWLogEvent.fillCommon(self)
+        self.document['message']=self.message[0]
+        self.document['lexicalId']=calculateLexicalId(self.message[0])
         #collect all lines
         if len(self.message)>1:
             for i in range(1,len(self.message)):
