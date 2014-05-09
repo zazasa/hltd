@@ -69,6 +69,7 @@ class CMSSWLogEvent(object):
     def decode(self):
         self.fillComon()
         self.document['message']=self.message[0]
+        self.document['lexicalId']=re.sub("[^0-9]", "",self.message[0])
 
              
 class CMSSWLogEventML(CMSSWLogEvent):

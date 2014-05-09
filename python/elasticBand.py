@@ -210,8 +210,8 @@ class elasticBand():
                 'properties' : {
                     'host'      : {'type' : 'string'},
                     'pid'       : {'type' : 'integer'},
-                    'type'      : {'type' : 'string'},
-                    'severity'  : {'type' : 'string'},
+                    'type'      : {'type' : 'string',"index" : "not_analyzed"},
+                    'severity'  : {'type' : 'string',"index" : "not_analyzed"},
                     'category'  : {'type' : 'string'},
                     'info1'     : {'type' : 'string'},
                     'info2'     : {'type' : 'string'},
