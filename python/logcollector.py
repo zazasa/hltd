@@ -24,6 +24,7 @@ from pyelasticsearch.client import IndexAlreadyExistsError
 from pyelasticsearch.client import ElasticHttpError
 
 from hltdconf import *
+from elasticBand import elasticBand
 from aUtils import stdOutLog,stdErrorLog
 
 terminate = False
@@ -52,8 +53,11 @@ hostname = os.uname()[1]
 def calculateLexicalId(string):
 
     pos = string.find('-:')
-    if (pos==-1 and len(string)>STRMAX) or pos>STRMAX:
+    strlen = len(string)
+    if (pos==-1 and strlen>STRMAX) or pos>STRMAX:
         pos=80
+        if strlen<pos:
+          pos=strlen
     return zlib.adler32(re.sub("[0-9\+\- ]", "",string[:pos]))
 
 class CMSSWLogEvent(object):
@@ -87,38 +91,50 @@ class CMSSWLogEventML(CMSSWLogEvent):
         CMSSWLogEvent.__init__(self,pid,MLMSG,severity,firstLine)
 
     def parseSubInfo(self,str,category):
-        if info1=='(NoModuleName)':
+        if self.info1=='(NoModuleName)':
             self.document['module']=category
-        else
+        else:
             #module in some cases
-            tokens = info1.split('@')
+            tokens = self.info1.split('@')
             tokens2 = tokens[0].split(':')
             self.document['module'] = tokens2[0]
             if len(tokens2)>1:
                 self.document['moduleInstance'] = tokens2[1]
             if len(tokens)>1:
                 self.document['moduleCall'] = tokens[1]
-        elif info1=='(NoModuleName)';
+        if self.info1=='(NoModuleName)':
             self.document['module']=category
 
     def decode(self):
         CMSSWLogEvent.fillCommon(self)
-        headerInfo = filter(None,self.message[0].split(' '))
-        category =  headerInfo[1].rstrip(':')
-        self.document['category'] = category
-        info1 =  headerInfo[2]
-        info2 =  headerInfo[6].rstrip(':\n')
 
         #parse various header formats
-        if info2=='pre-events':
-            parseSubInfo(info1,category)
-        elif info2.startswith('Post') or info2.startswith('Pre'):
-            self.document['fwkState']=info2
-            if info2!=info1:
-                parseSubInfo(info1,category)
-        elif info1.startswith('Pre') or info2.startswith('Post'):
-            self.document['fwkState']=info1
-            if info2 == 'Run:':
+        headerInfo = filter(None,self.message[0].split(' '))
+        category =  headerInfo[1].rstrip(':')
+
+        #capture special case MSG-e (Root signal handler piped to ML)
+        if self.severity>=ERRORLEVEL:
+            while len(headerInfo)>3 and headerInfo[3][:2].isdigit()==False:
+                if 'moduleCall' not in self.document.keys():
+                    self.document['moduleCall']=headerInfo[3]
+                else:
+                    self.document['moduleCall']+=headerInfo[3]
+                headerInfo.pop(3)
+
+        self.document['category'] = category
+        self.info1 =  headerInfo[2]
+
+        self.info2 =  headerInfo[6].rstrip(':\n')
+
+        if self.info2=='pre-events':
+            self.parseSubInfo(self.info1,category)
+        elif self.info2.startswith('Post') or self.info2.startswith('Pre'):
+            self.document['fwkState']=self.info2
+            if self.info2!=self.info1:
+                self.parseSubInfo(self.info1,category)
+        elif self.info1.startswith('Pre') or self.info2.startswith('Post'):
+            self.document['fwkState']=self.info1
+            if self.info2 == 'Run:':
                 if len(headerInfo)>=10:
                     if headerInfo[8]=='Lumi:':
                         istr = int(headerInfo[9].rstrip('\n'))
@@ -129,17 +145,11 @@ class CMSSWLogEventML(CMSSWLogEvent):
                         if istr.isdigit():
                             document['eventInPrc']=int(istr)
 
-        #self.document['info1'] = headerInfo[2]
-        #self.document['info2'] = headerInfo[6].rstrip(' :\n')
-        #capture lumi info if present
-        #if headerInfo[6]=='Run':
-        #    try:
-        #        self.document['info2']=headerInfo[8]+headerInfo[9].rstrip(' :\n')
-        #    except:
-        #        pass
-
+        #time parsing
         self.document['msgtime']=headerInfo[3]+' '+headerInfo[4]
         self.document['msgtimezone']=headerInfo[5]
+
+        #message payload processing
         if len(self.message)>1:
             for i in range(1,len(self.message)):
                 if i==1:
@@ -170,7 +180,7 @@ class CMSSWLogEventException(CMSSWLogEvent):
             self.document['category'] = line2[4]
         if len(self.message)>2:
             line3 = filter(None,self.message[2].strip().split(' '))
-            self.document['info2'] = line3[2].rstrip(' :\n')
+            self.document['fwkState'] = line3[2].rstrip(' :\n')
         if len(self.message)>4:
             for i in range(4,len(self.message)):
                 if i==4:
@@ -263,18 +273,19 @@ class CMSSWLogParser(threading.Thread):
                     pass
                 elif buf[pos].startswith('----- Begin Processing'):
                     self.putInQueue(CMSSWLogEvent(self.pid,EVENTLOG,DEBUGLEVEL,buf[pos]))
+                elif buf[pos].startswith('Current states'):#FastMonitoringService
+                    pass
                 elif buf[pos].startswith('%MSG-d'):
                     self.currentEvent = CMSSWLogEventML(self.pid,DEBUGLEVEL,buf[pos])
+
                 elif buf[pos].startswith('%MSG-i'):
                     self.currentEvent = CMSSWLogEventML(self.pid,INFOLEVEL,buf[pos])
+
                 elif buf[pos].startswith('%MSG-w'):
                     self.currentEvent = CMSSWLogEventML(self.pid,WARNINGLEVEL,buf[pos])
 
                 elif buf[pos].startswith('%MSG-e'):
                     self.currentEvent = CMSSWLogEventML(self.pid,ERRORLEVEL,buf[pos])
-                    #some msg-e are printed when signal is caught:
-                    #ill.instr., SIGSEGV,BUS ERR: %MSG-e FatalSystemSignal:  ExceptionGenerator:a
-                    #FPE: %MSG-e Root_Error:  ExceptionGenerator:a  ...... floating point exception
 
                 elif buf[pos].startswith('%MSG-d'):
                     #should not be present in production
@@ -283,19 +294,26 @@ class CMSSWLogParser(threading.Thread):
                 elif buf[pos].startswith('----- Begin Fatal Exception'): 
                     self.currentEvent = CMSSWLogEventException(self.pid,buf[pos])
 
-                #signals not caught as exception (last is assert)
+                #signals not caught as exception (and libc assertion)
                 elif buf[pos].startswith('There was a crash.') \
                     or buf[pos].startswith('A fatal system signal') \
                     or (buf[pos].startswith('cmsRun:') and  buf[pos].endswith('failed.\n')) \
                     or buf[pos].startswith('Aborted (core dumped)'):
 
-                    #disabled for now:
-                    #or buf[pos].startswith('A fatal signal') # 
-                    #or buf[pos].startswith('Trace/breakpoint trap (core dumped)') #-4
-                    #or buf[pos].startswith('Hangup') #-1
-                    #or buf[pos].startswith('Quit') #-2
-                    #or buf[pos].startswith('User defined signal 1') #-10
-                    #or buf[pos].startswith('Terminated') #-15
+                    #we don't care to catch these:
+                    #or buf[pos].startswith('Killed') #9
+                    #or buf[pos].startswith('Stack fault'):#16
+                    #or buf[pos].startswith('CPU time limit exceeded'):#24
+                    #or buf[pos].startswith('A fatal signal') # ?
+                    #or buf[pos].startswith('Trace/breakpoint trap (core dumped)') #4
+                    #or buf[pos].startswith('Hangup') #1
+                    #or buf[pos].startswith('Quit') #3
+                    #or buf[pos].startswith('User defined signal 1') #10
+                    #or buf[pos].startswith('Terminated') #15
+                    #or buf[pos].startswith('Virtual timer expired') #26
+                    #or buf[pos].startswith('Profiling timer expired') #27
+                    #or buf[pos].startswith('I/O possible') #29
+                    #or buf[pos].startswith('Power failure') #30
 
                     self.currentEvent = CMSSWLogEventStackTrace(self.pid,buf[pos])
                 elif buf[pos]=='\n':
@@ -335,7 +353,7 @@ class CMSSWLogParser(threading.Thread):
 
             except Exception,ex:
                 logger.error('failed to parse log, exception: ' + str(ex))
-                logger.error('on message content: '+str(e.message))
+                logger.error('on message content: '+str(event.message))
 
         elif saveHistory and event.severity>=contextLogThreshold:
             self.historyFIFO.append(event)
@@ -364,7 +382,7 @@ class CMSSWLogESWriter(threading.Thread):
         #else:
         self.index_runstring = 'run'+str(self.rn).zfill(conf.run_number_padding)
         self.index_suffix = conf.elastic_cluster
-        self.eb = elasticBand.elasticBand('http://localhost:9200',self.index_runstring,self.index_suffix,0,0)
+        self.eb = elasticBand('http://localhost:9200',self.index_runstring,self.index_suffix,0,0)
 
     def run(self):
         while self.abort == False:
@@ -378,7 +396,7 @@ class CMSSWLogESWriter(threading.Thread):
                         break
                 if len(documents)>0:
                     try:
-                        self.eb.es.bulk_index(self.index_name,'cmsswlog',documents)
+                        self.eb.es.bulk_index(self.eb.indexName,'cmsswlog',documents)
                     except Exception,ex:
                         logger.error("es bulk index:"+str(ex))
             elif self.queue.qsize()>0:
@@ -386,7 +404,7 @@ class CMSSWLogESWriter(threading.Thread):
                         try:
                             evt = self.queue.get(False)
                             try:
-                                self.eb.es.index(self.index_name,'cmsswlog',evt.document)
+                                self.eb.es.index(self.eb.indexName,'cmsswlog',evt.document)
                             except Exception,ex: 
                                 logger.error("es index:"+str(ex))
                         except Queue.Empty:

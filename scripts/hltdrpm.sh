@@ -234,6 +234,9 @@ rm -rf /etc/appliance/except/*
 /usr/lib64/python2.6/site-packages/*_inotify.so*
 /usr/lib64/python2.6/site-packages/*python_inotify*
 /usr/lib64/python2.6/site-packages/pyelasticsearch
+%preun
+/sbin/service hltd stop
+/sbin/service hltd stop
 EOF
 mkdir -p RPMBUILD/{RPMS/{noarch},SPECS,BUILD,SOURCES,SRPMS}
 rpmbuild --define "_topdir `pwd`/RPMBUILD" -bb hltd.spec

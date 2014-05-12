@@ -7,12 +7,12 @@ BASEDIR=$PWD
 if [ -f $SCRIPTDIR/paramcache ];
 then
   readarray lines < $SCRIPTDIR/paramcache
-  for (( i=0; i < 10; i++ ))
+  for (( i=0; i < 11; i++ ))
   do
     lines[$i]=`echo -n ${lines[$i]} | tr -d "\n"`
   done
 else
-  for (( i=0; i < 10; i++ ))
+  for (( i=0; i < 11; i++ ))
   do
     lines[$i]=""
   done
@@ -87,8 +87,18 @@ if [ ${#readin} != "0" ]; then
 lines[9]=$readin
 fi
 
+
+echo "CMSSW log collection level (DEBUG,INFO,WARNING,ERROR or FATAL) (press enter for: ${lines[10]}):"
+readin=""
+read readin
+if [ ${#readin} != "0" ]; then
+lines[10]=$readin
+fi
+
+
+
 params=""
-for (( i=0; i < 10; i++ ))
+for (( i=0; i < 11; i++ ))
 do
   params="$params ${lines[i]}"
 done
@@ -98,7 +108,7 @@ if [ -f $SCRIPTDIR/paramcache ];
 then
 rm -rf -f $SCRIPTDIR/paramcache
 fi
-for (( i=0; i < 10; i++ ))
+for (( i=0; i < 11; i++ ))
 do
   echo ${lines[$i]} >> $SCRIPTDIR/paramcache
 done

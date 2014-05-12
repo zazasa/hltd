@@ -168,7 +168,7 @@ class elasticBand():
                              }
                     },
                     'ls' : { 'type' : 'integer' },
-                    'stream' : {'type' : 'string'}#,"index" : "not_analyzed"},
+                    'stream' : {'type' : 'string'},#,"index" : "not_analyzed"},
                     'source' : {
                         'type' : 'string',
                         'index_analyzer': 'prefix-test-analyzer',
@@ -213,19 +213,17 @@ class elasticBand():
                     'type'      : {'type' : 'string',"index" : "not_analyzed"},
                     'severity'  : {'type' : 'string',"index" : "not_analyzed"},
                     'category'  : {'type' : 'string'},
-#                    'info1'     : {'type' : 'string'},
-#                    'info2'     : {'type' : 'string'},
 
-                    'fwkState'     : {'type' : 'string',,"index" : "not_analyzed"},
-                    'module'     : {'type' : 'string',,"index" : "not_analyzed"},
-                    'moduleInstance'     : {'type' : 'string',,"index" : "not_analyzed"},
-                    'moduleCall'     : {'type' : 'string',,"index" : "not_analyzed"},
+                    'fwkState'     : {'type' : 'string',"index" : "not_analyzed"},
+                    'module'     : {'type' : 'string',"index" : "not_analyzed"},
+                    'moduleInstance'     : {'type' : 'string',"index" : "not_analyzed"},
+                    'moduleCall'     : {'type' : 'string',"index" : "not_analyzed"},
                     'lumi'     : {'type' : 'integer'},
                     'eventInPrc'     : {'type' : 'long'},
 
-                    'message'   : {'type' : 'string'}"index" : "not_analyzed"},
+                    'message'   : {'type' : 'string'},#,"index" : "not_analyzed"},
                     'lexicalId' : {'type' : 'string',"index" : "not_analyzed"},
-                    'msgtime' : {'type' : 'date','format':'dd-MMM-YYYY HH:mm:ss'}
+                    'msgtime' : {'type' : 'date','format':'dd-MMM-YYYY HH:mm:ss'},
                     'msgtimezone' : {'type' : 'string'}
                     #'context'   : {'type' : 'string'}
                  }
@@ -357,7 +355,7 @@ class elasticBand():
         run=infile.run
         document['host']=os.uname()[1]
         document['fm_date']=timestamp
-        self.es.index(index_name,'fu-complete',document)
+        self.es.index(self.indexName,'fu-complete',document)
 
     def flushMonBuffer(self):
         if self.istateBuffer:
