@@ -6,7 +6,41 @@ import sys
 import datetime
 import time
 
-url =  'http://localhost:9200/run*/cmsswlog/_search'
+
+
+logThreshold=1 #INFO
+repeatsMax=100
+connurl='http://localhost:9200'
+termWhite=True
+if len(sys.argv)>1:
+
+    for arg in sys.argv:
+        if arg.startswith('-c='):
+            connurl=arg[3:]
+            if not connurl.startswith('http://'): connurl = 'http://'+connurl
+
+        if arg.startswith('-l='):
+            if   arg[3:]=="DEBUG":logThreshold=0
+            elif arg[3:]=="WARNING":logThreshold=2
+            elif arg[3:]=="ERROR":logThreshold=3
+            elif arg[3:]=="FATAL":logThreshold=4
+
+        if arg.startswith('-r='):
+            repeatsMax=int(arg[3:])
+
+        if arg.startswith('-t='):
+            if arg[3:].lower()=='black':termWhite=False
+
+else:
+    print "Usage: . logprint.py -c=%URL -l=%[DEBUG,INFO,WARNING,ERROR,FATAL] -r=%[-1,0,...] -t=%[white,black]"
+    print " -c: connection URL (default: http://localhost:9200)"
+    print " -l: log level threshold (default: INFO)"
+    print " -r: DEBUG/INFO repeat suppression threshold (default: 100, disable: -1)"
+    print " -t: your terminal background color (default: white)"
+    print "\n Starting logger using default values..."
+
+#url =  'http://localhost:9200/run*/cmsswlog/_search'
+url =  connurl+'/run*/cmsswlog/_search'
 
 #resp = requests.post(url, query)
 
@@ -15,58 +49,64 @@ repeatsMax=100
 suppressionMap = {}
 alreadySuppressed = {}
 
-q1 = '{ \
-  "fields": [ \
-    "_timestamp", \
-    "_source" \
-  ], \
-  "size":100, \
-  "query": { \
-    "filtered": { \
-      "query": { \
-        "match_all": {} \
-      }, \
-      "filter": { \
-        "range": { \
-          "_timestamp": {'
+filter1 =  { "range": {
+               "_timestamp": {
+                 "from": "",
+                 "to": ""
+               }
+#               ,"severityVal" : { "gte" :  str(logThreshold+1)}
+             }
+           }
+         
 
-#            "from": "2014-05-12T12:08:41", \
-#            "to": "2014-05-12T12:09:41" \
-q2 = '          } \
-        } \
-      } \
-    } \
-  }, \
-  "sort": { "_timestamp": { "order": "asc" }} \
-}'
+
+filter2 =  { "and" : [
+               {"range": {
+                 "_timestamp": {
+                   "from": "",
+                   "to": ""
+                 }
+               }},
+               {"range": {
+                 "severityVal" : { "gte" :  str(logThreshold)}
+               }}
+             ]
+           }
+               #,{"or": [{"term":{"severity":"INFO"}},{"term":{"severity":"WARNINIG"}},{"term":{"severity":"ERROR"}},{"term":{"severity":"FATAL"}}] }
+               #,{"not":{"term":{"severity":"DEBUG"}}}
+
+
 
 qdoc = { 
-  "fields": [ 
-    "_timestamp", 
-    "_source" 
-  ], 
+  "fields":["_timestamp", "_source"], 
   "size":100, 
   "query": { 
-    "filtered": { 
-      "query": { 
-        "match_all": {} 
-      }, 
-      "filter": { 
-        "range": { 
-          "_timestamp": {
-            "from": "", 
-            "to": "" 
-          } 
-        } 
-      } 
-    } 
-  }, 
-  "sort": { "_timestamp": { "order": "asc" }} 
+    "filtered": {"query": {"match_all": {}}
+#      "filter": {
+#        "range": {
+#          "_timestamp": {
+#            "from": "",
+#            "to": ""
+#          }
+#        }
+#      }
+    }
+  },
+  "sort": { "_timestamp": { "order": "asc" }}
 }
+
+if logThreshold==0:
+    useFilters2=False
+    qdoc['query']['filtered']['filter'] = filter1
+else:
+    useFilters2=True
+    qdoc['query']['filtered']['filter'] = filter2
 
 sleept = 0.5
 
 init = True
+
+#2 seconds delay
 tnow =  datetime.datetime.utcnow().isoformat()
 time.sleep(sleept)
 tfuture =  datetime.datetime.utcnow().isoformat()
@@ -87,10 +127,12 @@ while True:
 
     time.sleep(sleept)
 
-    qdoc['query']['filtered']['filter']['range']['_timestamp']['from']=tbefore
-    qdoc['query']['filtered']['filter']['range']['_timestamp']['to']=tnow
-
-    #q = q1 + '"from" :"'+tbefore+'",to:"'+tnow+'"'+q2
+    if useFilters2:
+        qdoc['query']['filtered']['filter']['and'][0]['range']['_timestamp']['from']=tbefore
+        qdoc['query']['filtered']['filter']['and'][0]['range']['_timestamp']['to']=tnow
+    else:
+        qdoc['query']['filtered']['filter']['range']['_timestamp']['from']=tbefore
+        qdoc['query']['filtered']['filter']['range']['_timestamp']['to']=tnow
     q = json.dumps(qdoc)
 
 
@@ -129,12 +171,13 @@ while True:
                 pass
 
 
-
             ev = e['_source']
             severity = ev['severity']
 
+            #suppression
             repeats=0
-            try:
+            if repeatsMax!=-1:
+              try:
                 rep = suppressionMap[ev['lexicalId']]
                 rep+=1
                 suppressionMap[ev['lexicalId']]=rep
@@ -142,7 +185,7 @@ while True:
                 if repeats>repeatsMax and (severity=="INFO" or severity=="DEBUG"):
                     alreadySuppressed[ev['lexicalId']]=True
                     continue
-            except:
+              except:
                 try:
                     suppressionMap[ev['lexicalId']]=1
                     repeats=1
@@ -216,13 +259,18 @@ while True:
             #construct final log print:
             str2+='\x1b[0m'
             if sevorig=='INFO':
-                print severity + runstring +' '+msgtime+' '+host+' '+pidstr+' : ' + str2 + '\n  \x1b[47m'+ev['message']+'\x1b[0m'
+                if termWhite:
+                    print severity + runstring +' '+msgtime+' '+host+' '+pidstr+' : ' + str2 + '\n  \x1b[47m'+ev['message']+'\x1b[0m'
+                else:
+                    print severity + runstring +' '+msgtime+' '+host+' '+pidstr+' : ' + str2 + '\n  \x1b[41m'+ev['message']+'\x1b[0m'
             elif sevorig=='WARNING':
                 print severity + runstring +' '+msgtime+' '+host+' '+pidstr+' : ' + str2 + '\n  \x1b[37;1;45m'+ev['message']+'\x1b[0m'
             elif sevorig=='ERROR':
                 print severity + runstring +' '+msgtime+' '+host+' '+pidstr+' : ' + str2 + '\n  \x1b[37;1;40m'+ev['message']+'\x1b[0m'
-            else:
+            elif sevorig=='FATAL':
                 print severity + runstring +' '+msgtime+' '+host+' '+pidstr+' : ' + str2 + '\n  \x1b[31;1;40m'+ev['message']+'\x1b[0m'
+            else:#debug
+                print severity + runstring +' '+msgtime+' '+host+' '+pidstr+' : ' + str2 + '\n  '+ev['message']
 
             if repeats==repeatsMax and (sevorig=="INFO" or sevorig=="DEBUG"):
                 try:
