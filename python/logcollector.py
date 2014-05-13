@@ -78,6 +78,7 @@ class CMSSWLogEvent(object):
         self.document['pid']=self.pid
         self.document['type']=typeStr[self.type]
         self.document['severity']=severityStr[self.severity]
+        self.document['severityVal']=self.severity
 
     def decode(self):
         self.fillComon()
@@ -90,9 +91,11 @@ class CMSSWLogEventML(CMSSWLogEvent):
     def __init__(self,pid,severity,firstLine):
         CMSSWLogEvent.__init__(self,pid,MLMSG,severity,firstLine)
 
-    def parseSubInfo(self,str,category):
-        if self.info1=='(NoModuleName)':
-            self.document['module']=category
+    def parseSubInfo(self):
+        if self.info1.startswith('(NoMod'):
+            self.document['module']=self.category
+        elif self.info1.startswith('AfterMod'):
+            self.document['module']=self.category
         else:
             #module in some cases
             tokens = self.info1.split('@')
@@ -102,15 +105,13 @@ class CMSSWLogEventML(CMSSWLogEvent):
                 self.document['moduleInstance'] = tokens2[1]
             if len(tokens)>1:
                 self.document['moduleCall'] = tokens[1]
-        if self.info1=='(NoModuleName)':
-            self.document['module']=category
 
     def decode(self):
         CMSSWLogEvent.fillCommon(self)
 
         #parse various header formats
         headerInfo = filter(None,self.message[0].split(' '))
-        category =  headerInfo[1].rstrip(':')
+        self.category =  headerInfo[1].rstrip(':')
 
         #capture special case MSG-e (Root signal handler piped to ML)
         if self.severity>=ERRORLEVEL:
@@ -121,29 +122,34 @@ class CMSSWLogEventML(CMSSWLogEvent):
                     self.document['moduleCall']+=headerInfo[3]
                 headerInfo.pop(3)
 
-        self.document['category'] = category
+        self.document['category'] = self.category
         self.info1 =  headerInfo[2]
 
         self.info2 =  headerInfo[6].rstrip(':\n')
 
+        #try to extract module and fwk state information from the inconsistent mess of MessageLogger output
         if self.info2=='pre-events':
-            self.parseSubInfo(self.info1,category)
+            self.parseSubInfo()
         elif self.info2.startswith('Post') or self.info2.startswith('Pre'):
             self.document['fwkState']=self.info2
             if self.info2!=self.info1:
-                self.parseSubInfo(self.info1,category)
-        elif self.info1.startswith('Pre') or self.info2.startswith('Post'):
+                if self.info1.startswith('PostProcessPath'):
+                    self.document['module']=self.category
+                else:
+                    self.parseSubInfo()
+        elif self.info1.startswith('Pre') or self.info1.startswith('Post'):
             self.document['fwkState']=self.info1
-            if self.info2 == 'Run:':
+            try:
+              if headerInfo[6] == 'Run:':
                 if len(headerInfo)>=10:
                     if headerInfo[8]=='Lumi:':
                         istr = int(headerInfo[9].rstrip('\n'))
-                        if istr.isdigit():
-                            document['lumi']=int(istr)
+                        self.document['lumi']=int(istr)
                     elif headerInfo[8]=='Event:':
                         istr = int(headerInfo[9].rstrip('\n'))
-                        if istr.isdigit():
-                            document['eventInPrc']=int(istr)
+                        self.document['eventInPrc']=int(istr)
+            except:
+              pass
 
         #time parsing
         self.document['msgtime']=headerInfo[3]+' '+headerInfo[4]
@@ -171,19 +177,30 @@ class CMSSWLogEventException(CMSSWLogEvent):
     def decode(self):
         CMSSWLogEvent.fillCommon(self)
         headerInfo = filter(None,self.message[0].split(' '))
-        zone = headerInfo[6].rstrip('-')
-        if zone == 'CEST':zone='CET'
+        zone = headerInfo[6].rstrip('-\n')
         self.document['msgtime']=headerInfo[4]+' '+headerInfo[5]
         self.document['msgtimezone']=zone
         if len(self.message)>1:
             line2 = filter(None,self.message[1].split(' '))
-            self.document['category'] = line2[4]
-        if len(self.message)>2:
-            line3 = filter(None,self.message[2].strip().split(' '))
-            self.document['fwkState'] = line3[2].rstrip(' :\n')
-        if len(self.message)>4:
-            for i in range(4,len(self.message)):
-                if i==4:
+            self.document['category'] = line2[4].strip('\'')
+
+        procl=2
+        foundState=False
+        while len(self.message)>procl:
+            line3 = filter(None,self.message[procl].strip().split(' '))
+            if line3[0].strip().startswith('[') and foundState==False:
+                self.document['fwkState'] = line3[-1].rstrip(':\n')
+                if self.document['fwkState']=='EventProcessor':
+                    self.document['fwkState']+=':'+line3[1]
+                foundState=True
+                procl+=1
+            else:
+                break
+        procl+=1
+
+        if len(self.message)>procl:
+            for i in range(procl,len(self.message)):
+                if i==procl:
                     self.document['lexicalId']=calculateLexicalId(self.message[i])
                 if i==len(self.message)-1: 
                     self.message[i]=self.message[i].rstrip('\n')
@@ -256,7 +273,7 @@ class CMSSWLogParser(threading.Thread):
         if self.abort == False and self.currentEvent:
             self.putInQueue(self.currentEvent)
         if self.abort == False:
-            logger.info('detected termination of the CMSSW process '+str(self.pid)+', finishing.')
+            self.logger.info('detected termination of the CMSSW process '+str(self.pid)+', finishing.')
         f.close()
         self.closed=True
         #prepend file with 'old_' prefix so that it can be deleted later
@@ -291,7 +308,7 @@ class CMSSWLogParser(threading.Thread):
                     #should not be present in production
                     self.currentEvent = CMSSWLogEventML(self.pid,DEBUGLEVEL,buf[pos])
 
-                elif buf[pos].startswith('----- Begin Fatal Exception'): 
+                elif buf[pos].startswith('----- Begin Fatal Exception'):
                     self.currentEvent = CMSSWLogEventException(self.pid,buf[pos])
 
                 #signals not caught as exception (and libc assertion)
@@ -329,6 +346,9 @@ class CMSSWLogParser(threading.Thread):
                 elif self.currentEvent.type == EXCEPTION and buf[pos].startswith('----- End Fatal Exception'):
                     self.putInQueue(self.currentEvent)
                     self.currentEvent = None
+                elif self.currentEvent.type == STACKTRACE:
+                   if buf[pos].startswith('Current states')==False:#FastMonitoringService
+                       self.currentEvent.append(buf[pos])
                 else:
                    #append message line to event
                    self.currentEvent.append(buf[pos])
@@ -345,15 +365,15 @@ class CMSSWLogParser(threading.Thread):
                         e.decode()
                         mainQueue.put(e)
                     except Exception,ex:
-                        logger.error('failed to parse log, exception: ' + str(ex))
-                        logger.error('on message content: '+str(e.message))
+                        self.logger.error('failed to parse log, exception: ' + str(ex))
+                        self.logger.error('on message content: '+str(e.message))
             try:
                 event.decode()
                 self.mainQueue.put(event)
 
             except Exception,ex:
-                logger.error('failed to parse log, exception: ' + str(ex))
-                logger.error('on message content: '+str(event.message))
+                self.logger.error('failed to parse log, exception: ' + str(ex))
+                self.logger.error('on message content: '+str(event.message))
 
         elif saveHistory and event.severity>=contextLogThreshold:
             self.historyFIFO.append(event)
@@ -398,7 +418,7 @@ class CMSSWLogESWriter(threading.Thread):
                     try:
                         self.eb.es.bulk_index(self.eb.indexName,'cmsswlog',documents)
                     except Exception,ex:
-                        logger.error("es bulk index:"+str(ex))
+                        self.logger.error("es bulk index:"+str(ex))
             elif self.queue.qsize()>0:
                     while self.abort == False:
                         try:
@@ -406,7 +426,7 @@ class CMSSWLogESWriter(threading.Thread):
                             try:
                                 self.eb.es.index(self.eb.indexName,'cmsswlog',evt.document)
                             except Exception,ex: 
-                                logger.error("es index:"+str(ex))
+                                self.logger.error("es index:"+str(ex))
                         except Queue.Empty:
                             break
             else:
@@ -444,13 +464,13 @@ class CMSSWLogESWriter(threading.Thread):
             self.parsers[path].join()
             self.numParsers-=1
         except Exception,ex:
-            logger.warn('problem closing parser: '+str(ex))
+            self.logger.warn('problem closing parser: '+str(ex))
 
 
 class CMSSWLogCollector(object):
 
-    def __init__(self,logger,dir,loglevel):
-        self.logger = logger
+    def __init__(self,dir,loglevel):
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.inotifyWrapper = InotifyWrapper(self,False)
         self.indices = {}
         self.stop = False
@@ -469,11 +489,11 @@ class CMSSWLogCollector(object):
 
     def stop_inotify(self,abort = False):
         self.stop = True
-        logging.info("MonitorRanger: Stop inotify wrapper")
+        self.logger.info("MonitorRanger: Stop inotify wrapper")
         self.inotifyWrapper.stop()
-        logging.info("MonitorRanger: Join inotify wrapper")
+        self.logger.info("MonitorRanger: Join inotify wrapper")
         self.inotifyWrapper.join()
-        logging.info("MonitorRanger: Inotify wrapper returned")
+        self.logger.info("MonitorRanger: Inotify wrapper returned")
         for rn in self.indices.keys():
                 self.indices[rn].stop()
 
@@ -496,7 +516,7 @@ class CMSSWLogCollector(object):
         for rn in self.indices.keys():
                 alive = self.indices[rn].clearFinished()
                 if alive == 0:
-                    logger.info('removing old run'+str(rn)+' from the list')
+                    self.logger.info('removing old run'+str(rn)+' from the list')
                     del self.indices[rn]
 
     def process_default(self, event):
@@ -514,7 +534,7 @@ class CMSSWLogCollector(object):
                    pid = int(e[3:])
             return rn,pid
         except Exception,ex:
-            logger.warn('problem parsing log file name: '+str(ex))
+            self.logger.warn('problem parsing log file name: '+str(ex))
             return None,None
 
  
@@ -588,7 +608,7 @@ if __name__ == "__main__":
       try:
 
         #starting inotify thread
-        clc = CMSSWLogCollector(logger,cmsswlogdir,cmsswloglevel)
+        clc = CMSSWLogCollector(cmsswlogdir,cmsswloglevel)
         clc.register_inotify_path(cmsswlogdir,mask)
         clc.start_inotify()
 

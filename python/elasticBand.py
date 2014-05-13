@@ -212,6 +212,7 @@ class elasticBand():
                     'pid'       : {'type' : 'integer'},
                     'type'      : {'type' : 'string',"index" : "not_analyzed"},
                     'severity'  : {'type' : 'string',"index" : "not_analyzed"},
+                    'severityVal'  : {'type' : 'integer'},
                     'category'  : {'type' : 'string'},
 
                     'fwkState'     : {'type' : 'string',"index" : "not_analyzed"},
