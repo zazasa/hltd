@@ -422,15 +422,19 @@ class ProcessWatchdog(threading.Thread):
                 fp.flush()
                 fp.close()
             except IOError,ex:
-                logging.error(str(ex))
+                logging.exception(ex)
 
             logging.debug('ProcessWatchdog: release lock thread '+str(pid))
             self.lock.release()
             logging.debug('ProcessWatchdog: released lock thread '+str(pid))
 
+
+            abortedmarker = self.resource.statefiledir+'/'+Run.ABORTED
+            if os.path.exists(abortedmarker):
+                return
+
             #cleanup actions- remove process from list and
             # attempt restart on same resource
-
             if returncode < 0:
                 logging.error("process "+str(pid)
                               +" for run "+str(self.resource.runnumber)
@@ -455,8 +459,6 @@ class ProcessWatchdog(threading.Thread):
                         json.dump(document,fi)
                 except: logging.exception("unable to create %r" %filename)
                 logging.info("pid crash file: %r" %filename)
-
-
 
 
                 if self.resource.retry_attempts < self.retry_limit:
@@ -604,7 +606,8 @@ class Run:
                                                     close_fds=True
                                                     )
             except OSError as ex:
-                logging.error("failed to start elasticsearch client: " + str(ex))
+                logging.error("failed to start elasticsearch client:")
+                logging.exception(ex)
 
 
 
@@ -761,18 +764,20 @@ class Run:
                 if self.anelastic_monitor:
                     self.anelastic_monitor.terminate()
             except Exception as ex:
-                logging.info("exception encountered in shutting down anelastic.py " + str(ex))
+                logging.info("exception encountered in shutting down anelastic.py")
+                logging.exception(ex)
             if conf.use_elasticsearch == True:
                 try:
                     if self.elastic_monitor:
                         self.elastic_monitor.terminate()
                 except Exception as ex:
-                    logging.info("exception encountered in shutting down elastic.py " + str(ex))
-            if self.waitForEndThread is not none:
+                    logging.info("exception encountered in shutting down elastic.py")
+                    logging.exception(ex)
+            if self.waitForEndThread is not None:
                 self.waitForEndThread.join()
         except Exception as ex:
             logging.info("exception encountered in shutting down resources")
-            logging.info(ex)
+            logging.exception(ex)
         logging.info('Shutdown of run '+str(self.runnumber).zfill(conf.run_number_padding)+' completed')
 
     def StartWaitForEnd(self):
@@ -867,9 +872,10 @@ class RunRanger:
                     run_list[-1].Start()
                 except OSError as ex:
                     logging.error("RunRanger: "+str(ex)+" "+ex.filename)
+                    logging.exception(ex)
                 except Exception as ex:
-                    logging.exception("RunRanger: unexpected exception encountered in forking hlt slave")
-                    logging.error(ex)
+                    logging.error("RunRanger: unexpected exception encountered in forking hlt slave")
+                    logging.exception(ex)
 
         elif dirname.startswith('emu'):
             nr=int(dirname[3:])
@@ -937,7 +943,8 @@ class RunRanger:
                             runtoend[0].endChecker = RunCompletedChecker(nr,len(runtoend[0].online_resource_list))
                             runtoend[0].endChecker.start()
                     except Exception,ex:
-                        logging.error('failure to start run completition checker: '+str(ex))
+                        logging.error('failure to start run completition checker:')
+                        logging.exception(ex)
 
         elif dirname.startswith('herod') and conf.role == 'fu':
             os.remove(event.fullpath)
@@ -1033,7 +1040,7 @@ class ResourceRanger:
                         reslist = os.listdir(idlesdir)
                     except Exception as ex:
                         logging.info("exception encountered in looking for resources")
-                        logging.info(ex)
+                        logging.exception(ex)
                     #put inotify-ed resource as the first item
                     for resindex,resname in enumerate(reslist):
                         fileFound=False

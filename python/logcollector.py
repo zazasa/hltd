@@ -365,15 +365,15 @@ class CMSSWLogParser(threading.Thread):
                         e.decode()
                         mainQueue.put(e)
                     except Exception,ex:
-                        self.logger.error('failed to parse log, exception: ' + str(ex))
-                        self.logger.error('on message content: '+str(e.message))
+                        self.logger.error('failed to parse message contentent: ' + str(e.message))
+                        self.logger.exception(ex)
             try:
                 event.decode()
                 self.mainQueue.put(event)
 
             except Exception,ex:
-                self.logger.error('failed to parse log, exception: ' + str(ex))
-                self.logger.error('on message content: '+str(event.message))
+                self.logger.error('failed to parse message contentent: ' + str(e.message))
+                self.logger.exception(ex)
 
         elif saveHistory and event.severity>=contextLogThreshold:
             self.historyFIFO.append(event)
@@ -464,7 +464,8 @@ class CMSSWLogESWriter(threading.Thread):
             self.parsers[path].join()
             self.numParsers-=1
         except Exception,ex:
-            self.logger.warn('problem closing parser: '+str(ex))
+            self.logger.warn('problem closing parser')
+            self.logger.exception(ex)
 
 
 class CMSSWLogCollector(object):
@@ -535,6 +536,7 @@ class CMSSWLogCollector(object):
             return rn,pid
         except Exception,ex:
             self.logger.warn('problem parsing log file name: '+str(ex))
+            self.logger.exception(ex)
             return None,None
 
  

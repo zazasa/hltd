@@ -381,7 +381,7 @@ class BoxInfoUpdater(threading.Thread):
             self.mr.register_inotify_path(boxesDir,boxesMask)
 
         except Exception,ex:
-            self.logger.error(str(ex))
+            self.logger.exception(ex)
 
     def run(self):
         try:
@@ -402,7 +402,7 @@ class BoxInfoUpdater(threading.Thread):
             self.mr.start_inotify()
             self.ec.start()
         except Exception,ex:
-            self.logger.error(str(ex))
+            self.logger.exception(ex)
 
     def stop(self):
         try:
@@ -413,7 +413,7 @@ class BoxInfoUpdater(threading.Thread):
             self.ec.stop()
             self.join()
         except Exception,ex:
-            self.logger.error(str(ex))
+            self.logger.exception(ex)
 
 class RunCompletedChecker(threading.Thread):
 
@@ -429,7 +429,7 @@ class RunCompletedChecker(threading.Thread):
             threading.Thread.__init__(self)
 
         except Exception,ex:
-            self.logger.error(str(ex))
+            self.logger.exception(ex)
 
     def run(self):
         try:
@@ -452,7 +452,8 @@ class RunCompletedChecker(threading.Thread):
                         break
                 #TODO:write completition time to global ES index
         except Exception,ex:
-            self.logger.error('Error in run completition check: ' +str(ex))
+            self.logger.error('Error in run completition check')
+            self.logger.exception(ex)
 
     def stop(self):
         self.stop = True
