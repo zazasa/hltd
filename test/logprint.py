@@ -123,7 +123,7 @@ sleept = 0.5
 
 init = True
 
-#2 seconds delay
+#2 seconds delay to allow indexing to be done for requested intervals
 tnow =  datetime.datetime.utcnow().isoformat()
 time.sleep(sleept)
 tfuture =  datetime.datetime.utcnow().isoformat()
