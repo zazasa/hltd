@@ -346,10 +346,9 @@ if True:
         print "CMSSW log collection level is missing"
     cmsswloglevel =  sys.argv[argvc]
 
+    cluster,type = getmachinetype()
     #override for daq2val!
     if cluster == 'daq2val': cmsswloglevel =  'INFO'
-
-    cluster,type = getmachinetype()
     cnhostname = os.uname()[1]+".cms"
 
     if cluster == 'daq2val':

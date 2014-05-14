@@ -394,7 +394,7 @@ class BoxInfoUpdater(threading.Thread):
                     self.es = elasticBandBU(conf.elastic_runindex_url,0,'',False)
                     break;
               except:
-                time.sleep(5)
+                time.sleep(60)
 
             self.ec = elasticBoxCollectorBU(self.es)
             self.ec.setSource(self.eventQueue)

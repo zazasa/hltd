@@ -253,23 +253,39 @@ class fileHandler(object):
 
         self.logger.info("%s -> %s" %(oldpath,newpath))
         retries = 5
+        newpath_tmp = newpath+TEMPEXT
         while True:
           try:
-              newpath+=TEMPEXT
               if not os.path.isdir(newdir): os.makedirs(newdir)
-              if copy: shutil.copy(oldpath,newpath)
+              if copy: shutil.copy(oldpath,newpath_tmp)
               else: 
-                  shutil.move(oldpath,newpath)
-              #renaming
-              shutil.move(newpath,newpath.replace(TEMPEXT,""))
+                  shutil.move(oldpath,newpath_tmp)
               break
+
           except OSError,e:
               self.logger.exception(e)
               retries-=1
               if retries == 0:
+                  self.logger.error("Failure to move file "+str(oldpath)+" to "+str(newpath_tmp))
                   return False
               else:
                   time.sleep(0.5)
+        retries = 5
+        while True:
+        #renaming
+            try:
+                #shutil.move(newpath,newpath.replace(TEMPEXT,""))
+                os.rename(newpath_tmp,newpath)
+                break
+            except OSError,e:
+                self.logger.exception(e)
+                retries-=1
+                if retries == 0:
+                    self.logger.error("Failure to rename the temporary file "+str(newpath_tmp)+" to "+str(newpath))
+                    return False
+                else:
+                    time.sleep(0.5)
+
         self.filepath = newpath
         self.getFileInfo()
         return True   
