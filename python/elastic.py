@@ -115,6 +115,7 @@ class elasticCollector():
                 completed = datetime.datetime.utcfromtimestamp(dt).isoformat()
                 es.elasticize_fu_complete(completed)
                 self.infile.deleteFile()
+                self.stop()
 
     def elasticizeLS(self):
         ls = self.infile.ls

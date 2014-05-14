@@ -295,6 +295,7 @@ class OnlineResource:
         self.watchdog = None
         self.runnumber = None
         self.associateddir = None
+        self.statefiledir = None
         self.lock = lock
         self.retry_attempts = 0
         self.quarantined = []
@@ -443,7 +444,7 @@ class ProcessWatchdog(threading.Thread):
 
                 #generate crashed pid json file like: run000001_ls0000_crash_pid12345.jsn
                 oldpid = "pid"+str(pid).zfill(5)
-                outdir = os.path.dirname(self.resource.associateddir[:-1])
+                outdir = self.resource.statefiledir
                 runnumber = "run"+str(self.resource.runnumber).zfill(conf.run_number_padding)
                 ls = "ls0000"
                 filename = "_".join([runnumber,ls,"crash",oldpid])+".jsn"
@@ -491,9 +492,9 @@ class ProcessWatchdog(threading.Thread):
 
                 logging.info('releasing resource, exit0 meaning end of run '+str(self.resource.cpu))
                 # generate an end-of-run marker if it isn't already there - it will be picked up by the RunRanger
-                endmarker = conf.watch_directory+'/end'+str(self.resource.runnumber)
-                stoppingmarker = self.resource.associateddir+'/'+Run.STOPPING
-                completemarker = self.resource.associateddir+'/'+Run.COMPLETE
+                endmarker = conf.watch_directory+'/end'+str(self.resource.runnumber).zfill(conf.run_number_padding)
+                stoppingmarker = self.resource.statefiledir+'/'+Run.STOPPING
+                completemarker = self.resource.statefiledir+'/'+Run.COMPLETE
                 if not os.path.exists(endmarker):
                     fp = open(endmarker,'w+')
                     fp.close()
@@ -676,8 +677,9 @@ class Run:
             self.changeMarkerMaybe(Run.ACTIVE)
 
     def StartOnResource(self, resource):
-        mondir = conf.watch_directory+'/run'+str(self.runnumber).zfill(conf.run_number_padding)+'/mon/'
         logging.debug("StartOnResource called")
+        resource.statefiledir=conf.watch_directory+'/run'+str(self.runnumber).zfill(conf.run_number_padding)
+        mondir = os.path.join(resource.statefiledir,'mon')
         resource.associateddir=mondir
         resource.StartNewProcess(self.runnumber,
                                  self.online_resource_list.index(resource),
@@ -784,7 +786,7 @@ class Run:
             logging.info(ex)
 
     def WaitForEnd(self):
-        print "wait for end thread!"
+        logging.info("wait for end thread!")
         try:
             for resource in self.online_resource_list:
                 resource.disableRestart()
@@ -800,7 +802,11 @@ class Run:
                 resource.process=None
             self.online_resource_list = []
             if conf.role == 'fu':
+                logging.info('writing complete file')
                 self.changeMarkerMaybe(Run.COMPLETE)
+                try:
+                    os.remove(conf.watch_directory+'/end'+str(self.runnumber).zfill(conf.run_number_padding))
+                except:pass
                 self.anelastic_monitor.wait()
             if conf.use_elasticsearch == True:
                 self.elastic_monitor.wait()
@@ -810,16 +816,11 @@ class Run:
             logging.info(ex)
 
     def changeMarkerMaybe(self,marker):
-        mondir = self.dirname+'/mon'
-        try:
-            os.makedirs(mondir)
-        except OSError:
-            pass
-
-        current = filter(lambda x: x in Run.VALID_MARKERS, os.listdir(mondir))
+        dir = self.dirname
+        current = filter(lambda x: x in Run.VALID_MARKERS, os.listdir(dir))
         if (len(current)==1 and current[0] != marker) or len(current)==0:
-            if len(current)==1: os.remove(mondir+'/'+current[0])
-            fp = open(mondir+'/'+marker,'w+')
+            if len(current)==1: os.remove(dir+'/'+current[0])
+            fp = open(dir+'/'+marker,'w+')
             fp.close()
         else:
             logging.error("There are more than one markers for run "
@@ -901,7 +902,7 @@ class RunRanger:
                                 bu_emulator.stop()
 
                             logging.info('run '+str(nr)+' removing end-of-run marker')
-                            os.remove(event.fullpath)
+                            #os.remove(event.fullpath)
                             run_list.remove(runtoend[0])
                         elif len(runtoend)==0:
                             logging.error('request to end run '+str(nr)
@@ -923,7 +924,7 @@ class RunRanger:
                               +' which is NOT a run number - this should '
                               +'*never* happen')
 
-        elif dirname.startswith('ending'):
+        elif dirname.startswith('eor'):
             #BU mode only
             if conf.role == 'bu' and conf.use_elasticsearch == True and dirname[3:].isdigit():
                 os.remove(event.fullpath)

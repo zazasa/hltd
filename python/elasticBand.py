@@ -353,7 +353,6 @@ class elasticBand():
 
     def elasticize_fu_complete(self,timestamp):
         document = {}
-        run=infile.run
         document['host']=os.uname()[1]
         document['fm_date']=timestamp
         self.es.index(self.indexName,'fu-complete',document)

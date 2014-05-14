@@ -112,7 +112,7 @@ class fileHandler(object):
                 elif "CRASH" in name and "PID" in name: return CRASH
                 elif "EOLS" in name: return EOLS
                 elif "EOR" in name: return EOR
-                elif "COMPLETE" in name: return COMPLETE
+        if name=="COMPLETE" in name: return COMPLETE
         if ".fast" in filename: return FAST
         if "slow" in filename: return SLOW
         if ext == ".leg" and "MICROSTATELEGEND" in name: return MODULELEGEND

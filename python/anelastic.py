@@ -54,7 +54,8 @@ class LumiSectionRanger():
         self.source = source
 
     def run(self):
-        self.logger.info("Start main loop") 
+        self.logger.info("Start main loop")
+        endTimeout=-1
         while not (self.stoprequest.isSet() and self.emptyQueue.isSet() and self.checkClosure()):
             if self.source:
                 try:
@@ -67,6 +68,14 @@ class LumiSectionRanger():
                     self.emptyQueue.set() 
             else:
                 time.sleep(0.5)
+            #allow timeout in case 'complete' file is received and lumi is not closed
+            if self.stoprequest.isSet() and self.emptyQueue.isSet() and self.checkClosure()==False:
+                if endTimeout<=-1: endTimeout=10
+                if endTimeout==0: break
+                endTimeout-=1
+
+        if self.checkClosure()==False:
+            self.logger.error('not all lumisections were closed on exit!')
 
         self.complete.esCopy()
         self.logger.info("Stop main loop")
@@ -85,6 +94,8 @@ class LumiSectionRanger():
 
         if eventtype & inotify.IN_CLOSE_WRITE:
             if filetype == JSD and not self.jsdfile: self.jsdfile=self.infile.filepath
+            elif filetype == COMPLETE:
+                self.processCompleteFile()
             elif filetype == INI: self.processINIfile()
             elif not self.firstStream.isSet():
                 self.buffer.append(self.infile)
@@ -101,8 +112,6 @@ class LumiSectionRanger():
                 self.processCRASHfile()
             elif filetype == EOR:
                 self.processEORFile()
-            elif filetype == COMPLETE:
-                self.processCompleteFile()
     
     def processCRASHfile(self):
         #send CRASHfile to every LSHandler

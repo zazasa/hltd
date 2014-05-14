@@ -247,7 +247,7 @@ class elasticCollectorBU():
         self.insertedModuleLegend = False
         self.insertedPathLegend = False
         self.eorCheckPath = inRunDir + '/run' +  str(rn) + '_ls0000_EoR.jsn'
-        self.endingFilePath = watchdir+'/ending'+ str(rn)
+        self.endingFilePath = watchdir + '/eor' + str(rn)
         
         self.stoprequest = threading.Event()
         self.emptyQueue = threading.Event()
@@ -433,19 +433,26 @@ class RunCompletedChecker(threading.Thread):
 
     def run(self):
         try:
+            totalElapsed=0
             while self.stop == False:
-                resp = requests.post(url, '')
+                resp = requests.post(self.url, '')
                 data = json.loads(resp.content)
-                if int(data['count']) == self.nresources:
+                if int(data['count']) >= self.nresources:
                     #all hosts are finished, close the index
                     #wait a bit for log entries to be filled up
                     time.sleep(5)
-                    resp = requests.post(urlclose)
+                    resp = requests.post(self.urlclose)
                     self.logger.info('closed appliance ES index for run '+str(self.nr))
                     break
+                else:
+                    time.sleep(5)
+                    totalElapsed+=5
+                    if totalElapsed>600:
+                        self.logger.error('run index complete flag was not written by all FUs, giving up after 10 minutes.')
+                        break
                 #TODO:write completition time to global ES index
         except Exception,ex:
-            self.logger.error('Error in run completition check:i ' +str(ex))
+            self.logger.error('Error in run completition check: ' +str(ex))
 
     def stop(self):
         self.stop = True
