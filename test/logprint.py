@@ -12,31 +12,48 @@ logThreshold=1 #INFO
 repeatsMax=100
 connurl='http://localhost:9200'
 termWhite=True
-if len(sys.argv)>1:
+quit=False
+printHelp=True
+light=False
 
+if len(sys.argv)>1:
+    printHelp=False
     for arg in sys.argv:
-        if arg.startswith('-c='):
+        if arg=='--light':
+            light=True
+
+        elif arg=="--help":
+            quit=True
+            printHelp=True
+
+        elif arg.startswith('-c='):
             connurl=arg[3:]
             if not connurl.startswith('http://'): connurl = 'http://'+connurl
 
-        if arg.startswith('-l='):
+        elif arg.startswith('-l='):
             if   arg[3:]=="DEBUG":logThreshold=0
             elif arg[3:]=="WARNING":logThreshold=2
             elif arg[3:]=="ERROR":logThreshold=3
             elif arg[3:]=="FATAL":logThreshold=4
 
-        if arg.startswith('-r='):
+        elif arg.startswith('-r='):
             repeatsMax=int(arg[3:])
 
-        if arg.startswith('-t='):
-            if arg[3:].lower()=='black':termWhite=False
+        elif arg=='--black':
+            termWhite=False
 
-else:
-    print "Usage: . logprint.py -c=%URL -l=%[DEBUG,INFO,WARNING,ERROR,FATAL] -r=%[-1,0,...] -t=%[white,black]"
+if printHelp==True:
+    print "Usage: . logprint.py -c=%URL -l=%[DEBUG,INFO,WARNING,ERROR,FATAL] -r=%[-1,0,...] --black --light"
     print " -c: connection URL (default: http://localhost:9200)"
     print " -l: log level threshold (default: INFO)"
     print " -r: DEBUG/INFO repeat suppression threshold (default: 100, disable: -1)"
-    print " -t: your terminal background color (default: white)"
+    print " --black: color scheme for black background terminal (default: disabled)"
+    print " --light: your terminal background color (default: white)"
+    print " --help: print this info and quit"
+
+if quit:
+    sys.exit(0)
+elif printHelp==True:
     print "\n Starting logger using default values..."
 
 #url =  'http://localhost:9200/run*/cmsswlog/_search'
@@ -111,16 +128,24 @@ tnow =  datetime.datetime.utcnow().isoformat()
 time.sleep(sleept)
 tfuture =  datetime.datetime.utcnow().isoformat()
 time.sleep(sleept)
+tfuture2 =  datetime.datetime.utcnow().isoformat()
+time.sleep(sleept)
+tfuture3 =  datetime.datetime.utcnow().isoformat()
+time.sleep(sleept)
 lastEmpty=True
 
 counter=0
+
+print "loop start...."
 
 while True:
 
     counter+=1
     tbefore = tnow
     tnow = tfuture
-    tfuture = datetime.datetime.utcnow().isoformat()
+    tfuture = tfuture2
+    tfuture2 = tfuture3
+    tfuture3 = datetime.datetime.utcnow().isoformat()
 
     if lastEmpty==False:
         print "\n================\n"
@@ -166,7 +191,7 @@ while True:
                 else:
                     rn = runidx[0]
                 if rn[3:].isdigit():
-                    runstring = 'Run: '+str(int(rn[3:]))+' '
+                    runstring = ' Run: '+str(int(rn[3:]))+' '
             except:
                 pass
 
@@ -195,13 +220,21 @@ while True:
             sevorig=severity
             if severity=='INFO':
                 #severity = '\x1b[32m INFO \x1b[0m'
-                severity = '\x1b[37;1;42m INFO \x1b[0m   '
-            if severity=='WARNING':
-                severity = '\x1b[37;1;43m WARNING \x1b[0m'
-            if severity=='ERROR':
-                severity = '\x1b[37;1;41m ERROR \x1b[0m  '
-            if severity=='FATAL':
-                severity = '\x1b[31;1;40m FATAL \x1b[0m  '
+                if light==False:
+                    severity = '\x1b[37;1;42m INFO \x1b[0m   '
+                else:
+                    severity = ' ----    '
+            elif severity=='WARNING':
+                severity =     '\x1b[37;1;43m WARNING \x1b[0m'
+            elif severity=='ERROR':
+                severity =     '\x1b[37;1;41m ERROR \x1b[0m  '
+            elif severity=='FATAL':
+                severity =     '\x1b[31;1;40m FATAL \x1b[0m  '
+            else:
+                if light==False:
+                    severity = 'DEBUG    '
+                else:
+                    severity = '  --     '
 
             #msg time/zone are not present in all messages...
             msgtime=''
