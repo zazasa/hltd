@@ -235,6 +235,27 @@ class elasticBandBU:
         documents = [document]
         self.es.bulk_index(index_name,'eols',documents)
 
+#used when connection to central ES fails
+class elasticBandDummy():
+
+    def __init__(self):
+        return
+
+    def elasticize_modulelegend(self,fullpath):
+        return
+
+    def elasticize_pathlegend(self,fullpath):
+        return
+
+    def elasticize_runend_time(self,endtime):
+        return
+
+    def elasticize_box(self,infile):
+        return
+
+    def elasticize_eols(self,infile):
+        return
+
 class elasticCollectorBU():
 
     
@@ -513,7 +534,14 @@ if __name__ == "__main__":
             else:
                 es = elasticBandBU(conf.elastic_runindex_url,runnumber,startTime)
         except:
-            es = elasticBandBU(conf.elastic_runindex_url,runnumber,startTime)
+            try:
+                es = elasticBandBU(conf.elastic_runindex_url,runnumber,startTime)
+
+            except ConnectionError,ex:
+                logger.exception(ex)
+                logger.info('falling back to dummy ES mode (no connections to central server in this run)')
+                es = elasticBandDummy()
+                
 
         #starting elasticCollector thread
         ec = elasticCollectorBU(monDir,dirname, watchdir, runnumber.zfill(conf.run_number_padding))
