@@ -568,7 +568,7 @@ class CMSSWLogCollector(object):
             p = subprocess.Popen("du -s " + str(dir), shell=True, stdout=subprocess.PIPE)
             p.wait()
             std_out=p.stdout.read()
-            out = std_out.split['\t'][0]
+            out = std_out.split('\t')[0]
             self.logger.info("size of directory "+str(dir)+" is "+str(out)+ " kB")
             return int(out)
         except Exception,ex:
