@@ -41,6 +41,8 @@ expected_processes = None
 run_list=[]
 bu_disk_list=[]
 
+active_runs=[]
+
 logging.basicConfig(filename=os.path.join(conf.log_dir,"hltd.log"),
                     level=conf.service_log_level,
                     format='%(levelname)s:%(asctime)s - %(message)s',
@@ -191,6 +193,10 @@ class system_monitor(threading.Thread):
                         fp.write('quarantined='+str(len(os.listdir(quarantined)))+'\n')
                         fp.write('usedDataDir='+str(((dirstat.f_blocks - dirstat.f_bavail)*dirstat.f_bsize)>>20)+'\n')
                         fp.write('totalDataDir='+str((dirstat.f_blocks*dirstat.f_bsize)>>20)+'\n')
+                        #two lines with active runs (used to check file consistency)
+                        fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
+                        fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
+                        fp.write('entriesComplete=True')
                         fp.close()
                     if conf.role == 'bu':
                         ramdisk = os.statvfs(conf.watch_directory)
@@ -206,6 +212,9 @@ class system_monitor(threading.Thread):
                         fp.write('totalRamdisk='+str((ramdisk.f_blocks*ramdisk.f_bsize)>>20)+'\n')
                         fp.write('usedOutput='+str(((outdir.f_blocks - outdir.f_bavail)*outdir.f_bsize)>>20)+'\n')
                         fp.write('totalOutput='+str((outdir.f_blocks*outdir.f_bsize)>>20)+'\n')
+                        fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
+                        fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
+                        fp.write('entriesComplete=True')
                         fp.close()
                         
                 if conf.role == 'bu':
@@ -396,7 +405,7 @@ class ProcessWatchdog(threading.Thread):
         self.retry_enabled = True
     def run(self):
         try:
-            monfile = self.resource.associateddir+'hltd.jsn'
+            monfile = self.resource.associateddir+'/hltd.jsn'
             logging.info('watchdog for process '+str(self.resource.process.pid))
             self.resource.process.wait()
             returncode = self.resource.process.returncode
@@ -543,8 +552,20 @@ class Run:
         self.version = None
         self.menu = None
         self.waitForEndThread = None
+        self.beginTime = datetime.now()
+        self.anelasticWatchdog = None
+        self.threadEvent = threading.Event()
+        global active_runs
+
         if conf.role == 'fu':
             self.changeMarkerMaybe(Run.STARTING)
+            if int(self.runnumber) in active_runs:
+                raise Exception("Run "+str(self.runnumber)+ "already active")
+            active_runs.append(int(self.runnumber))
+        else:
+            #currently unused on BU
+            active_runs=[0]
+
         self.menu_directory = bu_dir+'/'+conf.menu_directory
         if os.path.exists(self.menu_directory):
             self.menu = self.menu_directory+'/'+conf.menu_name
@@ -567,7 +588,8 @@ class Run:
         if conf.role == "bu":
             try:
                 self.rawinputdir = conf.watch_directory+'/run'+str(self.runnumber).zfill(conf.run_number_padding)
-                os.makedirs(mondir+'/mon')
+                self.buoutputdir = conf.micromerge_output+'/run'+str(self.runnumber).zfill(conf.run_number_padding)
+                os.makedirs(self.rawinputdir+'/mon')
             except Exception, ex:
                 logging.error("could not create mon dir inside the run input directory")
         else:
@@ -581,10 +603,10 @@ class Run:
                 if conf.elastic_bu_test is not None:
                     #test mode
                     logging.info("starting elasticbu.py testing mode with arguments:"+self.dirname)
-                    elastic_args = ['/opt/hltd/python/elasticbu.py',self.rawinputdir,conf.watch_directory,str(self.runnumber)]
+                    elastic_args = ['/opt/hltd/python/elasticbu.py',self.rawinputdir,conf.watch_directory,self.buoutputdir,str(self.runnumber)]
                 elif conf.role == "bu":
                     logging.info("starting elasticbu.py with arguments:"+self.dirname)
-                    elastic_args = ['/opt/hltd/python/elasticbu.py',self.dirname,conf.watch_directory,str(self.runnumber)]
+                    elastic_args = ['/opt/hltd/python/elasticbu.py',self.dirname,conf.watch_directory,self.buoutputdir,str(self.runnumber)]
                 else:
                     logging.info("starting elastic.py with arguments:"+self.dirname)
                     elastic_args = ['/opt/hltd/python/elastic.py',self.dirname,self.rawinputdir+'/mon',str(expected_processes),conf.elastic_cluster]
@@ -605,11 +627,12 @@ class Run:
                                                     preexec_fn=preexec_function,
                                                     close_fds=True
                                                     )
+                #start process to monitor that anelastic is alive
+                self. startAnelasticWatchdog()
             except OSError as ex:
-                logging.error("failed to start elasticsearch client:")
+                logging.fatal("failed to start anelastic.py client:")
                 logging.exception(ex)
-
-
+                sys.exit(1)
 
 
     def AcquireResource(self,resourcenames,fromstate):
@@ -655,6 +678,8 @@ class Run:
         cpu_group=[]
         #self.lock.acquire()
         for cpu in dirlist:
+            #skip self
+            if conf.role=='bu' and cpu == os.uname()[1]:continue
             count = count+1
             cpu_group.append(cpu)
             age = current_time - os.path.getmtime(idles+cpu)
@@ -675,9 +700,14 @@ class Run:
         for resource in self.online_resource_list:
             logging.info('start run '+str(self.runnumber)+' on cpu(s) '+str(resource.cpu))
             if conf.role == 'fu': self.StartOnResource(resource)
-            else: resource.NotifyNewRun(self.runnumber)
+            else:
+                resource.NotifyNewRun(self.runnumber)
+                #update begin time to after notifying FUs
+                self.beginTime = datetime.now()
         if conf.role == 'fu':
             self.changeMarkerMaybe(Run.ACTIVE)
+        else:
+            self.startCompletedChecker()
 
     def StartOnResource(self, resource):
         logging.debug("StartOnResource called")
@@ -698,7 +728,7 @@ class Run:
             os.makedirs(mondir)
         except OSError:
             pass
-        monfile = mondir+'hltd.jsn'
+        monfile = mondir+'/hltd.jsn'
 
         fp=None
         stat = []
@@ -778,6 +808,19 @@ class Run:
         except Exception as ex:
             logging.info("exception encountered in shutting down resources")
             logging.exception(ex)
+
+            global active_runs
+            for run_num in active_runs:
+                if run_num == self.runnumber:
+                    active_runs.remove(run_num)
+
+        try:
+            if conf.delete_run_dir is not None and conf.delete_run_dir == True:
+                shutil.rmtree(conf.watch_directory+'/run'+str(self.runnumber).zfill(conf.run_number_padding))
+            os.remove(conf.watch_directory+'/end'+str(self.runnumber).zfill(conf.run_number_padding))
+        except:
+            pass
+ 
         logging.info('Shutdown of run '+str(self.runnumber).zfill(conf.run_number_padding)+' completed')
 
     def StartWaitForEnd(self):
@@ -815,10 +858,18 @@ class Run:
                 self.anelastic_monitor.wait()
             if conf.use_elasticsearch == True:
                 self.elastic_monitor.wait()
+            if conf.delete_run_dir is not None and conf.delete_run_dir == True:
+                shutil.rmtree(dirname)
 
+            global active_runs
+            logging.info("active runs.."+str(active_runs))
+            for run_num  in active_runs:
+                if run_num == self.runnumber:
+                    active_runs.remove(run_num)
+ 
         except Exception as ex:
-            logging.info("exception encountered in ending run")
-            logging.info(ex)
+            logging.error("exception encountered in ending run")
+            logging.exception(ex)
 
     def changeMarkerMaybe(self,marker):
         dir = self.dirname
@@ -832,6 +883,45 @@ class Run:
                           +str(self.runnumber))
             return
 
+    def startAnelasticWatchdog(self):
+        try:
+            self.anelasticWatchdog = threading.Thread(target = self.runAnelasticWatchdog)
+            self.anelasticWatchdog.start()
+        except Exception as ex:
+            logging.info("exception encountered in starting anelastic watchdog thread")
+            logging.info(ex)
+
+    def runAnelasticWatchdog(self):
+        while True:
+            self.threadEvent.wait(5)
+            try:
+                os.kill(self.anelastic_monitor.pid,0)
+                if self.is_active_run == False:
+                    return
+            except:
+                if self.is_active_run == True:
+                    #abort the run
+                    self.Shutdown()
+                return
+
+    def stopAnelasticWatchdog(self):
+        self.threadEvent.set()
+        if self.anelasticWatchdog:
+            self.anelasticWatchdog.join()
+
+    def startCompletedChecker(self):
+        if conf.role == 'bu': #and conf.use_elasticsearch == True:
+            try:
+                logging.info('start checking completition of run '+str(self.runnumber))
+                #mode 1: check for complete entries in ES
+                #mode 2: check for runs in 'boxes' files
+                self.endChecker = RunCompletedChecker(1,int(self.runnumber),self.online_resource_list)
+                self.endChecker.start()
+            except Exception,ex:
+                logging.error('failure to start run completition checker:')
+                logging.exception(ex)
+
+ 
 
 class RunRanger:
 
@@ -930,22 +1020,6 @@ class RunRanger:
                               +' which is NOT a run number - this should '
                               +'*never* happen')
 
-        elif dirname.startswith('eor'):
-            #BU mode only
-            if conf.role == 'bu' and conf.use_elasticsearch == True and dirname[3:].isdigit():
-                os.remove(event.fullpath)
-                nr=int(dirname[3:])
-                if nr!=0:
-                    try:
-                        runtoend = filter(lambda x: x.runnumber==nr,run_list)
-                        if len(runtoend)==1:
-                            logging.info('start checking completition of run '+str(nr))
-                            runtoend[0].endChecker = RunCompletedChecker(nr,len(runtoend[0].online_resource_list))
-                            runtoend[0].endChecker.start()
-                    except Exception,ex:
-                        logging.error('failure to start run completition checker:')
-                        logging.exception(ex)
-
         elif dirname.startswith('herod') and conf.role == 'fu':
             os.remove(event.fullpath)
             logging.info("killing all child processes")
@@ -1025,15 +1099,15 @@ class ResourceRanger:
                               +' state '
                               +resourcestate
                               )
-                activeruns = filter(lambda x: x.is_active_run==True,run_list)
-                if activeruns:
-                    activerun = activeruns[0]
-                    logging.info("ResourceRanger: found active run "+str(activerun.runnumber))
+                ongoing_runs = filter(lambda x: x.is_active_run==True,run_list)
+                if ongoing_runs:
+                    ongoing_run = ongoing_runs[0]
+                    logging.info("ResourceRanger: found active run "+str(ongoing_run.runnumber))
                     """grab resources that become available
                     #@@EM implement threaded acquisition of resources here
                     """
                     #find all idle cores
-                    #activerun.lock.acquire()
+                    #ongoing_run.lock.acquire()
 
                     idlesdir = '/'+resourcepath
 		    try:
@@ -1065,17 +1139,17 @@ class ResourceRanger:
                     acquired_sufficient = False
                     if len(resourcenames) == nthreads:
                         acquired_sufficient = True
-                        res = activerun.AcquireResource(resourcenames,resourcestate)
-                    #activerun.lock.release()
+                        res = ongoing_run.AcquireResource(resourcenames,resourcestate)
+                    #ongoing_run.lock.release()
 
                     if acquired_sufficient:
                         logging.info("ResourceRanger: acquired resource(s) "+str(res.cpu))
-                        activerun.StartOnResource(res)
+                        ongoing_run.StartOnResource(res)
                         logging.info("ResourceRanger: started process on resource "
                                      +str(res.cpu))
                 else:
                     #if no run is active, move (x N threads) files from except to idle to be picked up for the next run
-                    #TODO:debug,write test
+                    #todo: debug,write test for this...
                     if resourcestate == 'except':
                         idlesdir = '/'+resourcepath
 		        try:

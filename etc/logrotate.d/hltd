@@ -7,9 +7,9 @@
         compress
 }
 /var/log/hltd/pid/*log {
-        copytruncate
         daily
         missingok
+        size 1G
         rotate 0
         maxage 7
 }

@@ -18,6 +18,7 @@ import Queue
 import json
 import logging
 import collections
+import subprocess
 
 from pyelasticsearch.client import ElasticSearch
 from pyelasticsearch.client import IndexAlreadyExistsError
@@ -510,7 +511,9 @@ class CMSSWLogCollector(object):
             if rn not in self.indices:
                 self.indices[rn] = CMSSWLogESWriter(rn)
                 self.indices[rn].start()
-                #self.deleteOldLogs()#not deleting for now
+                #clean old log files if size is excessive
+                if self.getDirSize(event.fullpath[:event.fullpath.rfind('/')])>33554432: #32G in kbytes
+                    self.deleteOldLogs()
             self.indices[rn].addParser(event.fullpath,pid)
 
         #cleanup
@@ -540,21 +543,38 @@ class CMSSWLogCollector(object):
             return None,None
 
  
-    def deleteOldLogs(self):
+    def deleteOldLogs(self,maxAgeHours=0):
 
         existing_cmsswlogs = os.listdir(self.dir)
         current_dt = datetime.datetime.now() 
         for file in existing_cmsswlogs:
            if file.startswith('old_'):
                try:
-                   file_dt = os.path.getmtime(file)
-                   if (current_dt - file_dt).totalHours > 48:
-                       #delete file if not modified for more than 4 days
+                   if maxAgeHours>0:
+                       file_dt = os.path.getmtime(file)
+                       if (current_dt - file_dt).totalHours > maxAgeHours:
+                           #delete file
+                           os.remove(file)
+                   else:
                        os.remove(file)
-               except:
+               except Exception,ex:
                    #maybe permissions were insufficient
+                   self.logger.error("could not delete log file")
+                   self.logger.exception(ex)
                    pass
 
+    def getDirSize(self,dir):
+        try:
+            p = subprocess.Popen("du -s " + str(dir), shell=True, stdout=subprocess.PIPE)
+            p.wait()
+            std_out=p.stdout.read()
+            out = std_out.split['\t'][0]
+            self.logger.info("size of directory "+str(dir)+" is "+str(out)+ " kB")
+            return int(out)
+        except Exception,ex:
+            self.logger.error("Could not check directory size")
+            self.logger.exception(ex)
+            return 0
 
 
 def signalHandler(p1,p2):

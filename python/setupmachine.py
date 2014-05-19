@@ -348,7 +348,7 @@ if True:
 
     cluster,type = getmachinetype()
     #override for daq2val!
-    if cluster == 'daq2val': cmsswloglevel =  'INFO'
+    #if cluster == 'daq2val': cmsswloglevel =  'INFO'
     cnhostname = os.uname()[1]+".cms"
 
     if cluster == 'daq2val':
@@ -468,6 +468,7 @@ if True:
       
           #get needed info here
           hltdcfg.reg('user',username,'[General]')
+          hltdcfg.reg('micromerge_output','/fff/output','[General]')
           hltdcfg.reg('elastic_runindex_url',sys.argv[2],'[Monitoring]')
           hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
           hltdcfg.removeEntry('watch_directory')

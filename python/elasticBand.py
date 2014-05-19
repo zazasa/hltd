@@ -160,6 +160,9 @@ class elasticBand():
                     'data' : { 'properties' : {
                             'in' : { 'type' : 'integer'},
                             'out': { 'type' : 'integer'},
+                            'errorEvents' : {'type' : 'integer'},
+                            'returnCodeMask': {'type':'string',"index" : "not_analyzed"},
+                            'fileSize' : {'type':'long'},
                             'files': {
                                 'properties' : {
                                     'name' : { 'type' : 'string',"index" : "not_analyzed"}
@@ -204,9 +207,9 @@ class elasticBand():
                     'enabled'   : True,
                     'store'     : "yes"
                 },
-                #'_ttl'       : { 'enabled' : True,
-                #              'default' :  '15d'} 
-                #},
+                '_ttl'       : { 'enabled' : True,
+                              'default' :  '30d'}
+                ,
                 'properties' : {
                     'host'      : {'type' : 'string'},
                     'pid'       : {'type' : 'integer'},
@@ -243,8 +246,12 @@ class elasticBand():
 
     def imbue_jsn(self,infile):
         with open(infile.filepath,'r') as fp:
-            document = json.load(fp)
-            return document
+            try:
+                document = json.load(fp)
+            except json.scanner.JSONDecodeError,ex:
+                logger.exception(ex)
+                return None,-1
+            return document,0
 
     def imbue_csv(self,infile):
         with open(infile.filepath,'r') as fp:
@@ -277,7 +284,8 @@ class elasticBand():
             self.flushMonBuffer()
 
     def elasticize_prc_sstate(self,infile):
-        document = self.imbue_jsn(infile)
+        document,ret = self.imbue_jsn(infile)
+        if ret<0:return
         datadict = {}
         datadict['ls'] = int(infile.ls[2:])
         datadict['process'] = infile.pid
@@ -299,13 +307,14 @@ class elasticBand():
         self.es.index(self.indexName,'prc-s-state',datadict)
 
     def elasticize_prc_out(self,infile):
-        document = self.imbue_jsn(infile)
+        document,ret = self.imbue_jsn(infile)
+        if ret<0:return
         run=infile.run
         ls=infile.ls
         stream=infile.stream
 
         values = [int(f) if f.isdigit() else str(f) for f in document['data']]
-        keys = ["in","out","errorEvents","ReturnCodeMask","Filelist","InputFiles"]
+        keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","test"]
         datadict = dict(zip(keys, values))
 
         document['data']=datadict
@@ -317,14 +326,16 @@ class elasticBand():
 
     def elasticize_fu_out(self,infile):
         
-        document = self.imbue_jsn(infile)
+        document,ret = self.imbue_jsn(infile)
+        if ret<0:return
         run=infile.run
         ls=infile.ls
         stream=infile.stream
 
         values= [int(f) if f.isdigit() else str(f) for f in document['data']]
-        keys = ["in","out","errorEvents","ReturnCodeMask","Filelist","InputFiles"]
+        keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","test"]
         datadict = dict(zip(keys, values))
+
         
         document['data']=datadict
         document['ls']=int(ls[2:])
@@ -334,7 +345,8 @@ class elasticBand():
         #return int(ls[2:])
 
     def elasticize_prc_in(self,infile):
-        document = self.imbue_jsn(infile)
+        document,ret = self.imbue_jsn(infile)
+        if ret<0:return
         ls=infile.ls
         index=infile.index
         prc=infile.pid

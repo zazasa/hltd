@@ -112,6 +112,8 @@ class LumiSectionRanger():
                 self.processCRASHfile()
             elif filetype == EOR:
                 self.processEORFile()
+        elif eventtype & inotify.IN_MOVED_TO:
+           if filetype == JSD and not self.jsdfile: self.jsdfile=self.infile.filepath
     
     def processCRASHfile(self):
         #send CRASHfile to every LSHandler
@@ -250,13 +252,16 @@ class LumiSectionHandler():
             self.totalFiles+=1
             
             #update pidlist
-            if pid not in self.pidList: self.pidList[pid] = {"numEvents": 0, "streamList": []}
+            if pid not in self.pidList:
+                self.pidList[pid] = {"numEvents": 0, "streamList": [], "indexFileList" : []}
             self.pidList[pid]["numEvents"]+=numEvents
+            self.pidList[pid]["indexFileList"].append(infile)
 
             if infile not in self.indexfileList:
                 self.indexfileList.append(infile)
                 infile.esCopy()
             return True
+        #else: TODO:delete raw file in ramdisk if we receive malformed index (process probably crashed while writing it)
         return False
  
     def processCRASHFile(self):
@@ -280,7 +285,14 @@ class LumiSectionHandler():
             if outfile.stream in streamDiff:
                 outfile.merge(file2merge)
 
-        #error stream
+        #error stream handling - the crashed pid took one or more index files for this lumi but did not
+        #finish writing all streams
+        #index files will be moved to area for error stream salvage on BU
+        #
+        #if len(streamDiff)>0:
+        #    for f in self.pidList[pid]["indexFileList"]: f.moveFile(destinationPath)
+
+        #remove
         #pidFileList = []
         #for file in self.indexfileList.append(infile):
         #    pidstr = '_pid'+str(pid).zfill(5)
@@ -380,7 +392,7 @@ if __name__ == "__main__":
     watchDir = os.path.join(conf.watch_directory,dirname)
     outputDir = conf.micromerge_output
 
-    mask = inotify.IN_CLOSE_WRITE   # watched events
+    mask = inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO  # watched events
     logger.info("starting anelastic for "+dirname)
     mr = None
     try:

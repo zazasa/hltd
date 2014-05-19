@@ -164,6 +164,9 @@ class fileHandler(object):
         except StandardError,e:
             self.logger.exception(e)
             data = {}
+        except json.scanner.JSONDecodeError,e:
+            self.logger.exception(e)
+            data = None
         return data
 
     def setJsdfile(self,jsdfile):
