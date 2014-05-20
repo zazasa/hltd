@@ -21,18 +21,20 @@ from aUtils import *
 
 class LumiSectionRanger():
     host = os.uname()[1]        
-    def __init__(self,tempdir,outdir):
+    def __init__(self,tempdir,outdir,run_number):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.stoprequest = threading.Event()
         self.emptyQueue = threading.Event()  
         self.firstStream = threading.Event()  
         self.LSHandlerList = {}  # {(run,ls): LumiSectionHandler()}
         self.activeStreams = [] # updated by the ini files
+        self.streamCounters = {} # extended by ini files, updated by the lumi handlers
         self.source = None
         self.eventtype = None
         self.infile = None
         self.EOR = None  #EORfile Object
         self.complete = None  #complete file Object
+        self.run_number = run_number 
         self.outdir = outdir
         self.tempdir = tempdir
         self.jsdfile = None
@@ -78,6 +80,9 @@ class LumiSectionRanger():
             self.logger.error('not all lumisections were closed on exit!')
 
         self.complete.esCopy()
+        #generate and move EoR completition file
+        self.createOutputEoR()
+
         self.logger.info("Stop main loop")
 
     def flushBuffer(self):
@@ -104,7 +109,7 @@ class LumiSectionRanger():
                 run,ls = (self.infile.run,self.infile.ls)
                 key = (run,ls)
                 if key not in self.LSHandlerList:
-                    self.LSHandlerList[key] = LumiSectionHandler(run,ls,self.activeStreams,self.tempdir,self.outdir,self.jsdfile)
+                    self.LSHandlerList[key] = LumiSectionHandler(run,ls,self.activeStreams,self.streamCounters,self.tempdir,self.outdir,self.jsdfile)
                 self.LSHandlerList[key].processFile(self.infile)
                 if self.LSHandlerList[key].closed.isSet():
                     self.LSHandlerList.pop(key,None)
@@ -137,7 +142,9 @@ class LumiSectionRanger():
         remotefilepath = os.path.join(self.outdir,run,filename)
             #check and move/delete ini file
         if not os.path.exists(localfilepath):
-            if stream not in self.activeStreams: self.activeStreams.append(stream)
+            if stream not in self.activeStreams:
+                self.activeStreams.append(stream)
+                self.streamCounters[stream]=0
             self.infile.moveFile(newpath = localfilepath)
             self.infile.moveFile(newpath = remotefilepath,copy = True)
         else:
@@ -164,14 +171,39 @@ class LumiSectionRanger():
                 return False
         return True
 
+    def createOutputEoR(self):
+
+        #make json and moveFile
+        totalCount=-1
+        #namePrefix = "/run"+str(self.run_number).zfill(conf.run_number_padding)+"_ls0000_"
+        eorname = 'run'+self.run_number.zfill(conf.run_number_padding)+"_ls0000_EoR_"+os.uname()[1]+".jsn"
+        runname = 'run'+self.run_number.zfill(conf.run_number_padding)
+        srcName = os.path.join(conf.watch_directory,runname,eorname)
+        destName = os.path.join(conf.micromerge_output,runname,eorname)
+        document = {"data":[str(0)]}
+
+        for stream in self.streamCounters.keys():
+            document = {"data":[str(self.streamCounters[stream])]}
+            break
+        try:
+            with open(srcName,"w") as fi:
+                json.dump(document,fi)
+        except: logging.exception("unable to create %r" %srcName)
+
+        f = fileHandler(srcName)
+        f.moveFile(destName)
+        self.logger.info('created local EoR file for '+stream)
+
+
 
 class LumiSectionHandler():
     host = os.uname()[1]
-    def __init__(self,run,ls,activeStreams,tempdir,outdir,jsdfile):
+    def __init__(self,run,ls,activeStreams,streamCounters,tempdir,outdir,jsdfile):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.info(ls)
 
         self.activeStreams = activeStreams      
+        self.streamCounters = streamCounters
         self.ls = ls
         self.run = run
         self.outdir = outdir
@@ -332,7 +364,20 @@ class LumiSectionHandler():
             stream = outfile.stream
             processed = outfile.getFieldByName("Processed")+outfile.getFieldByName("ErrorEvents")
             if processed == self.totalEvent:
+                self.streamCounters[stream]+=processed
                 self.logger.info("%r,%r complete" %(self.ls,outfile.stream))
+
+                #create BoLS file in output dir
+                bols_file = str(self.run)+"_"+str(self.ls).zfill(4)+"_"+stream+"_BoLS.jsn"
+                bols_path =  os.path.join(self.outdir,self.run,bols_file)
+                try:
+                    open(bols_path,'a').close()
+                except:
+                    time.sleep(0.1)
+                    try:open(bols_path,'a').close()
+                    except:
+                        self.logger.warning('unable to create BoLS file for ls ', self.ls)
+                logger.info("bols file "+ str(bols_path) + " is created in the output")
 
                 #move all dat files in rundir
                 datfilelist = self.datfileList[:]
@@ -388,6 +433,7 @@ if __name__ == "__main__":
     eventQueue = Queue.Queue()
     
     dirname = sys.argv[1]
+    run_number = sys.argv[2]
     dirname = os.path.basename(os.path.normpath(dirname))
     watchDir = os.path.join(conf.watch_directory,dirname)
     outputDir = conf.micromerge_output
@@ -404,7 +450,7 @@ if __name__ == "__main__":
         mr.start_inotify()
 
         #starting lsRanger thread
-        ls = LumiSectionRanger(watchDir,outputDir)
+        ls = LumiSectionRanger(watchDir,outputDir,run_number)
         ls.setSource(eventQueue)
         ls.start()
 

@@ -48,8 +48,6 @@ class hltdConf:
                     sline = line.strip()
                     if line.startswith("cluster.name"):
                         self.elastic_cluster = line.split(':')[1].strip()
-        if not self.elastic_cluster and self.use_elasticsearch == True and self.role != 'bu':
-            logging.error("elasticsearch cluster name missing!")
       
     def dump(self):
         logging.info( 'self.exec_directory '+self.exec_directory)
