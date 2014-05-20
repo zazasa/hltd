@@ -627,8 +627,6 @@ class Run:
                                                     preexec_fn=preexec_function,
                                                     close_fds=True
                                                     )
-                #start process to monitor that anelastic is alive
-                self. startAnelasticWatchdog()
             except OSError as ex:
                 logging.fatal("failed to start anelastic.py client:")
                 logging.exception(ex)
@@ -699,13 +697,16 @@ class Run:
         self.is_active_run = True
         for resource in self.online_resource_list:
             logging.info('start run '+str(self.runnumber)+' on cpu(s) '+str(resource.cpu))
-            if conf.role == 'fu': self.StartOnResource(resource)
+            if conf.role == 'fu':
+                self.StartOnResource(resource)
             else:
                 resource.NotifyNewRun(self.runnumber)
                 #update begin time to after notifying FUs
                 self.beginTime = datetime.now()
         if conf.role == 'fu':
             self.changeMarkerMaybe(Run.ACTIVE)
+            #start safeguard monitoring of anelastic.py
+            self.startAnelasticWatchdog()
         else:
             self.startCompletedChecker()
 
@@ -794,8 +795,8 @@ class Run:
                 if self.anelastic_monitor:
                     self.anelastic_monitor.terminate()
             except Exception as ex:
-                logging.info("exception encountered in shutting down anelastic.py")
-                logging.exception(ex)
+                logging.info("exception encountered in shutting down anelastic.py "+ str(ex))
+                #logging.exception(ex)
             if conf.use_elasticsearch == True:
                 try:
                     if self.elastic_monitor:
@@ -855,7 +856,11 @@ class Run:
                 try:
                     os.remove(conf.watch_directory+'/end'+str(self.runnumber).zfill(conf.run_number_padding))
                 except:pass
-                self.anelastic_monitor.wait()
+                try:
+                    self.anelastic_monitor.wait()
+                except OSError,ex:
+                    logging.info("Exception encountered in waiting for termination of anelastic:" +str(ex))
+                     
             if conf.use_elasticsearch == True:
                 self.elastic_monitor.wait()
             if conf.delete_run_dir is not None and conf.delete_run_dir == True:
@@ -892,17 +897,15 @@ class Run:
             logging.info(ex)
 
     def runAnelasticWatchdog(self):
-        while True:
-            self.threadEvent.wait(5)
-            try:
-                os.kill(self.anelastic_monitor.pid,0)
-                if self.is_active_run == False:
-                    return
-            except:
-                if self.is_active_run == True:
-                    #abort the run
-                    self.Shutdown()
-                return
+        try:
+            self.anelastic_monitor.wait()
+            if self.is_active_run == True:
+                #abort the run
+                self.anelasticWatchdog=None
+                logging.fatal("Premature end of anelastic.py")
+                self.Shutdown()
+        except:
+            pass
 
     def stopAnelasticWatchdog(self):
         self.threadEvent.set()
