@@ -40,8 +40,9 @@ nthreads = None
 expected_processes = None
 run_list=[]
 bu_disk_list=[]
-
 active_runs=[]
+dqm_free_configs = conf.dqm_config_files+'/free/'
+dqm_used_configs = conf.dqm_config_files+'/used/'
 
 logging.basicConfig(filename=os.path.join(conf.log_dir,"hltd.log"),
                     level=conf.service_log_level,
@@ -67,6 +68,9 @@ def cleanup_resources():
     dirlist = os.listdir(quarantined)
     for cpu in dirlist:
         os.rename(quarantined+cpu,idles+cpu)
+    dqm_configs = os.listdir(dqm_used_configs)
+    for dqm_config in dqm_configs:
+        os.rename(dqm_used_configs+dqm_config,dqm_free_configs+dqm_config)
 
 def cleanup_mountpoints():
     bu_disk_list[:] = []
@@ -296,9 +300,10 @@ bu_emulator=BUEmu()
 
 class OnlineResource:
 
-    def __init__(self,resourcenames,lock):
+    def __init__(self,resourcenames,lock,dqmconfig=None):
         self.hoststate = 0 #@@MO what is this used for?
         self.cpu = resourcenames
+        self.dqm_config = dqmconfig
         self.process = None
         self.processstate = None
         self.watchdog = None
@@ -346,16 +351,22 @@ class OnlineResource:
 
         logging.info("starting process with "+version+" and run number "+str(runnumber))
 
-        new_run_args = [conf.cmssw_script_location+'/startRun.sh',
-                        conf.cmssw_base,
-                        arch,
-                        version,
-                        conf.exec_directory,
-                        menu,
-                        str(runnumber),
-                        input_disk,
-                        conf.watch_directory,
-                        str(num_threads)]
+        if not self.dqm_config:
+            new_run_args = [conf.cmssw_script_location+'/startRun.sh',
+                            conf.cmssw_base,
+                            arch,
+                            version,
+                            conf.exec_directory,
+                            menu,
+                            str(runnumber),
+                            input_disk,
+                            conf.watch_directory,
+                            str(num_threads)]
+        else: # a dqm machine
+            new_run_args = [conf.cmssw_script_location+'/startDqmRun.sh',
+                            dqm_used_configs+self.dqm_config,
+                            str(runnumber)
+                            ]
         logging.info("arg array "+str(new_run_args).translate(None, "'"))
         try:
 #            dem = demote.demote(conf.user)
@@ -516,6 +527,11 @@ class ProcessWatchdog(threading.Thread):
                 # move back the resource now that it's safe since the run is marked as ended
                 for cpu in self.resource.cpu:
                   os.rename(used+cpu,idles+cpu)
+
+                # free the dqm config file in case of a dqm machine
+                dqm_config = self.resource.dqm_config
+                if dqm_config: os.rename(dqm_used_configs+dqm_config,dqm_free_configs+dqm_config)
+
                 #self.resource.process=None
 
             #        logging.info('exiting thread '+str(self.resource.process.pid))
@@ -633,19 +649,22 @@ class Run:
                 sys.exit(1)
 
 
-    def AcquireResource(self,resourcenames,fromstate):
+    def AcquireResource(self,resourcenames,fromstate, dqmconfig=None):
         idles = conf.resource_base+'/'+fromstate+'/'
         try:
             logging.debug("Trying to acquire resource "
                           +str(resourcenames)
                           +" from "+fromstate)
 
+            # mark the dqm config file as used
+            if dqmconfig: os.rename(dqm_free_configs+dqmconfig,dqm_used_configs+dqmconfig)
+
             for resourcename in resourcenames:
               os.rename(idles+resourcename,used+resourcename)
             if not filter(lambda x: x.cpu==resourcenames,self.online_resource_list):
                 logging.debug("resource(s) "+str(resourcenames)
                               +" not found in online_resource_list, creating new")
-                self.online_resource_list.append(OnlineResource(resourcenames,self.lock))#
+                self.online_resource_list.append(OnlineResource(resourcenames,self.lock,dqmconfig))#
                 return self.online_resource_list[-1]
             logging.debug("resource(s) "+str(resourcenames)
                           +" found in online_resource_list")
@@ -675,22 +694,28 @@ class Run:
         count = 0
         cpu_group=[]
         #self.lock.acquire()
+
+        if conf.dqm_machine: # get the dqm config file in case of a dqm machine
+            dqm_configs = os.listdir(dqm_free_configs)
+
         for cpu in dirlist:
             #skip self
             if conf.role=='bu' and cpu == os.uname()[1]:continue
-            count = count+1
-            cpu_group.append(cpu)
-            age = current_time - os.path.getmtime(idles+cpu)
-            logging.info("found resource "+cpu+" which is "+str(age)+" seconds old")
-            if conf.role == 'fu':
-                if count == nthreads:
-                  self.AcquireResource(cpu_group,'idle')
-                  cpu_group=[]
-                  count=0
-            else:
-                if age < 10:
-                    cpus = [cpu]
-                    self.ContactResource(cpus)
+            if not conf.dqm_machine or dqm_configs:
+                count = count+1
+                cpu_group.append(cpu)
+                age = current_time - os.path.getmtime(idles+cpu)
+                logging.info("found resource "+cpu+" which is "+str(age)+" seconds old")
+                if conf.role == 'fu':
+                    if count == nthreads:
+                      dqm_config = dqm_configs.pop(0) if conf.dqm_machine else None
+                      self.AcquireResource(cpu_group,'idle', dqm_config)
+                      cpu_group=[]
+                      count=0
+                else:
+                    if age < 10:
+                        cpus = [cpu]
+                        self.ContactResource(cpus)
         #self.lock.release()
 
     def Start(self):
@@ -791,6 +816,7 @@ class Run:
                             pass
 
             self.online_resource_list = []
+            self.releaseDqmConfigs()
             try:
                 if self.anelastic_monitor:
                     self.anelastic_monitor.terminate()
@@ -923,8 +949,11 @@ class Run:
             except Exception,ex:
                 logging.error('failure to start run completition checker:')
                 logging.exception(ex)
-
  
+    def releaseDqmConfigs(self):
+        dqm_configs = os.listdir(dqm_used_configs)
+        for dqm_config in dqm_configs:
+            os.rename(dqm_used_configs+dqm_config,dqm_free_configs+dqm_config)
 
 class RunRanger:
 
