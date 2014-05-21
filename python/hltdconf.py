@@ -27,6 +27,9 @@ class hltdConf:
         self.run_number_padding = int(self.run_number_padding)
         self.use_elasticsearch = bool(self.use_elasticsearch=="True")
         self.cgi_port = int(self.cgi_port)
+
+        self.dqm_machine = bool(self.dqm_machine=="True")
+
         self.process_restart_delay_sec = float(self.process_restart_delay_sec)
         self.process_restart_limit = int(self.process_restart_limit)
         self.cmssw_threads_autosplit = int(self.cmssw_threads_autosplit)
