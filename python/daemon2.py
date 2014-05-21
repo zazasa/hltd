@@ -170,9 +170,9 @@ class Daemon2:
             #C: not very elegant but it works
             while 1:
                 if timeout <=0.:
-                  sys.stdout.write("terminating with -9...")
+                  sys.stdout.write("\nterminating with -9...")
                   os.kill(pid,9)
-                  sys.stdout.write("terminated after 5 seconds")
+                  sys.stdout.write("\nterminated after 5 seconds\n")
                   time.sleep(0.5)
                 os.kill(pid,0)
                 sys.stdout.write('.')

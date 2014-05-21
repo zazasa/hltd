@@ -25,6 +25,7 @@ class hltdConf:
                 self.__dict__[item] = value
 
         self.run_number_padding = int(self.run_number_padding)
+        self.delete_run_dir = bool(self.delete_run_dir=="True")
         self.use_elasticsearch = bool(self.use_elasticsearch=="True")
         self.cgi_port = int(self.cgi_port)
         self.process_restart_delay_sec = float(self.process_restart_delay_sec)
@@ -47,17 +48,12 @@ class hltdConf:
                     sline = line.strip()
                     if line.startswith("cluster.name"):
                         self.elastic_cluster = line.split(':')[1].strip()
-        if not self.elastic_cluster and self.use_elasticsearch == True and self.role != 'bu':
-            logging.error("elasticsearch cluster name missing!")
       
     def dump(self):
         logging.info( 'self.exec_directory '+self.exec_directory)
         logging.info( 'self.user '+self.user)
         if conf.watch_directory:
             logging.info( 'self.watch_directory '+ self.watch_directory)
-        logging.info( 'self.watch_prefix '+ self.watch_prefix)
-        logging.info( 'self.watch_emu_prefix '+ self.watch_emu_prefix)
-        logging.info( 'self.watch_end_prefix '+ self.watch_end_prefix)
         logging.info( 'self.bu_base_dir '+ self.bu_base_dir)
         logging.info( 'self.mount_command '+ self.mount_command)
 #        logging.info( 'self.role '+ self.role)

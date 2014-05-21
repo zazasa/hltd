@@ -7,12 +7,12 @@ BASEDIR=$PWD
 if [ -f $SCRIPTDIR/paramcache ];
 then
   readarray lines < $SCRIPTDIR/paramcache
-  for (( i=0; i < 10; i++ ))
+  for (( i=0; i < 11; i++ ))
   do
     lines[$i]=`echo -n ${lines[$i]} | tr -d "\n"`
   done
 else
-  for (( i=0; i < 10; i++ ))
+  for (( i=0; i < 11; i++ ))
   do
     lines[$i]=""
   done
@@ -80,15 +80,25 @@ if [ ${#readin} != "0" ]; then
 lines[8]=$readin
 fi
 
-echo "number of threads per process (press enter for: \"${lines[9]}\"):"
+echo "number of threads per process (press enter for: ${lines[9]}):"
 readin=""
 read readin
 if [ ${#readin} != "0" ]; then
 lines[9]=$readin
 fi
 
+
+echo "CMSSW log collection level (DEBUG,INFO,WARNING,ERROR or FATAL) (press enter for: ${lines[10]}):"
+readin=""
+read readin
+if [ ${#readin} != "0" ]; then
+lines[10]=$readin
+fi
+
+
+
 params=""
-for (( i=0; i < 10; i++ ))
+for (( i=0; i < 11; i++ ))
 do
   params="$params ${lines[i]}"
 done
@@ -98,7 +108,7 @@ if [ -f $SCRIPTDIR/paramcache ];
 then
 rm -rf -f $SCRIPTDIR/paramcache
 fi
-for (( i=0; i < 10; i++ ))
+for (( i=0; i < 11; i++ ))
 do
   echo ${lines[$i]} >> $SCRIPTDIR/paramcache
 done
@@ -122,8 +132,8 @@ cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > fffmeta.spec <<EOF
 Name: fffmeta
-Version: 1.3.1
-Release: 0
+Version: 1.3.2
+Release: 2
 Summary: hlt daemon
 License: gpl
 Group: Hacks
@@ -132,7 +142,7 @@ Source: none
 %define _topdir $TOPDIR
 BuildArch: $BUILD_ARCH
 AutoReqProv: no
-Requires:elasticsearch >= 1.0.2, hltd >= 1.3.1, cx_Oracle >= 5.1.2
+Requires:elasticsearch >= 1.0.2, hltd >= 1.3.2, cx_Oracle >= 5.1.2
 
 Provides:/opt/fff/configurefff.sh
 Provides:/opt/fff/setupmachine.py

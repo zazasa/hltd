@@ -65,9 +65,9 @@ class elasticCollector():
             elif self.esDirName in infile.dir:
                 if filetype in [INDEX,STREAM,OUTPUT]:self.elasticize()
                 elif filetype in [EOLS]:self.elasticizeLS()
-                elif filetype in [EOR]: 
+                elif filetype in [COMPLETE]:
+                    self.elasticize()
                     self.stop()
-                    self.infile.deleteFile()
             elif filetype in [MODULELEGEND] and self.movedModuleLegend == False:
                 try:
                     if not os.path.exists(self.inputMonDir+'/microstatelegend.leg'):
@@ -95,7 +95,7 @@ class elasticCollector():
                 self.logger.debug(name+" going into prc-istate")
             elif filetype == SLOW: 
                 es.elasticize_prc_sstate(infile)      
-                self.logger.debug(name+" going into prc-sstate")     
+                self.logger.debug(name+" going into prc-sstate")
                 self.infile.deleteFile()  
             elif filetype == INDEX: 
                 self.logger.info(name+" going into prc-in")
@@ -109,6 +109,13 @@ class elasticCollector():
                 self.logger.info(name+" going into fu-out")
                 es.elasticize_fu_out(infile)
                 self.infile.deleteFile()
+            elif filetype == COMPLETE:
+                self.logger.info(name+" going into fu-complete")
+                dt=os.path.getctime(infile.filepath)
+                completed = datetime.datetime.utcfromtimestamp(dt).isoformat()
+                es.elasticize_fu_complete(completed)
+                self.infile.deleteFile()
+                self.stop()
 
     def elasticizeLS(self):
         ls = self.infile.ls

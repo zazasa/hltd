@@ -29,20 +29,20 @@ class elasticBand():
                     "prefix-test-analyzer": {
                         "type": "custom",
                         "tokenizer": "prefix-test-tokenizer"
-                        }
-                    },
+                    }
+                },
                 "tokenizer": {
                     "prefix-test-tokenizer": {
                         "type": "path_hierarchy",
                         "delimiter": "_"
-                        }
                     }
-             },
+                }
+            },
             "index":{
                 'number_of_shards' : 16,
                 'number_of_replicas' : 1
-                }
             }
+        }
 
         self.run_mapping = {
             'prc-i-state' : {
@@ -54,15 +54,16 @@ class elasticBand():
                     'lead'      : {'type' : 'double' },
                     'nfiles'    : {'type' : 'integer'},
                     'fm_date'   : {'type' : 'date'   }
-                    },
+                },
                 '_timestamp' : { 
                     'enabled'   : True,
                     'store'     : "yes",
                     "path"      : "fm_date"
-                    },
-                '_ttl'       : { 'enabled' : True,                             
-                                 'default' :  '5m'} 
                 },
+                '_ttl'       : { 'enabled' : True,                             
+                                 'default' :  '5m'
+                } 
+            },
             'prc-s-state' : {
                 'properties' : {
                     'macro'  : {'type' : 'integer'},
@@ -73,8 +74,8 @@ class elasticBand():
                     'nfiles' : {'type' : 'integer'},            
                     'ls'     : {'type' : 'integer'},
                     'process': {'type' : 'string'}
-                    },
                 },
+            },
             'fu-s-state' : {
                 'properties' : {
                     'macro'  : {'type' : 'integer'},
@@ -85,25 +86,25 @@ class elasticBand():
                     'nfiles' : {'type' : 'integer'},            
                     'ls'     : {'type' : 'integer'},
                     'machine': {'type' : 'string'}
-                    }
-                },
+                }
+            },
             'prc-out': {
                 '_routing' :{
                     'required' : True,
                     'path'     : 'source'
-                    },
+                },
                 'properties' : {
-                    'definition': {'type': 'string'},
+                    #'definition': {'type': 'string'},
                     'data' : { 'properties' : {
                             'in' : { 'type' : 'integer'},
                             'out': { 'type' : 'integer'},
-                            'file': { 'type' : 'string'}
+                            'file': { 'type' : 'string','index' : 'not_analyzed'}
                             }           
-                               },
+                    },
                     'ls' : { 
                         'type' : 'integer',
                         'store': "yes"
-                        },
+                    },
                     'stream' : {'type' : 'string'},
                     'source' : {
                         'type' : 'string',
@@ -111,28 +112,28 @@ class elasticBand():
                         'search_analyzer': "keyword",
                         'store' : "yes",
                         'index' : "analyzed"
-                        }
-                    },
+                    }
+                },
                 '_timestamp' : { 
                     'enabled' : True,
                     'store'   : "yes"
-                     }
-                },
+                }
+            },
             'prc-in': {
                 '_routing' :{
                     'required' : True,
                     'path'     : 'dest'
-                    },
+                },
                 'properties' : {
-                    'definition': {'type': 'string'},
+                    #'definition': {'type': 'string',"index" : "not_analyzed"},
                     'data' : { 'properties' : {
                             'out'    : { 'type' : 'integer'}
                             }
-                               },
+                    },
                     'ls'     : { 
                         'type' : 'integer',
-                        'store': "yes"
-                        },
+                        'store': 'yes'
+                    },
                     'index'  : { 'type' : 'integer' },
                     'source' : { 'type' : 'string'  },
                     'dest' : {
@@ -143,51 +144,95 @@ class elasticBand():
                         'index' : "analyzed",
                         },
                     'process' : { 'type' : 'integer' }
-                    },
+                },
                 '_timestamp' : { 
                     'enabled' : True,
                     'store'   : "yes"
-                    }
-                },
+                }
+            },
             'fu-out': {
                 '_routing' :{
                     'required' : True,
                     'path'     : 'source'
-                    },
+                },
                 'properties' : {
-                    'definition': {'type': 'string'},
+                    #'definition': {'type': 'string',"index" : "not_analyzed"},
                     'data' : { 'properties' : {
                             'in' : { 'type' : 'integer'},
                             'out': { 'type' : 'integer'},
+                            'errorEvents' : {'type' : 'integer'},
+                            'returnCodeMask': {'type':'string',"index" : "not_analyzed"},
+                            'fileSize' : {'type':'long'},
                             'files': {
                                 'properties' : {
-                                    'name' : { 'type' : 'string'}
+                                    'name' : { 'type' : 'string',"index" : "not_analyzed"}
                                     }
                                 }
-                            }
-                               },
+                             }
+                    },
                     'ls' : { 'type' : 'integer' },
-                    'stream' : {'type' : 'string'},
+                    'stream' : {'type' : 'string'},#,"index" : "not_analyzed"},
                     'source' : {
                         'type' : 'string',
                         'index_analyzer': 'prefix-test-analyzer',
                         'search_analyzer': "keyword"
-                        }
-                    },
+                    }
+                },
                 '_timestamp' : { 
                     'enabled' : True,
                     'store'   : "yes"
-                    }
+                }
+            },
+            'fu-complete' : {
+                'properties' : {
+                    'host'     : {'type' : 'string'},
+                    'fm_date'   : {'type' : 'date' }
                 },
+                '_timestamp' : { 
+                    'enabled'   : True,
+                    'store'     : "yes",
+                    "path"      : "fm_date"
+                },
+            },
             'bu-out': {
                 'properties' : {
-                    'definition': {'type': 'string'},
+                    #'definition': {'type': 'string',"index" : "not_analyzed"},
                     'out': { 'type' : 'integer'},
                     'ls' : { 'type' : 'integer' },
-                    'source' : {'type' : 'string'}
-                    }
+                    'source' : {'type' : 'string'}#,"index" : "not_analyzed"}
                 }
+            },
+            'cmsswlog' : {
+                '_timestamp' : { 
+                    'enabled'   : True,
+                    'store'     : "yes"
+                },
+                '_ttl'       : { 'enabled' : True,
+                              'default' :  '30d'}
+                ,
+                'properties' : {
+                    'host'      : {'type' : 'string'},
+                    'pid'       : {'type' : 'integer'},
+                    'type'      : {'type' : 'string',"index" : "not_analyzed"},
+                    'severity'  : {'type' : 'string',"index" : "not_analyzed"},
+                    'severityVal'  : {'type' : 'integer'},
+                    'category'  : {'type' : 'string'},
+
+                    'fwkState'     : {'type' : 'string',"index" : "not_analyzed"},
+                    'module'     : {'type' : 'string',"index" : "not_analyzed"},
+                    'moduleInstance'     : {'type' : 'string',"index" : "not_analyzed"},
+                    'moduleCall'     : {'type' : 'string',"index" : "not_analyzed"},
+                    'lumi'     : {'type' : 'integer'},
+                    'eventInPrc'     : {'type' : 'long'},
+
+                    'message'   : {'type' : 'string'},#,"index" : "not_analyzed"},
+                    'lexicalId' : {'type' : 'string',"index" : "not_analyzed"},
+                    'msgtime' : {'type' : 'date','format':'dd-MMM-YYYY HH:mm:ss'},
+                    'msgtimezone' : {'type' : 'string'}
+                    #'context'   : {'type' : 'string'}
+                 }
             }
+        }
         self.run = runstring
         self.monBufferSize = monBufferSize
         self.fastUpdateModulo = fastUpdateModulo
@@ -201,8 +246,12 @@ class elasticBand():
 
     def imbue_jsn(self,infile):
         with open(infile.filepath,'r') as fp:
-            document = json.load(fp)
-            return document
+            try:
+                document = json.load(fp)
+            except json.scanner.JSONDecodeError,ex:
+                logger.exception(ex)
+                return None,-1
+            return document,0
 
     def imbue_csv(self,infile):
         with open(infile.filepath,'r') as fp:
@@ -235,7 +284,8 @@ class elasticBand():
             self.flushMonBuffer()
 
     def elasticize_prc_sstate(self,infile):
-        document = self.imbue_jsn(infile)
+        document,ret = self.imbue_jsn(infile)
+        if ret<0:return
         datadict = {}
         datadict['ls'] = int(infile.ls[2:])
         datadict['process'] = infile.pid
@@ -257,13 +307,14 @@ class elasticBand():
         self.es.index(self.indexName,'prc-s-state',datadict)
 
     def elasticize_prc_out(self,infile):
-        document = self.imbue_jsn(infile)
+        document,ret = self.imbue_jsn(infile)
+        if ret<0:return
         run=infile.run
         ls=infile.ls
         stream=infile.stream
 
         values = [int(f) if f.isdigit() else str(f) for f in document['data']]
-        keys = ["in","out","errorEvents","ReturnCodeMask","Filelist","InputFiles"]
+        keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","test"]
         datadict = dict(zip(keys, values))
 
         document['data']=datadict
@@ -275,14 +326,16 @@ class elasticBand():
 
     def elasticize_fu_out(self,infile):
         
-        document = self.imbue_jsn(infile)
+        document,ret = self.imbue_jsn(infile)
+        if ret<0:return
         run=infile.run
         ls=infile.ls
         stream=infile.stream
 
         values= [int(f) if f.isdigit() else str(f) for f in document['data']]
-        keys = ["in","out","errorEvents","ReturnCodeMask","Filelist","InputFiles"]
+        keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","test"]
         datadict = dict(zip(keys, values))
+
         
         document['data']=datadict
         document['ls']=int(ls[2:])
@@ -292,7 +345,8 @@ class elasticBand():
         #return int(ls[2:])
 
     def elasticize_prc_in(self,infile):
-        document = self.imbue_jsn(infile)
+        document,ret = self.imbue_jsn(infile)
+        if ret<0:return
         ls=infile.ls
         index=infile.index
         prc=infile.pid
@@ -308,6 +362,12 @@ class elasticBand():
         #self.es.index(self.indexName,'prc-in',document)
         #os.remove(path+'/'+file)
         #return int(ls[2:])
+
+    def elasticize_fu_complete(self,timestamp):
+        document = {}
+        document['host']=os.uname()[1]
+        document['fm_date']=timestamp
+        self.es.index(self.indexName,'fu-complete',document)
 
     def flushMonBuffer(self):
         if self.istateBuffer:

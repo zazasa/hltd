@@ -11,8 +11,8 @@ import _inotify as inotify
 
 
 ES_DIR_NAME = "TEMP_ES_DIRECTORY"
-UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,INI,EOLS,EOR,DAT,PDAT,CRASH,MODULELEGEND,PATHLEGEND,BOX = range(16)            #file types 
-TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,EOR,EOLS]
+UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,INI,EOLS,EOR,COMPLETE,DAT,PDAT,CRASH,MODULELEGEND,PATHLEGEND,BOX = range(17)            #file types 
+TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,EOLS,EOR,COMPLETE]
 TEMPEXT = ".recv"
 
 
@@ -112,6 +112,7 @@ class fileHandler(object):
                 elif "CRASH" in name and "PID" in name: return CRASH
                 elif "EOLS" in name: return EOLS
                 elif "EOR" in name: return EOR
+        if name=="COMPLETE" in name: return COMPLETE
         if ".fast" in filename: return FAST
         if "slow" in filename: return SLOW
         if ext == ".leg" and "MICROSTATELEGEND" in name: return MODULELEGEND
@@ -163,6 +164,9 @@ class fileHandler(object):
         except StandardError,e:
             self.logger.exception(e)
             data = {}
+        except json.scanner.JSONDecodeError,e:
+            self.logger.exception(e)
+            data = None
         return data
 
     def setJsdfile(self,jsdfile):
@@ -252,23 +256,39 @@ class fileHandler(object):
 
         self.logger.info("%s -> %s" %(oldpath,newpath))
         retries = 5
+        newpath_tmp = newpath+TEMPEXT
         while True:
           try:
-              newpath+=TEMPEXT
               if not os.path.isdir(newdir): os.makedirs(newdir)
-              if copy: shutil.copy(oldpath,newpath)
+              if copy: shutil.copy(oldpath,newpath_tmp)
               else: 
-                  shutil.move(oldpath,newpath)
-              #renaming
-              shutil.move(newpath,newpath.replace(TEMPEXT,""))
+                  shutil.move(oldpath,newpath_tmp)
               break
+
           except OSError,e:
               self.logger.exception(e)
               retries-=1
               if retries == 0:
+                  self.logger.error("Failure to move file "+str(oldpath)+" to "+str(newpath_tmp))
                   return False
               else:
                   time.sleep(0.5)
+        retries = 5
+        while True:
+        #renaming
+            try:
+                #shutil.move(newpath,newpath.replace(TEMPEXT,""))
+                os.rename(newpath_tmp,newpath)
+                break
+            except OSError,e:
+                self.logger.exception(e)
+                retries-=1
+                if retries == 0:
+                    self.logger.error("Failure to rename the temporary file "+str(newpath_tmp)+" to "+str(newpath))
+                    return False
+                else:
+                    time.sleep(0.5)
+
         self.filepath = newpath
         self.getFileInfo()
         return True   
@@ -390,3 +410,24 @@ class Aggregator(object):
     def action_cat(self,data1,data2):
         if data2: return str(data1)+","+str(data2)
         else: return str(data1)
+
+
+#class ErrorStreamDesc(object):
+#
+#    def __init__(self,run,ls,pid,ErrorEvents,ReturnCode,FileList):
+#        self.run = run
+#        self.ls = ls
+#        self.pid = pid
+#        self.filename = 
+#        self.document['Processed'] = ErrorEvents
+#        self.document['Accepted'] = ErrorEvents
+#        self.document['ErrorEvents'] = ErrorEvents
+#        self.document['ReturnCodeMask'] = ReturnCode
+#        self.document['FileList']=FileList
+#        self.ReturnCodeMask = ReturnCodeMask
+#        self.FileList = FileList
+#
+#    def writeErrorStreamJson(filepath):
+#        try:
+#            with open(filepath,"w") as fi:
+#                json.dump(document,fi)

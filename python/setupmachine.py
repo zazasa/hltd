@@ -336,8 +336,19 @@ if True:
         sys.exit(1)
     username = sys.argv[argvc]
 
+    argvc+=1
+    if not sys.argv[argvc]:
+        print "CMSSW number of threads/process is missing"
+    nthreads = sys.argv[argvc]
+
+    argvc+=1
+    if not sys.argv[argvc]:
+        print "CMSSW log collection level is missing"
+    cmsswloglevel =  sys.argv[argvc]
 
     cluster,type = getmachinetype()
+    #override for daq2val!
+    #if cluster == 'daq2val': cmsswloglevel =  'INFO'
     cnhostname = os.uname()[1]+".cms"
 
     if cluster == 'daq2val':
@@ -432,12 +443,6 @@ if True:
 
     argvc+=1
     if "hltd" in selection:
-      #number of cmssw threads (if set)
-      nthreads = 1
-      try:
-          nthreads = sys.argv[argvc]
-      except:
-          pass
 
       #first prepare bus.config file
       if type == 'fu':
@@ -463,6 +468,7 @@ if True:
       
           #get needed info here
           hltdcfg.reg('user',username,'[General]')
+          hltdcfg.reg('micromerge_output','/fff/output','[General]')
           hltdcfg.reg('elastic_runindex_url',sys.argv[2],'[Monitoring]')
           hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
           hltdcfg.removeEntry('watch_directory')
@@ -482,6 +488,7 @@ if True:
           hltdcfg.reg('user',username,'[General]')
           hltdcfg.reg('role','fu','[General]')
           hltdcfg.reg('elastic_cluster',clusterName,'[Monitoring]')
+          hltdcfg.reg('es_cmssw_log_level',cmsswloglevel,'[Monitoring]')
           hltdcfg.reg('cmssw_base',cmssw_base,'[CMSSW]')
           hltdcfg.reg('cmssw_threads',nthreads,'[CMSSW]')
           hltdcfg.removeEntry('watch_directory')

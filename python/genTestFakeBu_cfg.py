@@ -55,6 +55,7 @@ process.source = cms.Source("EmptySource",
 )
 
 process.EvFDaqDirector = cms.Service("EvFDaqDirector",
+                                     runNumber= cms.untracked.uint32(options.runNumber),
                                      baseDir = cms.untracked.string(options.dataDir),
                                      buBaseDir = cms.untracked.string(""),
                                      directorIsBu = cms.untracked.bool(True),
