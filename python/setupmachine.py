@@ -27,7 +27,8 @@ dbpwd = 'empty'
 equipmentSet = 'latest'
 default_eqset_daq2val = 'eq_140325_attributes'
 #default_eqset_daq2 = 'eq_140430_mounttest'
-default_eqset_daq2 = 'eq_14-508_emu'
+#default_eqset_daq2 = 'eq_14-508_emu'
+default_eqset_daq2 = 'eq_140522_emu'
 
 def removeResources():
     try:
