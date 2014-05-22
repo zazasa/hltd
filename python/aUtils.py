@@ -107,11 +107,12 @@ class fileHandler(object):
             if ext == ".jsd" and "OUTPUT" in name: return JSD
             if ext == ".jsn":
                 if "STREAM" in name and "PID" in name: return STREAM
-                if "STREAM" in name and "PID" not in name: return OUTPUT
+                #if "STREAM" in name and "PID" not in name: return OUTPUT
                 elif "INDEX" in name and  "PID" in name: return INDEX
                 elif "CRASH" in name and "PID" in name: return CRASH
                 elif "EOLS" in name: return EOLS
                 elif "EOR" in name: return EOR
+        if "STREAM" in name and "PID" not in name: return OUTPUT
         if name=="COMPLETE" in name: return COMPLETE
         if ".fast" in filename: return FAST
         if "slow" in filename: return SLOW
