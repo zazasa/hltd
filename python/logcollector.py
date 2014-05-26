@@ -46,6 +46,7 @@ saveHistory = False #experimental
 logThreshold = 1 #(INFO)
 contextLogThreshold = 0 #(DEBUG)
 STRMAX=80
+line_limit=1000
 #cmssw date and time: "30-Apr-2014 16:50:32 CEST"
 #datetime_fmt = "%d-%b-%Y %H:%M:%S %Z"
 
@@ -72,6 +73,8 @@ class CMSSWLogEvent(object):
         self.message = [firstLine]
       
     def append(self,line):
+        #line limit
+        if len(self.message)>line_limit: return
         self.message.append(line)
 
     def fillCommon(self):
@@ -577,6 +580,225 @@ class CMSSWLogCollector(object):
             return 0
 
 
+class HLTDLogIndex():
+
+    def __init__(self,es_server_url):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.es = ElasticSearch(es_server_url)
+        self.host = os.uname()[1]
+
+        if 'localhost' in es_server_url:
+            nshards = 16
+            self.index_name = 'hltdlogs'
+        else:
+            nshards=1
+            self.index_name = 'hltdlogs_'+conf.elastic_cluster
+        self.settings = {
+            "analysis":{
+                "analyzer": {
+                    "prefix-test-analyzer": {
+                        "type": "custom",
+                        "tokenizer": "prefix-test-tokenizer"
+                    }
+                },
+                "tokenizer": {
+                    "prefix-test-tokenizer": {
+                        "type": "path_hierarchy",
+                        "delimiter": "_"
+                    }
+                }
+            },
+            "index":{
+                'number_of_shards' : nshards,
+                'number_of_replicas' : 1
+            }
+        }
+        self.mapping = {
+            'hltdlog' : {
+                '_timestamp' : { 
+                    'enabled'   : True,
+                    'store'     : "yes"
+                },
+                #'_ttl'       : { 'enabled' : True,
+                #              'default' :  '30d'}
+                #,
+                'properties' : {
+                    'host'      : {'type' : 'string'},
+                    'type'      : {'type' : 'string',"index" : "not_analyzed"},
+                    'severity'  : {'type' : 'string',"index" : "not_analyzed"},
+                    'severityVal'  : {'type' : 'integer'},
+                    'message'   : {'type' : 'string'},#,"index" : "not_analyzed"},
+                    'lexicalId' : {'type' : 'string',"index" : "not_analyzed"},
+                    'msgtime' : {'type' : 'date','format':'YYYY-mm-dd HH:mm:ss'},
+                 }
+            }
+        }
+        try:
+            self.es.create_index(self.index_name, settings={ 'settings': self.settings, 'mappings': self.mapping })
+        except ElasticHttpError as ex:
+            #this is normally fine as the index gets created somewhere across the cluster
+            pass
+
+    def elasticize_log(self,type,severity,timestamp,msg):
+        document= {}
+        document['host']=self.host
+        document['type']=type
+        document['severity']=severityStr[severity]
+        document['severityVal']=severity
+        document['message']=''
+        if len(msg):
+
+            #filter cgi "error" messages
+            if "HTTP/1.1\" 200" in msg[0]: return
+
+            for line_index, line in enumerate(msg):
+                if line_index==len(msg)-1:
+                    document['message']+=line.strip('\n')
+                else:
+                    document['message']+=line
+                
+            document['lexicalId']=calculateLexicalId(msg[0])
+        else:
+            document['lexicalId']=0
+        document['msgtime']=timestamp
+        self.es.index(self.index_name,'hltdlog',document)
+
+class HLTDLogParser(threading.Thread):
+    def __init__(self,dir,file,loglevel,esHandler,skipToEnd):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        threading.Thread.__init__(self)
+        self.dir = dir
+        self.filename = file
+        self.loglevel = loglevel
+        self.esHandler = esHandler
+        self.abort=False
+        self.threadEvent = threading.Event()
+        self.skipToEnd=skipToEnd
+
+        self.type=-1
+	if 'hltd.log' in file: self.type=0
+        if 'anelastic.log' in file: self.type=1
+        if 'elastic.log' in file: self.type=2
+        if 'elasticbu.log' in file: self.type=3
+
+        #message info
+        self.logOpen = False
+        self.msglevel = -1
+        self.timestamp = None
+        self.msg = []
+
+    def parseEntry(self,level,line,openNew=True):
+        if self.logOpen:
+            #ship previous
+            self.esHandler.elasticize_log(self.type,self.msglevel,self.timestamp,self.msg)
+            self.logOpen=False
+
+        if openNew:
+            begin = line.find(':')+1
+            end = line.find(':')+20
+            msgbegin = line.find(':')+23
+            self.msglevel=level
+            self.timestamp = line[begin:end]
+            self.msg = [line[msgbegin:]]
+            self.logOpen=True
+        
+    def run(self):
+        #open file and rewind to the end
+        fullpath = os.path.join(self.dir,self.filename)
+        startpos = os.stat(fullpath).st_size
+        f = open(fullpath)
+        if self.skipToEnd:
+            f.seek(startpos)
+        else:
+            startpos=0
+
+        line_counter = 0
+        truncatecheck=3
+        while self.abort == False:
+            buf = f.readlines(readonce)
+            buflen = len(buf)
+            if buflen>0:
+                line_counter+=buflen
+                truncatecheck=3
+            else:
+                if self.abort == False:
+                    truncatecheck-=1
+                    self.threadEvent.wait(2)
+                    if truncatecheck<=0:
+                        #close existing message if any
+                        self.parseEntry(0,'',False)
+                        try:
+                            #if number of lines + previous size is > file size, it safe to assume it got truncated
+                            if os.stat(fullpath).st_size<line_counter+startpos:
+                                #reopen
+                                line_counter=0
+                                startpos=0
+                                f.close()
+                                f.open(self.fullpath)
+                                self.logger.info('reopened file '+self.filename)
+                        except Exception,ex:
+                            self.logger.info('problem reopening file')
+                            self.logger.exception(ex)
+                            pass
+                    continue
+                else:break
+
+            for  line in buf:
+                    if line.startswith('INFO:'):
+                        if self.loglevel<2:
+                            currentEvent = self.parseEntry(1,line)
+                        else:continue
+                    if line.startswith('DEBUG:'):
+                        if self.loglevel<1:
+                            currentEvent = self.parseEntry(0,line)
+                        else:continue
+                    if line.startswith('WARNING:'):
+                        if self.loglevel<3:
+                            currentEvent = self.parseEntry(2,line)
+                        else:continue
+                    if line.startswith('ERROR:'):
+                        if self.loglevel<4:
+                            currentEvent = self.parseEntry(3,line)
+                        else:continue
+                    if line.startswith('CRITICAL:'):
+                            currentEvent = self.parseEntry(4,line)
+                    if line.startswith('Traceback'):
+                            if self.logOpen:
+                                selg.msg.append(line)
+
+        f.close()
+
+
+
+class HLTDLogCollector():
+
+    def __init__(self,dir,files,loglevel,esurl='http://localhost:9200'):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.dir = dir
+        self.files=files
+        self.loglevel=loglevel
+        self.activeFiles=[]
+        self.handlers = []
+        self.esurl = esurl
+        self.esHandler = HLTDLogIndex(esurl)
+        self.firstScan=True
+    
+    def scanForFiles(self):
+        #if found ne
+        if len(self.files)==0: return
+        found = os.listdir(self.dir)
+        for f in found:
+            if f.endswith('.log') and f in self.files and f not in self.activeFiles:
+                self.logger.info('starting parser... file: '+f)
+                #new file found
+                self.files.remove(f)
+                self.activeFiles.append(f)
+                self.handlers.append(HLTDLogParser(self.dir,f,self.loglevel,self.esHandler,self.firstScan))
+                self.handlers[-1].start()
+        #if file was not found first time, it is assumed to be created in the next iteration
+        self.firstScan=False
+
+
 def signalHandler(p1,p2):
     global terminate
     global threadEventRef
@@ -618,8 +840,7 @@ if __name__ == "__main__":
 
     #TODO:hltd log parser
     hltdlogdir = '/var/log/hltd'
-    hltdlog = 'hltd.log'
-    hltdrunlogs = ['hltd.log','anelastic.log','elastic.log','elasticbu.log']
+    hltdlogs = ['hltd.log','anelastic.log','elastic.log','elasticbu.log']
     cmsswlogdir = '/var/log/hltd/pid'
 
     mask = inotify.IN_CREATE # | inotify.IN_CLOSE_WRITE  # cmssw log files
@@ -634,6 +855,9 @@ if __name__ == "__main__":
         clc.register_inotify_path(cmsswlogdir,mask)
         clc.start_inotify()
 
+        #use same log level as for hltd
+        hlc = HLTDLogCollector(hltdlogdir,hltdlogs,cmsswloglevel)
+
       except Exception,e:
         logger.exception("error: "+str(e))
         sys.exit(1)
@@ -642,6 +866,8 @@ if __name__ == "__main__":
         logger.info('CMSSW logging is disabled')
 
     while terminate == False:
+        if cmsswloglevel>=0:
+            hlc.scanForFiles()
         threadEvent.wait(5)
 
     logger.info("Closing notifier")

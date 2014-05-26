@@ -535,6 +535,7 @@ class Run:
     STOPPING = 'stopping'
     ABORTED = 'aborted'
     COMPLETE = 'complete'
+    ABORTCOMPLETE = 'abortcomplete'
 
     VALID_MARKERS = [STARTING,ACTIVE,STOPPING,COMPLETE,ABORTED]
 
@@ -603,10 +604,10 @@ class Run:
                 if conf.elastic_bu_test is not None:
                     #test mode
                     logging.info("starting elasticbu.py testing mode with arguments:"+self.dirname)
-                    elastic_args = ['/opt/hltd/python/elasticbu.py',self.rawinputdir,conf.watch_directory,self.buoutputdir,str(self.runnumber)]
+                    elastic_args = ['/opt/hltd/python/elasticbu.py',self.rawinputdir,self.buoutputdir,str(self.runnumber)]
                 elif conf.role == "bu":
                     logging.info("starting elasticbu.py with arguments:"+self.dirname)
-                    elastic_args = ['/opt/hltd/python/elasticbu.py',self.dirname,conf.watch_directory,self.buoutputdir,str(self.runnumber)]
+                    elastic_args = ['/opt/hltd/python/elasticbu.py',self.dirname,self.buoutputdir,str(self.runnumber)]
                 else:
                     logging.info("starting elastic.py with arguments:"+self.dirname)
                     elastic_args = ['/opt/hltd/python/elastic.py',self.dirname,self.rawinputdir+'/mon',str(expected_processes),str(conf.elastic_cluster)]
@@ -757,7 +758,8 @@ class Run:
         self.lock.release()
         logging.debug("StartOnResource lock released")
 
-    def Shutdown(self):
+    def Shutdown(self,herod=False):
+        #herod mode sends sigkill to all process, however waits for all scripts to finish
         logging.debug("Run:Shutdown called")
         self.is_active_run = False
         if conf.role == 'fu':
@@ -772,7 +774,8 @@ class Run:
                         logging.info('terminating process '+str(resource.process.pid)+
                                      ' in state '+str(resource.processstate))
 
-                        resource.process.terminate()
+                        if herod:resource.process.kill()
+                        else:resource.process.terminate()
                         logging.info('process '+str(resource.process.pid)+' join watchdog thread')
                         #                    time.sleep(.1)
                         resource.join()
@@ -791,16 +794,23 @@ class Run:
                             pass
 
             self.online_resource_list = []
+            self.changeMarkerMaybe(Run.ABORTCOMPLETE)
             try:
                 if self.anelastic_monitor:
-                    self.anelastic_monitor.terminate()
+                    if herod:
+                        self.anelastic_monitor.wait()
+                    else:
+                        self.anelastic_monitor.terminate()
             except Exception as ex:
                 logging.info("exception encountered in shutting down anelastic.py "+ str(ex))
                 #logging.exception(ex)
             if conf.use_elasticsearch == True:
                 try:
                     if self.elastic_monitor:
-                        self.elastic_monitor.terminate()
+                        if herod:
+                            self.elastic_monitor.wait()
+                        else:
+                            self.elastic_monitor.terminate()
                 except Exception as ex:
                     logging.info("exception encountered in shutting down elastic.py")
                     logging.exception(ex)
@@ -946,6 +956,7 @@ class RunRanger:
 
     def process_IN_CREATE(self, event):
         nr=0
+        global run_list
         logging.info('RunRanger: event '+event.fullpath)
         dirname=event.fullpath[event.fullpath.rfind("/")+1:]
         #@@EM
@@ -1023,13 +1034,30 @@ class RunRanger:
                               +' which is NOT a run number - this should '
                               +'*never* happen')
 
-        elif dirname.startswith('herod') and conf.role == 'fu':
+        elif dirname.startswith('herod'):
             os.remove(event.fullpath)
-            logging.info("killing all child processes")
-            for run in run_list:
-                for resource in run.online_resource_list:
-                    os.kill(resource.process.pid, SIGKILL)
-            logging.info("killed all child processes")
+            if conf.role == 'fu':
+                logging.info("killing all CMSSW child processes")
+                for run in run_list:
+                    run.Shutdown(True)
+            if conf.role == 'bu':
+                boxdir = conf.resource_base +'/boxes/'
+                try:
+                    dirlist = os.listdir(idles)
+                    current_time = time.time()
+                    logging.info("sending herod to child FUs")
+                    for name in dirlist:
+                        if name == os.uname()[1]:continue
+                        age = current_time - os.path.getmtime(idles+boxdir)
+                        if age < 10:
+                            connection = httplib.HTTPConnection(name, 8000)
+                            connection.request("GET",'cgi-bin/herod_cgi.py')
+                            response = connection.getresponse()
+                    logging.info("sent herod to all child FUs")
+                except Exception as ex:
+                    logging.error("exception encountered in contacting resources")
+                    logging.info(ex)
+                run_list=[]
 
         elif dirname.startswith('populationcontrol'):
             logging.info("terminating all ongoing runs")
@@ -1274,7 +1302,7 @@ class hltd(Daemon2,object):
             boxInfo.start()
 
         logCollector = None
-        if conf.role == 'fu' and conf.use_elasticsearch == True:
+        if conf.use_elasticsearch == True:
             logging.info("starting logcollector.py")
             logcolleccor_args = ['/opt/hltd/python/logcollector.py',]
             logCollector = subprocess.Popen(['/opt/hltd/python/logcollector.py'],preexec_fn=preexec_function,close_fds=True)

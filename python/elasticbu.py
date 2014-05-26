@@ -232,7 +232,6 @@ class elasticBandBU:
         document['endTime'] = endtime
         self.es.index(index_name,'run',document)
 
-
     def elasticize_box(self,infile):
 
         basename = infile.basename
@@ -250,7 +249,6 @@ class elasticBandBU:
         data.append(infile.mtime)
         data.append(infile.ls[2:])
         
-
         values = [int(f) if f.isdigit() else str(f) for f in data]
         keys = ["NEvents","NFiles","TotalEvents","fm_date","ls"]
         document = dict(zip(keys, values))
@@ -260,7 +258,6 @@ class elasticBandBU:
         documents = [document]
         self.es.bulk_index(index_name,'eols',documents)
 
-
     def elasticize_minimerge(self,infile):
         basename = infile.basename
         self.logger.info(basename)
@@ -268,7 +265,7 @@ class elasticBandBU:
         data.append(infile.mtime)
         data.append(infile.ls[2:])
         data.append(infile.stream)
-        values = [int(f) if f.isdigit() else str(f) for f in data]
+        values = [int(f) if str(f).isdigit() else str(f) for f in data]
         keys = ["processed","accepted","errorEvents","fname","size","eolField1","eolField2","fm_date","ls","stream"]
         document = dict(zip(keys, values))
         document['id'] = infile.name
@@ -296,6 +293,11 @@ class elasticBandDummy():
 
     def elasticize_eols(self,infile):
         return
+
+    def elasticize_minimerge(self,infile):
+        return
+
+
 
 class elasticCollectorBU():
 
@@ -618,9 +620,9 @@ if __name__ == "__main__":
 
     es_server = sys.argv[0]
     dirname = sys.argv[1]
-    watchdir = sys.argv[2]
-    outputdir = sys.argv[3]
-    runnumber = sys.argv[4]
+    outputdir = sys.argv[2]
+    runnumber = sys.argv[3]
+    watchdir = conf.watch_directory
     dt=os.path.getctime(dirname)
     startTime = datetime.datetime.utcfromtimestamp(dt).isoformat()
     index_name = conf.elastic_runindex_name

@@ -113,7 +113,7 @@ class fileHandler(object):
                 elif "EOLS" in name: return EOLS
                 elif "EOR" in name: return EOR
         if "STREAM" in name and "PID" not in name: return OUTPUT
-        if name=="COMPLETE" in name: return COMPLETE
+        if name.endswith("COMPLETE"): return COMPLETE
         if ".fast" in filename: return FAST
         if "slow" in filename: return SLOW
         if ext == ".leg" and "MICROSTATELEGEND" in name: return MODULELEGEND
