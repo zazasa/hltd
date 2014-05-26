@@ -50,6 +50,10 @@ cp -r $BASEDIR/etc/logrotate.d/hltd $TOPDIR/etc/logrotate.d/
 echo "working in $PWD"
 ls opt/hltd
 
+echo "Creating DQM directories"
+mkdir -p etc/appliance/dqm/configs/free
+mkdir -p etc/appliance/dqm/configs/used
+
 
 # build external libraries
 #simplejson 3.3.1
