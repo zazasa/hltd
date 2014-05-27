@@ -13,7 +13,7 @@ except ImportError:
 
 import socket
 
-backup_dir = '/usr/share/fff'
+backup_dir = '/opt/fff'
 
 hltdconf = '/etc/hltd.conf'
 busconfig = '/etc/appliance/resources/bus.config'
