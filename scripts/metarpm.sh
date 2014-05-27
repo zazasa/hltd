@@ -133,7 +133,7 @@ cd $TOPDIR
 cat > fffmeta.spec <<EOF
 Name: fffmeta
 Version: 1.3.2
-Release: 3
+Release: 4
 Summary: hlt daemon
 License: gpl
 Group: Hacks
@@ -142,7 +142,7 @@ Source: none
 %define _topdir $TOPDIR
 BuildArch: $BUILD_ARCH
 AutoReqProv: no
-Requires:elasticsearch >= 1.0.2, hltd >= 1.3.2, cx_Oracle >= 5.1.2
+Requires:elasticsearch >= 1.0.2, hltd >= 1.3.2, cx_Oracle >= 5.1.2, java-1.6.0-openjdk
 
 Provides:/opt/fff/configurefff.sh
 Provides:/opt/fff/setupmachine.py
