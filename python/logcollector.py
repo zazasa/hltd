@@ -592,7 +592,12 @@ class HLTDLogIndex():
             self.index_name = 'hltdlogs'
         else:
             nshards=1
-            self.index_name = 'hltdlogs_'+conf.elastic_cluster
+            index_suffix = conf.elastic_cluster
+            if index_suffix.startswith('runindex_'):
+                index_suffix=index_suffix[index_suffix.find('_'):]
+            elif index_suffix.startswith('runindex'):
+                index_suffix='_'+index_suffix[8:]
+            self.index_name = 'hltdlogs'+index_suffix
         self.settings = {
             "analysis":{
                 "analyzer": {
@@ -835,6 +840,19 @@ if __name__ == "__main__":
         logger.info("No valid es_cmssw_log_level configuration. Quit")
         sys.exit(0)
 
+    hltdloglevel = 1
+    try:
+        hltdloglevel_name = conf.es_hltd_log_level.upper().strip()
+        if hltdloglevel_name == 'DISABLED':
+            hltdloglevel = -1
+        else:
+            hltdloglevel = [i for i,x in enumerate(severityStr) if x == hltdloglevel_name][0]
+    except:
+        logger.info("No valid es_cmssw_log_level configuration. Quit")
+        sys.exit(0)
+
+
+
     threadEvent = threading.Event()
     registerSignal(threadEvent)
 
@@ -849,26 +867,46 @@ if __name__ == "__main__":
 
     if cmsswloglevel>=0:
       try:
+          #starting inotify thread
+          clc = CMSSWLogCollector(cmsswlogdir,cmsswloglevel)
+          clc.register_inotify_path(cmsswlogdir,mask)
+          clc.start_inotify()
+      except Exception,e:
+          logger.error('exception starting cmssw log monitor')
+          logger.exception(e)
+    else:
+        logger.info('CMSSW log collection is disabled')
 
-        #starting inotify thread
-        clc = CMSSWLogCollector(cmsswlogdir,cmsswloglevel)
-        clc.register_inotify_path(cmsswlogdir,mask)
-        clc.start_inotify()
-
-        #use same log level as for hltd
-        hlc = HLTDLogCollector(hltdlogdir,hltdlogs,cmsswloglevel)
+    if hltdloglevel>=0:
+      try:
+          hlc = HLTDLogCollector(hltdlogdir,hltdlogs,hltdloglevel,conf.elastic_runindex_url)
 
       except Exception,e:
-        logger.exception("error: "+str(e))
-        sys.exit(1)
-
+          hlc = None
+          logger.error('exception starting hltd log monitor')
+          logger.exception(e)
     else:
-        logger.info('CMSSW logging is disabled')
+        logger.info('hltd log collection is disabled')
 
-    while terminate == False:
-        if cmsswloglevel>=0:
-            hlc.scanForFiles()
-        threadEvent.wait(5)
+    if cmsswloglevel or hltdloglevel:
+        doEvery=10
+        counter=0
+        while terminate == False:
+            counter+=1
+            if hltdloglevel>=0:
+                if hlc:
+                    hlc.scanForFiles()
+                else:
+                    #retry connection to central ES if it was unavailable
+                    try:
+                         if counter%doEvery==0:
+                             hlc = HLTDLogCollector(hltdlogdir,hltdlogs,hltdloglevel,conf.elastic_runindex_url)
+                    except:
+                         hlc=None
+                         pass
+
+            threadEvent.wait(5)
+
 
     logger.info("Closing notifier")
     if clc is not None:

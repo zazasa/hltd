@@ -205,9 +205,13 @@ chkconfig fffmeta on
 
 %triggerin -- elasticsearch
 #echo "triggered on elasticsearch update or install"
+/sbin/service elasticsearch stop
 python2.6 /opt/fff/setupmachine.py restore,elasticsearch
 python2.6 /opt/fff/setupmachine.py elasticsearch $params
-/sbin/service elasticsearch restart
+#update permissions in case new rpm changed uid/guid
+chown -R elasticsearch:elasticsearch /var/log/elasticsearch
+chown -R elasticsearch:elasticsearch /var/lib/elasticsearch
+/sbin/service elasticsearch start
 chkconfig elasticsearch on
 
 %triggerin -- hltd
