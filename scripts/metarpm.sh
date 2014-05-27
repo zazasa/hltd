@@ -24,12 +24,14 @@ read readin
 if [ ${#readin} != "0" ]; then
 lines[0]=$readin
 fi
-echo "ES tribe server hostname (press enter for \"${lines[1]}\"):"
-readin=""
-read readin
-if [ ${#readin} != "0" ]; then
-lines[1]=$readin
-fi
+#echo "ES tribe server hostname (press enter for \"${lines[1]}\"):"
+#readin=""
+#read readin
+#if [ ${#readin} != "0" ]; then
+#lines[1]=$readin
+#fi
+lines[1]="empty"
+
 
 echo "CMSSW base (press enter for \"${lines[2]}\"):"
 readin=""
@@ -142,7 +144,7 @@ Source: none
 %define _topdir $TOPDIR
 BuildArch: $BUILD_ARCH
 AutoReqProv: no
-Requires:elasticsearch >= 1.0.2, hltd >= 1.3.2, cx_Oracle >= 5.1.2, java-1.6.0-openjdk
+Requires:elasticsearch >= 1.0.2, hltd >= 1.3.2, cx_Oracle >= 5.1.2, java-1.7.0-openjdk
 
 Provides:/opt/fff/configurefff.sh
 Provides:/opt/fff/setupmachine.py

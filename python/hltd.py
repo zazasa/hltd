@@ -511,9 +511,11 @@ class ProcessWatchdog(threading.Thread):
                         self.resource.quarantined.append(cpu)
 
             #successful end= release resource
-            elif returncode == 0:
-
-                logging.info('releasing resource, exit0 meaning end of run '+str(self.resource.cpu))
+            elif returncode == 0 or returncode ==127:
+                if returncode==0:
+                    logging.info('releasing resource, exit 0 meaning end of run '+str(self.resource.cpu))
+                else:
+                    logging.fatal('error executing start script. Maybe CMSSW environment is not available.')
                 # generate an end-of-run marker if it isn't already there - it will be picked up by the RunRanger
                 endmarker = conf.watch_directory+'/end'+str(self.resource.runnumber).zfill(conf.run_number_padding)
                 stoppingmarker = self.resource.statefiledir+'/'+Run.STOPPING

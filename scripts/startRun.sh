@@ -14,4 +14,5 @@ pwd >> $logname 2>&1
 eval `scram runtime -sh`;
 cd $4;
 logname="/var/log/hltd/pid/hlt_run$6_pid$$.log"
+type -P cmsRun &>/dev/null || (sleep 2;exit 127)
 exec cmsRun $5 "runNumber="$6 "buBaseDir="$7 "dataDir"=$8 "numThreads="$9 >> $logname 2>&1
