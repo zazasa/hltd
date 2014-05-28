@@ -211,6 +211,7 @@ class LumiSectionHandler():
         self.jsdfile = jsdfile 
         
         self.outfileList = []
+        self.streamErrorFile = ""
         self.datfileList = []
         self.indexfileList = []
         self.pidList = {}           # {"pid":{"numEvents":num,"streamList":[streamA,streamB]}    
@@ -234,6 +235,21 @@ class LumiSectionHandler():
             outfile = fileHandler(outfilepath)
             outfile.setJsdfile(self.jsdfile)
             self.outfileList.append(outfile)
+
+    def initErrFiles(self):
+        run,ls,tempdir = self.run,self.ls,self.tempdir
+        ext = ".jsn"
+        if not os.path.exists(self.jsdfile):
+            self.logger.error("JSD file not found %r" %self.jsdfile)
+            return False
+
+        stream = "streamError"
+        errfilename = "_".join([run,ls,stream,self.host])+ext
+        errfilepath = os.path.join(tempdir,errfilename)
+        errfile = fileHandler(errfilepath)
+        errfile.setJsdfile(self.jsdfile)
+        self.streamErrorFile = errfile
+
 
 
     def processFile(self,infile):
@@ -316,6 +332,13 @@ class LumiSectionHandler():
         for outfile in self.outfileList:
             if outfile.stream in streamDiff:
                 outfile.merge(file2merge)
+
+
+        #adding crash infos to the streamError output file
+        inputFileList = ",".join(self.pidList[pid]["indexFileList"])
+        file2merge.setFieldByName("InputFiles",inputFileList)
+        self.streamErrorFile.merge(file2merge)
+
 
         #error stream handling - the crashed pid took one or more index files for this lumi but did not
         #finish writing all streams

@@ -11,7 +11,7 @@ import _inotify as inotify
 
 
 ES_DIR_NAME = "TEMP_ES_DIRECTORY"
-UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,INI,EOLS,EOR,COMPLETE,DAT,PDAT,CRASH,MODULELEGEND,PATHLEGEND,BOX = range(17)            #file types 
+UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,STREAMERR,INI,EOLS,EOR,COMPLETE,DAT,PDAT,CRASH,MODULELEGEND,PATHLEGEND,BOX = range(18)            #file types 
 TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,EOLS,EOR,COMPLETE]
 TEMPEXT = ".recv"
 
@@ -106,8 +106,9 @@ class fileHandler(object):
             if ext == ".ini" and "PID" in name: return INI
             if ext == ".jsd" and "OUTPUT" in name: return JSD
             if ext == ".jsn":
-                if "STREAM" in name and "PID" in name: return STREAM
-                if "STREAM" in name and "PID" not in name: return OUTPUT
+                if "STREAMERROR" in name: return STREAMERR
+                elif "STREAM" in name and "PID" in name: return STREAM
+                elif "STREAM" in name and "PID" not in name: return OUTPUT
                 elif "INDEX" in name and  "PID" in name: return INDEX
                 elif "CRASH" in name and "PID" in name: return CRASH
                 elif "EOLS" in name: return EOLS
@@ -128,7 +129,7 @@ class fileHandler(object):
         if filetype in [STREAM,INI,PDAT,CRASH]: self.run,self.ls,self.stream,self.pid = splitname
         elif filetype == SLOW: self.run,self.ls,self.pid = splitname
         elif filetype == FAST: self.run,self.pid = splitname
-        elif filetype in [DAT,OUTPUT]: self.run,self.ls,self.stream,self.host = splitname
+        elif filetype in [DAT,OUTPUT,STREAMERR]: self.run,self.ls,self.stream,self.host = splitname
         elif filetype == INDEX: self.run,self.ls,self.index,self.pid = splitname
         elif filetype == EOLS: self.run,self.ls,self.eols = splitname
         else: 
@@ -171,7 +172,7 @@ class fileHandler(object):
 
     def setJsdfile(self,jsdfile):
         self.jsdfile = jsdfile
-        if self.filetype in [OUTPUT,CRASH]: self.initData()
+        if self.filetype in [OUTPUT,CRASH,STREAMERR]: self.initData()
         
     def initData(self):
         defs = self.definitions
@@ -237,6 +238,7 @@ class fileHandler(object):
 
 
     def deleteFile(self):
+        #return True
         filepath = self.filepath
         self.logger.info(filepath)
         if os.path.isfile(filepath):
