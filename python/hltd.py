@@ -68,10 +68,17 @@ def cleanup_resources():
     dirlist = os.listdir(quarantined)
     for cpu in dirlist:
         os.rename(quarantined+cpu,idles+cpu)
+    dirlist = os.listdir(idles)
+    #quarantine files beyond use fraction limit (rounded to closest integer)
+    num_excluded = round(len(dirlist)*(1.-conf.resource_use_fraction))
+    for i in range(0,num_excluded):
+        os.rename(idles+dirlist[i],quarantined+dirlist[i])
+
     if conf.dqm_machine:
         dqm_configs = os.listdir(dqm_used_configs)
         for dqm_config in dqm_configs:
             os.rename(dqm_used_configs+dqm_config,dqm_free_configs+dqm_config)
+
 
 def cleanup_mountpoints():
     bu_disk_list[:] = []

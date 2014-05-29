@@ -443,7 +443,6 @@ if True:
 
         escfg.commit()
 
-    argvc+=1
     if "hltd" in selection:
 
       #first prepare bus.config file
