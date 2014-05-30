@@ -372,23 +372,6 @@ class LumiSectionHandler():
         self.streamErrorFile.merge(file2merge)
 
 
-        #error stream handling - the crashed pid took one or more index files for this lumi but did not
-        #finish writing all streams
-        #index files will be moved to area for error stream salvage on BU
-        #
-        #if len(streamDiff)>0:
-        #    for f in self.pidList[pid]["indexFileList"]: f.moveFile(destinationPath)
-
-        #remove
-        #pidFileList = []
-        #for file in self.indexfileList.append(infile):
-        #    pidstr = '_pid'+str(pid).zfill(5)
-        #    if pidstr in file:
-        #        pidFileList.append(file)
-        #errorStreamDesc = ErrorStreamDesc(self.run,self.ls,pid,numEvents,errCode,pidFileList)
-        #errorStreamDesc.writeErrorStream()
-                
-
     def processDATFile(self):
         self.logger.info(self.infile.basename)
         stream = self.infile.stream
@@ -473,11 +456,12 @@ class LumiSectionHandler():
             #close lumisection if all streams are closed
             self.logger.info("closing %r" %self.ls)
             self.EOLS.esCopy()
-            self.writeLumiInfo()
+            #self.writeLumiInfo()
             self.closed.set()
             #update EOLS file with event processing statistics
 
     def writeLumiInfo(self):
+        #populating EoL information back into empty EoLS file (disabled)
         document = { 'data':[str(self.totalEvent),str(self.totalFiles),str(self.totalEvent)],
                      'definition':'',
                      'source':os.uname()[1] }
