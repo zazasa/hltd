@@ -11,10 +11,11 @@ import _inotify as inotify
 
 
 ES_DIR_NAME = "TEMP_ES_DIRECTORY"
-UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,STREAMERR,INI,EOLS,EOR,COMPLETE,DAT,PDAT,CRASH,MODULELEGEND,PATHLEGEND,BOX = range(18)            #file types 
+UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,STREAMERR,INI,EOLS,EOR,COMPLETE,DAT,PDAT,CRASH,MODULELEGEND,PATHLEGEND,BOX,BOLS = range(19)            #file types 
 TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,EOLS,EOR,COMPLETE]
 TEMPEXT = ".recv"
-
+ZEROLS = 'ls0000'
+STREAMERRORNAME = 'streamError'
 
 #Output redirection class
 class stdOutLog:
@@ -106,7 +107,8 @@ class fileHandler(object):
             if ext == ".ini" and "PID" in name: return INI
             if ext == ".jsd" and "OUTPUT" in name: return JSD
             if ext == ".jsn":
-                if "STREAMERROR" in name: return STREAMERR
+                if STREAMERRORNAME.upper() in name: return STREAMERR
+                elif "BOLS" in name : return BOLS
                 elif "STREAM" in name and "PID" in name: return STREAM
                 elif "STREAM" in name and "PID" not in name: return OUTPUT
                 elif "INDEX" in name and  "PID" in name: return INDEX
@@ -299,11 +301,12 @@ class fileHandler(object):
     def exists(self):
         return os.path.exists(self.filepath)
 
-        #write self.outputData in json self.outputFile
+        #write self.outputData in json self.filepath
     def writeout(self):
         filepath = self.filepath
         outputData = self.data
         self.logger.info(filepath)
+
         try:
             with open(filepath,"w") as fi: 
                 json.dump(outputData,fi)
@@ -410,8 +413,10 @@ class Aggregator(object):
             return "N/A"
         
     def action_cat(self,data1,data2):
-        if data2: return str(data1)+","+str(data2)
-        else: return str(data1)
+        if data2 and data1: return str(data1)+","+str(data2)
+        elif data1: return str(data1)
+        elif data2: return str(data2)
+        else: return ""
 
 
 #class ErrorStreamDesc(object):

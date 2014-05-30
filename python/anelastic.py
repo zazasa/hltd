@@ -26,6 +26,7 @@ class LumiSectionRanger():
         self.stoprequest = threading.Event()
         self.emptyQueue = threading.Event()  
         self.firstStream = threading.Event()  
+        self.errIniFile = threading.Event()  
         self.LSHandlerList = {}  # {(run,ls): LumiSectionHandler()}
         self.activeStreams = [] # updated by the ini files
         self.streamCounters = {} # extended by ini files, updated by the lumi handlers
@@ -39,6 +40,7 @@ class LumiSectionRanger():
         self.tempdir = tempdir
         self.jsdfile = None
         self.buffer = []        # file list before the first stream file
+
 
 
     def join(self, stop=False, timeout=None):
@@ -108,11 +110,12 @@ class LumiSectionRanger():
             elif filetype in [STREAM,INDEX,EOLS,DAT]:
                 run,ls = (self.infile.run,self.infile.ls)
                 key = (run,ls)
-                if key not in self.LSHandlerList:
+                if key not in self.LSHandlerList and not filetype == EOLS :
                     self.LSHandlerList[key] = LumiSectionHandler(run,ls,self.activeStreams,self.streamCounters,self.tempdir,self.outdir,self.jsdfile)
-                self.LSHandlerList[key].processFile(self.infile)
-                if self.LSHandlerList[key].closed.isSet():
-                    self.LSHandlerList.pop(key,None)
+                if key in self.LSHandlerList:
+                    self.LSHandlerList[key].processFile(self.infile)
+                    if self.LSHandlerList[key].closed.isSet():
+                        self.LSHandlerList.pop(key,None)
             elif filetype == CRASH:
                 self.processCRASHfile()
             elif filetype == EOR:
@@ -129,7 +132,27 @@ class LumiSectionRanger():
         for item in lsList.values():
             item.processFile(self.infile)
     
+    def createErrIniFile(self):
+        if self.errIniFile.isSet(): return 
+
+        runname = 'run'+self.run_number.zfill(conf.run_number_padding)
+        ls = ZEROLS
+        stream = STREAMERRORNAME
+        ext = ".ini"
+
+        filename = "_".join([runname,ls,stream,self.host])+ext
+        filepath = os.path.join(self.outdir,runname,filename)
+        infile = fileHandler(filepath)
+        infile.data = ""
+        infile.writeout()
+        self.errIniFile.set()
+
+        self.logger.info("created error ini file")
+
+
+
     def processINIfile(self):
+
         self.logger.info(self.infile.basename)
         infile = self.infile 
 
@@ -154,6 +177,10 @@ class LumiSectionRanger():
                 self.logger.warning("Found a bad ini file %s" %filepath)
             else:
                 self.infile.deleteFile()
+
+        self.createErrIniFile()
+
+
 
     def processEORFile(self):
         self.logger.info(self.infile.basename)
@@ -221,6 +248,7 @@ class LumiSectionHandler():
         self.totalFiles = 0
         
         self.initOutFiles()
+        self.initErrFiles()
 
     def initOutFiles(self):
         activeStreams,run,ls,tempdir = self.activeStreams,self.run,self.ls,self.tempdir
@@ -243,7 +271,7 @@ class LumiSectionHandler():
             self.logger.error("JSD file not found %r" %self.jsdfile)
             return False
 
-        stream = "streamError"
+        stream = STREAMERRORNAME
         errfilename = "_".join([run,ls,stream,self.host])+ext
         errfilepath = os.path.join(tempdir,errfilename)
         errfile = fileHandler(errfilepath)
@@ -313,10 +341,11 @@ class LumiSectionHandler():
         return False
  
     def processCRASHFile(self):
+        #self.logger.info("LS: " + self.ls + " CHECKING ...... ")
         if self.infile.pid not in self.pidList: return True
       
         
-        self.logger.info(self.infile.basename)
+        #self.logger.info("LS: "+self.ls+" pid: " + self.infile.pid)
         infile = self.infile
         pid = infile.pid
         data  = infile.data.copy()
@@ -334,8 +363,11 @@ class LumiSectionHandler():
                 outfile.merge(file2merge)
 
 
-        #adding crash infos to the streamError output file
-        inputFileList = ",".join(self.pidList[pid]["indexFileList"])
+        #add crash infos to the streamError output file
+
+        inputFileList = [item.name+".raw" for item in self.pidList[pid]["indexFileList"]]
+        inputFileList = ",".join(inputFileList)
+        self.logger.info("inputFileList: " + inputFileList)
         file2merge.setFieldByName("InputFiles",inputFileList)
         self.streamErrorFile.merge(file2merge)
 
@@ -366,13 +398,13 @@ class LumiSectionHandler():
     def processEOLSFile(self):
         self.logger.info(self.infile.basename)
         ls = self.infile.ls
-        try:
-            if os.stat(infile.filepath).st_size>0:
-                #self-triggered inotify event, this lumihandler should be deleted
-                self.closed.set()
-                return False
-        except:
-            pass
+#        try:
+#            if os.stat(infile.filepath).st_size>0:
+#                #self-triggered inotify event, this lumihandler should be deleted
+#                self.closed.set()
+#                return False
+#        except:
+#            pass
         if self.EOLS:
             self.logger.warning("LS %s already closed" %repr(ls))
             return False
@@ -417,12 +449,26 @@ class LumiSectionHandler():
                     self.outfileList.remove(outfile)
  
                 
-        if not self.outfileList:
+        if not self.outfileList and not self.closed.isSet():
             #self.EOLS.deleteFile()
 
             #delete all index files
             for item in self.indexfileList:
                 item.deleteFile()
+
+
+            #moving streamError file
+            self.logger.info("Writing streamError file ")
+            errfile = self.streamErrorFile
+            numErr = errfile.getFieldByName("ErrorEvents") or 0
+            total = self.totalEvent
+            errfile.setFieldByName("Processed", total - numErr )
+            errfile.writeout()
+            newfilepath = os.path.join(self.outdir,errfile.run,errfile.basename)
+            errfile.moveFile(newfilepath)
+
+
+
 
             #close lumisection if all streams are closed
             self.logger.info("closing %r" %self.ls)
