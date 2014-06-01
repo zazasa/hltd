@@ -1078,18 +1078,20 @@ class RunRanger:
             os.remove(event.fullpath)
             if conf.role == 'fu':
                 logging.info("killing all CMSSW child processes")
-                for run in run_list:
+                run_list_copy = run_list
+                for run in run_list_copy:
                     run.Shutdown(True)
             if conf.role == 'bu':
                 boxdir = conf.resource_base +'/boxes/'
                 try:
-                    dirlist = os.listdir(idles)
+                    dirlist = os.listdir(boxdir)
                     current_time = time.time()
                     logging.info("sending herod to child FUs")
                     for name in dirlist:
                         if name == os.uname()[1]:continue
-                        age = current_time - os.path.getmtime(idles+name)
-                        if age < 10:
+                        age = current_time - os.path.getmtime(boxdir+name)
+                        logging.info('found box '+name+' with keepalive age '+str(age))
+                        if age < 20:
                             connection = httplib.HTTPConnection(name, 8000)
                             connection.request("GET",'cgi-bin/herod_cgi.py')
                             response = connection.getresponse()
