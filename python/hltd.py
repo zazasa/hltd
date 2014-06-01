@@ -1088,7 +1088,7 @@ class RunRanger:
                     logging.info("sending herod to child FUs")
                     for name in dirlist:
                         if name == os.uname()[1]:continue
-                        age = current_time - os.path.getmtime(idles+boxdir)
+                        age = current_time - os.path.getmtime(idles+name)
                         if age < 10:
                             connection = httplib.HTTPConnection(name, 8000)
                             connection.request("GET",'cgi-bin/herod_cgi.py')

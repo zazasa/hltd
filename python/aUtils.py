@@ -304,14 +304,15 @@ class fileHandler(object):
         return os.path.exists(self.filepath)
 
         #write self.outputData in json self.filepath
-    def writeout(self):
+    def writeout(self,empty=False):
         filepath = self.filepath
         outputData = self.data
         self.logger.info(filepath)
 
         try:
-            with open(filepath,"w") as fi: 
-                json.dump(outputData,fi)
+            with open(filepath,"w") as fi:
+                if empty==False:
+                    json.dump(outputData,fi)
         except Exception,e:
             self.logger.exception(e)
             return False
