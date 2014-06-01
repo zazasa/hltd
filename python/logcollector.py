@@ -23,10 +23,12 @@ import subprocess
 from pyelasticsearch.client import ElasticSearch
 from pyelasticsearch.client import IndexAlreadyExistsError
 from pyelasticsearch.client import ElasticHttpError
+from pyelasticsearch.client import ConnectionError
 
 from hltdconf import *
 from elasticBand import elasticBand
 from aUtils import stdOutLog,stdErrorLog
+from elasticbu import getURLwithIP 
 
 terminate = False
 threadEventRef = None
@@ -584,18 +586,22 @@ class HLTDLogIndex():
 
     def __init__(self,es_server_url):
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.es_server_url=es_server_url
         self.host = os.uname()[1]
 
         if 'localhost' in es_server_url:
             nshards = 16
-            self.index_name = 'hltdlogs'
+            self.index_name = 'hltdlogs_'+conf.elastic_cluster
         else:
             nshards=1
-            index_suffix = conf.elastic_cluster
+            index_suffix = conf.elastic_runindex_name.strip()
             if index_suffix.startswith('runindex_'):
                 index_suffix=index_suffix[index_suffix.find('_'):]
+            elif index_suffix=='runindex':
+                index_suffix=""
             elif index_suffix.startswith('runindex'):
                 index_suffix='_'+index_suffix[8:]
+            else: index_suffix='_'+index_suffix
             self.index_name = 'hltdlogs'+index_suffix
         self.settings = {
             "analysis":{
@@ -638,7 +644,6 @@ class HLTDLogIndex():
             }
         }
         while True:
-            if self.abort:break
             try:
                 self.logger.info('writing to elastic index '+self.index_name)
                 ip_url=getURLwithIP(es_server_url)
@@ -791,7 +796,7 @@ class HLTDLogParser(threading.Thread):
                             currentEvent = self.parseEntry(4,line)
                     if line.startswith('Traceback'):
                             if self.logOpen:
-                                selg.msg.append(line)
+                                self.msg.append(line)
 
         f.close()
 
@@ -807,7 +812,7 @@ class HLTDLogCollector():
         self.activeFiles=[]
         self.handlers = []
         self.esurl = conf.elastic_runindex_url
-        self.esHandler = HLTDLogIndex(esurl)
+        self.esHandler = HLTDLogIndex(self.esurl)
         self.firstScan=True
     
     def scanForFiles(self):
@@ -906,22 +911,14 @@ if __name__ == "__main__":
     else:
         logger.info('CMSSW log collection is disabled')
 
-    if hltdloglevel>=0:
-      try:
-          hlc = HLTDLogCollector(hltdlogdir,hltdlogs,hltdloglevel)
-
-      except Exception,e:
-          hlc = None
-          logger.error('exception starting hltd log monitor')
-          logger.exception(e)
-    else:
+    hlc=None
+    if hltdloglevel==0:
         logger.info('hltd log collection is disabled')
 
     if cmsswloglevel or hltdloglevel:
         doEvery=10
         counter=0
         while terminate == False:
-            counter+=1
             if hltdloglevel>=0:
                 if hlc:
                     hlc.scanForFiles()
@@ -930,13 +927,16 @@ if __name__ == "__main__":
                     try:
                          if counter%doEvery==0:
                              hlc = HLTDLogCollector(hltdlogdir,hltdlogs,hltdloglevel)
-                    except:
+                             continue
+                    except Exception,ex:
+                         logger.error('exception starting hltd log monitor')
+                         logger.exception(ex)
                          hlc=None
                          pass
+            counter+=1
 
             threadEvent.wait(5)
         if hlc:hlc.stop()
-
 
     logger.info("Closing notifier")
     if clc is not None:

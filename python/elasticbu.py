@@ -23,21 +23,36 @@ import simplejson as json
 
 import socket
 
+#hack: replacing DNS alias round robin for central ES until it is available
+rotate_temp=0
+centralListTemp=["srv-c2a11-07-01","srv-c2a11-08-01","srv-c2a11-09-01","srv-c2a11-10-01","srv-c2a11-11-01","srv-c2a11-14-01","srv-c2a11-15-01","srv-c2a11-16-01","srv-c2a11-17-01","srv-c2a11-18-01","srv-c2a11-19-01","srv-c2a11-20-01","srv-c2a11-21-01","srv-c2a11-22-01","srv-c2a11-23-01","srv-c2a11-26-01","srv-c2a11-27-01","srv-c2a11-28-01","srv-c2a11-29-01","srv-c2a11-30-01"]
+
+def rotateAddr():
+  global rotate_temp
+  if rotate_temp>=len(centralListTemp): rotate_temp=0
+  rotate_temp+=1
+  return socket.gethostbyname(centralListTemp[rotate_temp])
+
 def getURLwithIP(url):
   try:
       prefix = ''
-      if url.beginswith('http://'):
+      if url.startswith('http://'):
           prefix='http://'
           url = url[7:]
       suffix=''
-      port_pos=urlpart.rfind(':')
+      port_pos=url.rfind(':')
       if port_pos!=-1:
           suffix=url[port_pos:]
-          url = url[:port_pos-1]
+          url = url[:port_pos]
   except Exception as ex:
-      logger.error('could not parse URL ' +url)
+      logging.error('could not parse URL ' +url)
       raise(ex)
-  ip = socket.gethostbyname(url)
+  #@SM: hacks for DNS alias
+  if url!='localhost':
+      ip = rotateAddr()
+  else: ip='127.0.0.1'
+  #ip = socket.gethostbyname(url)
+
   return prefix+str(ip)+suffix
 
 
@@ -277,10 +292,13 @@ class elasticBandBU:
 
         basename = infile.basename
         self.logger.debug(basename)
-        document = infile.data
-        #document['_parent']= self.runnumber
-        document['id']= basename + '_' + document['fm_date'].split('.')[0] #strip seconds
-        documents = [document]
+        try:
+            document = infile.data
+            document['id']= basename + '_' + document['fm_date'].split('.')[0] #strip seconds
+            documents = [document]
+        except:
+            #in case of malformed box info
+            return
         self.index_documents('boxinfo',documents)
 
     def elasticize_eols(self,infile):
@@ -323,13 +341,13 @@ class elasticBandBU:
                 return True
             except ElasticHttpError as ex:
                 if attempts==0:continue
-                logger.error('elasticsearch HTTP error. skipping document '+name)
-                logger.exception(ex)
+                self.logger.error('elasticsearch HTTP error. skipping document '+name)
+                self.logger.exception(ex)
                 return False
             except ConnectionError as ex:
                 if attempts>100 and self.runMode:
                     raise(ex)
-                logger.error('elasticsearch connection error. retry.')
+                self.logger.error('elasticsearch connection error. retry.')
                 if self.stopping:return False
                 time.sleep(0.1)
                 ip_url=getURLwithIP(self.es_server_url)
@@ -486,7 +504,7 @@ class BoxInfoUpdater(threading.Thread):
 
     def run(self):
         try:
-            self.es = elasticBandBU('http://localhost:9200',0,'',False)
+            self.es = elasticBandBU(conf.elastic_runindex_url,0,'',False)
             if self.stopping:return
 
             self.ec = elasticBoxCollectorBU(self.es)

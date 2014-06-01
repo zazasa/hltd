@@ -144,7 +144,8 @@ class LumiSectionRanger():
         filepath = os.path.join(self.outdir,runname,filename)
         infile = fileHandler(filepath)
         infile.data = ""
-        infile.writeout()
+        #@SM:initially disabled
+        #infile.writeout()
         self.errIniFile.set()
 
         self.logger.info("created error ini file")
@@ -448,7 +449,8 @@ class LumiSectionHandler():
             errfile.setFieldByName("Processed", total - numErr )
             errfile.writeout()
             newfilepath = os.path.join(self.outdir,errfile.run,errfile.basename)
-            errfile.moveFile(newfilepath)
+            #@SM: initially disabled moving error stream json!
+            #errfile.moveFile(newfilepath)
 
 
 

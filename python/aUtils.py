@@ -11,11 +11,12 @@ import _inotify as inotify
 
 
 ES_DIR_NAME = "TEMP_ES_DIRECTORY"
-UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,STREAMERR,INI,EOLS,EOR,COMPLETE,DAT,PDAT,CRASH,MODULELEGEND,PATHLEGEND,BOX,BOLS = range(19)            #file types 
+UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,STREAMERR,STREAMDQMHIST,INI,EOLS,EOR,COMPLETE,DAT,PDAT,CRASH,MODULELEGEND,PATHLEGEND,BOX,BOLS = range(20)            #file types 
 TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,EOLS,EOR,COMPLETE]
 TEMPEXT = ".recv"
 ZEROLS = 'ls0000'
 STREAMERRORNAME = 'streamError'
+STREAMDQMHISTNAME = 'streamDQMHistograms'
 
 #Output redirection class
 class stdOutLog:
@@ -108,9 +109,9 @@ class fileHandler(object):
             if ext == ".jsd" and "OUTPUT" in name: return JSD
             if ext == ".jsn":
                 if STREAMERRORNAME.upper() in name: return STREAMERR
+                elif STREAMDQMHISTNAME.upper() in name: return STREAME
                 elif "BOLS" in name : return BOLS
                 elif "STREAM" in name and "PID" in name: return STREAM
-                #elif "STREAM" in name and "PID" not in name: return OUTPUT
                 elif "INDEX" in name and  "PID" in name: return INDEX
                 elif "CRASH" in name and "PID" in name: return CRASH
                 elif "EOLS" in name: return EOLS

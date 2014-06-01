@@ -492,6 +492,8 @@ if True:
           hltdcfg.reg('role','fu','[General]')
           hltdcfg.reg('elastic_cluster',clusterName,'[Monitoring]')
           hltdcfg.reg('es_cmssw_log_level',cmsswloglevel,'[Monitoring]')
+          hltdcfg.reg('elastic_runindex_url',sys.argv[2],'[Monitoring]')
+          hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
           hltdcfg.reg('cmssw_base',cmssw_base,'[CMSSW]')
           hltdcfg.reg('cmssw_threads',nthreads,'[CMSSW]')
           hltdcfg.removeEntry('watch_directory')
