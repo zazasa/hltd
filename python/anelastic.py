@@ -144,8 +144,7 @@ class LumiSectionRanger():
         filepath = os.path.join(self.outdir,runname,filename)
         infile = fileHandler(filepath)
         infile.data = ""
-        #@SM:initially disabled
-        #infile.writeout()
+        infile.writeout()
         self.errIniFile.set()
 
         self.logger.info("created error ini file")

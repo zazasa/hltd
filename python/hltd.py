@@ -71,7 +71,7 @@ def cleanup_resources():
     dirlist = os.listdir(idles)
     #quarantine files beyond use fraction limit (rounded to closest integer)
     num_excluded = round(len(dirlist)*(1.-conf.resource_use_fraction))
-    for i in range(0,num_excluded):
+    for i in range(0,int(num_excluded)):
         os.rename(idles+dirlist[i],quarantined+dirlist[i])
 
     if conf.dqm_machine:
@@ -483,7 +483,7 @@ class ProcessWatchdog(threading.Thread):
                 filepath = os.path.join(outdir,filename)
                 document = {"errorCode":returncode}
                 try: 
-                    with open(filepath,"w") as fi: 
+                    with open(filepath,"w+") as fi: 
                         json.dump(document,fi)
                 except: logging.exception("unable to create %r" %filename)
                 logging.info("pid crash file: %r" %filename)

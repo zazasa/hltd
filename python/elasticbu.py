@@ -30,8 +30,9 @@ centralListTemp=["srv-c2a11-07-01","srv-c2a11-08-01","srv-c2a11-09-01","srv-c2a1
 def rotateAddr():
   global rotate_temp
   if rotate_temp>=len(centralListTemp): rotate_temp=0
+  ip = socket.gethostbyname(centralListTemp[rotate_temp])
   rotate_temp+=1
-  return socket.gethostbyname(centralListTemp[rotate_temp])
+  return ip
 
 def getURLwithIP(url):
   try:
@@ -223,8 +224,20 @@ class elasticBandBU:
                 break
             except ElasticHttpError as ex:
                 #this is normally fine as the index gets created somewhere across the cluster
-                self.logger.info(ex)
-                break
+                if "IndexAlreadyExistsException" in str(ex):
+                    self.logger.info(ex)
+                    break
+                else:
+                    self.logger.error(ex)
+                    if runMode and connectionAttempts>100:
+                        self.logger.error('elastic (BU): exiting after 100 ElasticHttpError reports from '+ es_server_url)
+                        sys.exit(1)
+                    elif runMode==False and connectionAttempts>10:
+                        self.threadEvent.wait(60)
+                    else:
+                        self.threadEvent.wait(1)
+                    continue
+
             except ConnectionError as ex:
                 #try to reconnect with different IP from DNS load balancing
                 if runMode and connectionAttempts>100:
@@ -342,7 +355,7 @@ class elasticBandBU:
             except ElasticHttpError as ex:
                 if attempts==0:continue
                 self.logger.error('elasticsearch HTTP error. skipping document '+name)
-                self.logger.exception(ex)
+                #self.logger.exception(ex)
                 return False
             except ConnectionError as ex:
                 if attempts>100 and self.runMode:
