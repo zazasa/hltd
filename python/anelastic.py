@@ -364,14 +364,14 @@ class LumiSectionHandler():
 
 
         #add crash infos to the streamError output file
+        if len(streamDiff)==len(self.activeStreams):
 
-        inputFileList = [item.name+".raw" for item in self.pidList[pid]["indexFileList"]]
-        inputFileList = ",".join(inputFileList)
-        self.logger.info("inputFileList: " + inputFileList)
-        file2merge.setFieldByName("InputFiles",inputFileList)
-        self.streamErrorFile.merge(file2merge)
-
-
+            inputFileList = [item.name+".raw" for item in self.pidList[pid]["indexFileList"]]
+            inputFileList = ",".join(inputFileList)
+            self.logger.info("inputFileList: " + inputFileList)
+            file2merge.setFieldByName("InputFiles",inputFileList)
+            self.streamErrorFile.merge(file2merge)
+        
         #error stream handling - the crashed pid took one or more index files for this lumi but did not
         #finish writing all streams
         #index files will be moved to area for error stream salvage on BU
