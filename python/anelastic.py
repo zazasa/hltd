@@ -364,8 +364,20 @@ class LumiSectionHandler():
 
         #add crash infos to the streamError output file (only if no streams are merged yet for lumi)
         if len(streamDiff)==len(self.activeStreams):
-            inputFileList = [item.name+".raw" for item in self.pidList[pid]["indexFileList"]]
-            inputFileList = ",".join(inputFileList)
+            inputFileList = [item.name[:item.name.find('_pid')]+".raw" for item in self.pidList[pid]["indexFileList"]]
+            inputFileEvents = [int(item.data["data"][0]) for item in self.pidList[pid]["indexFileList"]]
+            errorRawFiles=[]
+            rawErrorEvents=0
+            for index,rawFile in enumerate(inputFileList):
+               try:
+                 os.stat(os.path.join(rawinputdir,rawFile))
+                 errorRawFiles.append(rawFile)
+                 rawErrorEvents+=inputFileEvents[index]
+               except OSError:
+                 self.logger.info('error stream input file '+rawFile+' is gone, possibly already deleted by the process')
+                 pass
+            file2merge.setFieldByName("ErrorEvents",rawErrorEvents)
+            inputFileList = ",".join(errorRawFiles)
             self.logger.info("inputFileList: " + inputFileList)
             file2merge.setFieldByName("InputFiles",inputFileList)
             self.streamErrorFile.merge(file2merge)
@@ -486,6 +498,7 @@ if __name__ == "__main__":
     
     dirname = sys.argv[1]
     run_number = sys.argv[2]
+    rawinputdir = sys.argv[3]
     dirname = os.path.basename(os.path.normpath(dirname))
     watchDir = os.path.join(conf.watch_directory,dirname)
     outputDir = conf.micromerge_output

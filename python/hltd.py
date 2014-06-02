@@ -649,7 +649,7 @@ class Run:
         if conf.role == "fu":
             try:
                 logging.info("starting anelastic.py with arguments:"+self.dirname)
-                elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname,str(self.runnumber)]
+                elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname,str(self.runnumber), self.rawinputdir]
                 self.anelastic_monitor = subprocess.Popen(elastic_args,
                                                     preexec_fn=preexec_function,
                                                     close_fds=True
