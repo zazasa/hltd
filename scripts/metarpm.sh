@@ -139,7 +139,7 @@ cd $TOPDIR
 cat > fffmeta.spec <<EOF
 Name: fffmeta
 Version: 1.3.2
-Release: 5
+Release: 6
 Summary: hlt daemon
 License: gpl
 Group: Hacks
