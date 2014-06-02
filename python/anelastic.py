@@ -362,15 +362,13 @@ class LumiSectionHandler():
             if outfile.stream in streamDiff:
                 outfile.merge(file2merge)
 
-
-        #add crash infos to the streamError output file
-
-        inputFileList = [item.name+".raw" for item in self.pidList[pid]["indexFileList"]]
-        inputFileList = ",".join(inputFileList)
-        self.logger.info("inputFileList: " + inputFileList)
-        file2merge.setFieldByName("InputFiles",inputFileList)
-        self.streamErrorFile.merge(file2merge)
-
+        #add crash infos to the streamError output file (only if no streams are merged yet for lumi)
+        if len(streamDiff)==len(self.activeStreams):
+            inputFileList = [item.name+".raw" for item in self.pidList[pid]["indexFileList"]]
+            inputFileList = ",".join(inputFileList)
+            self.logger.info("inputFileList: " + inputFileList)
+            file2merge.setFieldByName("InputFiles",inputFileList)
+            self.streamErrorFile.merge(file2merge)
 
     def processDATFile(self):
         self.logger.info(self.infile.basename)
