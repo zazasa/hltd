@@ -11,12 +11,12 @@ import _inotify as inotify
 
 
 ES_DIR_NAME = "TEMP_ES_DIRECTORY"
-UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,STREAMERR,STREAMDQMHIST,INI,EOLS,EOR,COMPLETE,DAT,PDAT,CRASH,MODULELEGEND,PATHLEGEND,BOX,BOLS = range(20)            #file types 
-TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,EOLS,EOR,COMPLETE]
+UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT,INI,EOLS,EOR,COMPLETE,DAT,PDAT,CRASH,MODULELEGEND,PATHLEGEND,BOX,BOLS = range(20)            #file types 
+TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,STREAMERR,STREAMDQMHISTOUTPUT,EOLS,EOR,COMPLETE]
 TEMPEXT = ".recv"
 ZEROLS = 'ls0000'
 STREAMERRORNAME = 'streamError'
-STREAMDQMHISTNAME = 'streamDQMHistograms'
+STREAMDQMHISTONAME = 'streamDQMHistograms'
 
 #Output redirection class
 class stdOutLog:
@@ -81,6 +81,8 @@ class fileHandler(object):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.filepath = filepath
         self.outDir = self.dir
+        self.dqmStage = 0
+        self.inputs = []
 
     def getTime(self,t):
         if self.exists():
@@ -103,20 +105,21 @@ class fileHandler(object):
         name,ext = self.name,self.ext
         name = name.upper()
         if "mon" not in filepath:
-            if ext == ".dat" and "PID" not in name: return DAT
-            if ext == ".dat" and "PID" in name: return PDAT
-            if ext == ".ini" and "PID" in name: return INI
+            if ext == ".dat" and "_PID" not in name: return DAT
+            if ext == ".dat" and "_PID" in name: return PDAT
+            if ext == ".ini" and "_PID" in name: return INI
             if ext == ".jsd" and "OUTPUT" in name: return JSD
             if ext == ".jsn":
                 if STREAMERRORNAME.upper() in name: return STREAMERR
-                elif STREAMDQMHISTNAME.upper() in name: return STREAME
                 elif "BOLS" in name : return BOLS
-                elif "STREAM" in name and "PID" in name: return STREAM
-                elif "INDEX" in name and  "PID" in name: return INDEX
-                elif "CRASH" in name and "PID" in name: return CRASH
+                elif "STREAM" in name and "_PID" in name: return STREAM
+                elif "INDEX" in name and  "_PID" in name: return INDEX
+                elif "CRASH" in name and "_PID" in name: return CRASH
                 elif "EOLS" in name: return EOLS
                 elif "EOR" in name: return EOR
-        if "STREAM" in name and "PID" not in name and ext==".jsn": return OUTPUT
+        if ext==".jsn":
+            if STREAMDQMHISTONAME.upper() in name and "_PID" not in name: return STREAMDQMHISTOUTPUT
+            if "STREAM" in name and "_PID" not in name: return OUTPUT
         if name.endswith("COMPLETE"): return COMPLETE
         if ".fast" in filename: return FAST
         if "slow" in filename: return SLOW
@@ -350,10 +353,14 @@ class fileHandler(object):
         self.data["data"] = result
         self.data["definition"] = jsdfile
         self.data["source"] = host
-        self.writeout()
 
+        if self.filetype==STREAMDQMHISTOOUTPUT:
+            self.inputs.append(infile)
+        else:
+            self.writeout()
 
-
+    def updateData(self,infile):
+        self.data["data"]=infile.data["data"][:]
 
 
 class Aggregator(object):
@@ -420,4 +427,5 @@ class Aggregator(object):
         elif data1: return str(data1)
         elif data2: return str(data2)
         else: return ""
+
 

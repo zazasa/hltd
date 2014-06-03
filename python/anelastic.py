@@ -18,7 +18,6 @@ from hltdconf import *
 from aUtils import *
 
 
-
 class LumiSectionRanger():
     host = os.uname()[1]        
     def __init__(self,tempdir,outdir,run_number):
@@ -178,6 +177,13 @@ class LumiSectionRanger():
             else:
                 self.infile.deleteFile()
 
+        #start DQM merger thread
+        if STREAMDQMHISTONAME.upper() in stream.upper():
+            if dqmHandler == None:
+                dqmHandler = DQMMerger()
+                if dqmHandler.active==False:
+                    dqmHandler = None
+
         self.createErrIniFile()
 
 
@@ -289,6 +295,7 @@ class LumiSectionHandler():
         elif filetype == EOLS: self.processEOLSFile()
         elif filetype == DAT: self.processDATFile()
         elif filetype == CRASH: self.processCRASHFile()
+        elif filetype == STREAMDQMHISTOOUTPUT: self.processStreamDQMOutput()
 
         self.checkClosure()
 
@@ -382,6 +389,14 @@ class LumiSectionHandler():
             file2merge.setFieldByName("InputFiles",inputFileList)
             self.streamErrorFile.merge(file2merge)
 
+    def processStreamDQMOutput(self):
+        #DQM histogram stream finished
+        outfile = next((outfile for outfile in self.outfileList if outfile.stream == stream),False)
+        if outfile:
+            outfile.updateData(infile)
+            outfile.dqmStage+=1
+            outfile.writeout()
+
     def processDATFile(self):
         self.logger.info(self.infile.basename)
         stream = self.infile.stream
@@ -412,6 +427,17 @@ class LumiSectionHandler():
             stream = outfile.stream
             processed = outfile.getFieldByName("Processed")+outfile.getFieldByName("ErrorEvents")
             if processed == self.totalEvent:
+
+                if outfile.type==STREAMDQMHISTOUTPUT:
+                    if outfile.dqmStage==0:
+                        #give to the merging thread
+                        dqmQueue.put(outfile)
+                        dqmStage+=1
+                        continue
+                    elif outfile.dqmStage==1:
+                        #still merging
+                        continue
+
                 self.streamCounters[stream]+=processed
                 self.logger.info("%r,%r complete" %(self.ls,outfile.stream))
 
@@ -426,6 +452,9 @@ class LumiSectionHandler():
                     except:
                         self.logger.warning('unable to create BoLS file for ls ', self.ls)
                 logger.info("bols file "+ str(bols_path) + " is created in the output")
+
+
+
 
                 #move all dat files in rundir
                 datfilelist = self.datfileList[:]
@@ -458,10 +487,7 @@ class LumiSectionHandler():
             errfile.setFieldByName("Processed", total - numErr )
             errfile.writeout()
             newfilepath = os.path.join(self.outdir,errfile.run,errfile.basename)
-            ##@SM: initially disabled moving error stream json!
             errfile.moveFile(newfilepath)
-
-
 
 
             #close lumisection if all streams are closed
@@ -481,7 +507,113 @@ class LumiSectionHandler():
                 with open(self.EOLS.filepath,"w+") as fi:
                     json.dump(document,fi,sort_keys=True)
         except: logging.exception("unable to write to " %self.EOLS.filepath)
-             
+
+
+class DQMMerger(threading.Thread):
+
+    def __init__(self):
+        threading.Thread.__init__(self)
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.test_command = conf.cmssw_script_location+'/testHadd.sh'
+        self.command = 'fastHadd'
+        self.threadEvent = threading.Event()
+        self.abort = False
+        self.active=False
+        try:
+            mergeEnabled = True
+            self.logger.info('checking fastHadd presence.....')
+            p = subprocess.Popen(self.test_command,shell=True,stdout=subprocess.PIPE)
+            p.wait()
+        except Exception as ex:
+            mergeEnabled = False
+        if p.returncode!=0 or mergeEnabled == False:
+            self.logger.error('fastHadd not present. DQM histogram merging is disabled!')
+            return
+        else: self.logger.info('fastHadd is found!')
+        self.start()
+        self.active=True
+        return True
+
+    def run(self):
+        while self.abort == True:
+            try:
+                mergeDesc = dqmQueue.get(True,0.5) #blocking with timeout
+                #self.infile = fileHandler(event.fullpath)
+                #self.emptyQueue.clear()
+                self.process(mergeDesc) 
+            except Queue.Empty as e:
+                continue
+            except KeyboardInterrupt as e:
+                break
+
+    def process(self,outfile):
+       outputName = outfile.getFieldByName('Filelist') #should not be dat!
+       fullOutputPath = os.path.join(watchDir,outputName)
+       command_args = [self.command,"-o",fullOutputPath]
+       processedEvents = 0
+       acceptedEvents = 0
+       errorEvents = 0
+
+       for f in outputfile.inputs:
+           fullpath = os.path.join(watchDir,f.getFieldByName('Filelist'))
+           try:
+               os.stat(fullpath)
+               command_args.append(fullpath)
+               numFiles+=1
+               processedEvents+= f.infile.getFieldByName('Processed')
+               acceptedEvents+= f.infile.getFieldByName('Accepted')
+               errorEvents+= f.infile.getFieldByName('ErrorEvents')
+           except OSError as ex:
+               #file missing?
+               errorEvents+= f.getFieldByName('Processed') + f.getFieldByName('ErrorEvents')
+               self.logger.error('fastHadd pb file missing? : '+ fullpath)
+               self.logger.exception(ex)
+
+       filesize=0
+       hasError=False
+       exitCodes =  outfile.getFieldByName('ReturnExitCodes')
+       if numFiles>=0:
+           #self.process = subprocess.Popen(command_args,close_fds=True)
+           p = subprocess.Popen(command_args)#TODO:have close_fds?
+           p.wait()
+           if p.returncode!=0:
+               self.logger.error('fastHadd returned with exit code '+str(p.returncode))
+               outfile.getFieldByName('ReturnExitCodes', str(p.returncode))
+               hasError=True
+           else:
+               try:
+                   filesize = os.stat(fullOutputPath).st_size
+               except:
+                   self.logger.error('Error checking fastHadd output file '+ fullOutputPath)
+                   hasError=True
+       else:
+           hasError=True
+
+       if hasError:
+           errorEvents+=processesEvents
+           processedEvents=0
+           acceptedEvents=0
+           fullOutputPath=""
+           filesize=0
+            
+       outfile.setFieldByName('Processed',processedEvents)
+       outfile.setFieldByName('Accepted',acceptedEvents)
+       outfile.setFieldByName('ErrorEvents',errorEvents)
+       outfile.setFieldByName('Filelist',outputName)
+       outfile.setFieldByName('Filesize',filesize)
+       outfile.writeout()
+ 
+
+    def waitCompletition(self):
+        self.join()
+        pass
+
+    def abortMerging(self):
+        self.abort = True
+        self.join()
+    
+        
+
 
 if __name__ == "__main__":
     logging.basicConfig(filename=os.path.join(conf.log_dir,"anelastic.log"),
@@ -495,6 +627,7 @@ if __name__ == "__main__":
     sys.stdout = stdOutLog()
 
     eventQueue = Queue.Queue()
+    dqmQueue = Queue.Queue()
     
     dirname = sys.argv[1]
     run_number = sys.argv[2]
@@ -502,6 +635,8 @@ if __name__ == "__main__":
     dirname = os.path.basename(os.path.normpath(dirname))
     watchDir = os.path.join(conf.watch_directory,dirname)
     outputDir = conf.micromerge_output
+
+    dqmHandler = None
 
     mask = inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO  # watched events
     logger.info("starting anelastic for "+dirname)
