@@ -23,10 +23,12 @@ import subprocess
 from pyelasticsearch.client import ElasticSearch
 from pyelasticsearch.client import IndexAlreadyExistsError
 from pyelasticsearch.client import ElasticHttpError
+from pyelasticsearch.client import ConnectionError
 
 from hltdconf import *
 from elasticBand import elasticBand
 from aUtils import stdOutLog,stdErrorLog
+from elasticbu import getURLwithIP 
 
 terminate = False
 threadEventRef = None
@@ -584,15 +586,23 @@ class HLTDLogIndex():
 
     def __init__(self,es_server_url):
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.es = ElasticSearch(es_server_url)
+        self.es_server_url=es_server_url
         self.host = os.uname()[1]
 
         if 'localhost' in es_server_url:
             nshards = 16
-            self.index_name = 'hltdlogs'
+            self.index_name = 'hltdlogs_'+conf.elastic_cluster
         else:
             nshards=1
-            self.index_name = 'hltdlogs_'+conf.elastic_cluster
+            index_suffix = conf.elastic_runindex_name.strip()
+            if index_suffix.startswith('runindex_'):
+                index_suffix=index_suffix[index_suffix.find('_'):]
+            elif index_suffix=='runindex':
+                index_suffix=""
+            elif index_suffix.startswith('runindex'):
+                index_suffix='_'+index_suffix[8:]
+            else: index_suffix='_'+index_suffix
+            self.index_name = 'hltdlogs'+index_suffix
         self.settings = {
             "analysis":{
                 "analyzer": {
@@ -633,11 +643,21 @@ class HLTDLogIndex():
                  }
             }
         }
-        try:
-            self.es.create_index(self.index_name, settings={ 'settings': self.settings, 'mappings': self.mapping })
-        except ElasticHttpError as ex:
-            #this is normally fine as the index gets created somewhere across the cluster
-            pass
+        while True:
+            try:
+                self.logger.info('writing to elastic index '+self.index_name)
+                ip_url=getURLwithIP(es_server_url)
+                self.es = ElasticSearch(ip_url)
+                self.es.create_index(self.index_name, settings={ 'settings': self.settings, 'mappings': self.mapping })
+                break
+            except ElasticHttpError as ex:
+                #this is normally fine as the index gets created somewhere across the cluster
+                self.logger.info(ex)
+                break
+            except ConnectionError as ex:
+                #try to reconnect with different IP from DNS load balancing
+                self.threadEvent.wait(2)
+                continue
 
     def elasticize_log(self,type,severity,timestamp,msg):
         document= {}
@@ -661,8 +681,17 @@ class HLTDLogIndex():
         else:
             document['lexicalId']=0
         document['msgtime']=timestamp
-        self.es.index(self.index_name,'hltdlog',document)
-
+        try:
+            self.es.index(self.index_name,'hltdlog',document)
+        except:
+            try:
+                #retry with new ip adddress in case of a problem
+                ip_url=getURLwithIP(self.es_server_url)
+                self.es = ElasticSearch(ip_url)
+                self.es.index(self.index_name,'hltdlog',document)
+            except:
+                logger.warning('failed connection attempts to ' + self.es_server_url)
+ 
 class HLTDLogParser(threading.Thread):
     def __init__(self,dir,file,loglevel,esHandler,skipToEnd):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -701,7 +730,10 @@ class HLTDLogParser(threading.Thread):
             self.timestamp = line[begin:end]
             self.msg = [line[msgbegin:]]
             self.logOpen=True
-        
+
+    def stop(self):
+        self.abort=True
+
     def run(self):
         #open file and rewind to the end
         fullpath = os.path.join(self.dir,self.filename)
@@ -764,7 +796,7 @@ class HLTDLogParser(threading.Thread):
                             currentEvent = self.parseEntry(4,line)
                     if line.startswith('Traceback'):
                             if self.logOpen:
-                                selg.msg.append(line)
+                                self.msg.append(line)
 
         f.close()
 
@@ -772,15 +804,15 @@ class HLTDLogParser(threading.Thread):
 
 class HLTDLogCollector():
 
-    def __init__(self,dir,files,loglevel,esurl='http://localhost:9200'):
+    def __init__(self,dir,files,loglevel):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.dir = dir
         self.files=files
         self.loglevel=loglevel
         self.activeFiles=[]
         self.handlers = []
-        self.esurl = esurl
-        self.esHandler = HLTDLogIndex(esurl)
+        self.esurl = conf.elastic_runindex_url
+        self.esHandler = HLTDLogIndex(self.esurl)
         self.firstScan=True
     
     def scanForFiles(self):
@@ -798,6 +830,13 @@ class HLTDLogCollector():
         #if file was not found first time, it is assumed to be created in the next iteration
         self.firstScan=False
 
+    def setStop(self):
+        for h in self.handlers:h.stop()
+
+    def stop(self):
+        for h in self.handlers:h.stop()
+        for h in self.handlers:h.join()
+
 
 def signalHandler(p1,p2):
     global terminate
@@ -805,6 +844,7 @@ def signalHandler(p1,p2):
     terminate = True
     if threadEventRef:
         threadEventRef.set()
+    if hlc:hlc.setStop()
 
 def registerSignal(eventRef):
     global threadEventRef
@@ -835,40 +875,68 @@ if __name__ == "__main__":
         logger.info("No valid es_cmssw_log_level configuration. Quit")
         sys.exit(0)
 
+    hltdloglevel = 1
+    try:
+        hltdloglevel_name = conf.es_hltd_log_level.upper().strip()
+        if hltdloglevel_name == 'DISABLED':
+            hltdloglevel = -1
+        else:
+            hltdloglevel = [i for i,x in enumerate(severityStr) if x == hltdloglevel_name][0]
+    except:
+        logger.info("No valid es_cmssw_log_level configuration. Quit")
+        sys.exit(0)
+
+
+
     threadEvent = threading.Event()
     registerSignal(threadEvent)
 
-    #TODO:hltd log parser
     hltdlogdir = '/var/log/hltd'
     hltdlogs = ['hltd.log','anelastic.log','elastic.log','elasticbu.log']
     cmsswlogdir = '/var/log/hltd/pid'
 
-    mask = inotify.IN_CREATE # | inotify.IN_CLOSE_WRITE  # cmssw log files
+    mask = inotify.IN_CREATE
     logger.info("starting CMSSW log collector for "+cmsswlogdir)
     clc = None
 
     if cmsswloglevel>=0:
       try:
-
-        #starting inotify thread
-        clc = CMSSWLogCollector(cmsswlogdir,cmsswloglevel)
-        clc.register_inotify_path(cmsswlogdir,mask)
-        clc.start_inotify()
-
-        #use same log level as for hltd
-        hlc = HLTDLogCollector(hltdlogdir,hltdlogs,cmsswloglevel)
-
+          #starting inotify thread
+          clc = CMSSWLogCollector(cmsswlogdir,cmsswloglevel)
+          clc.register_inotify_path(cmsswlogdir,mask)
+          clc.start_inotify()
       except Exception,e:
-        logger.exception("error: "+str(e))
-        sys.exit(1)
-
+          logger.error('exception starting cmssw log monitor')
+          logger.exception(e)
     else:
-        logger.info('CMSSW logging is disabled')
+        logger.info('CMSSW log collection is disabled')
 
-    while terminate == False:
-        if cmsswloglevel>=0:
-            hlc.scanForFiles()
-        threadEvent.wait(5)
+    hlc=None
+    if hltdloglevel==0:
+        logger.info('hltd log collection is disabled')
+
+    if cmsswloglevel or hltdloglevel:
+        doEvery=10
+        counter=0
+        while terminate == False:
+            if hltdloglevel>=0:
+                if hlc:
+                    hlc.scanForFiles()
+                else:
+                    #retry connection to central ES if it was unavailable
+                    try:
+                         if counter%doEvery==0:
+                             hlc = HLTDLogCollector(hltdlogdir,hltdlogs,hltdloglevel)
+                             continue
+                    except Exception,ex:
+                         logger.error('exception starting hltd log monitor')
+                         logger.exception(ex)
+                         hlc=None
+                         pass
+            counter+=1
+
+            threadEvent.wait(5)
+        if hlc:hlc.stop()
 
     logger.info("Closing notifier")
     if clc is not None:

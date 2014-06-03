@@ -41,7 +41,6 @@ mkdir -p etc/appliance/resources/except
 mkdir -p etc/appliance/resources/quarantined
 mkdir -p usr/lib64/python2.6/site-packages
 mkdir -p usr/lib64/python2.6/site-packages/pyelasticsearch
-mkdir -p usr/lib64/python2.6/site-packages/simplejson
 ls
 cp -r $BASEDIR/python/hltd $TOPDIR/etc/init.d/hltd
 cp -r $BASEDIR/* $TOPDIR/opt/hltd
@@ -54,36 +53,6 @@ echo "Creating DQM directories"
 mkdir -p etc/appliance/dqm/configs/free
 mkdir -p etc/appliance/dqm/configs/used
 
-
-# build external libraries
-#simplejson 3.3.1
-cd opt/hltd/lib/simplejson-3.3.1/
-./setup.py -q build
-python - <<'EOF'
-import py_compile
-py_compile.compile("build/lib.linux-x86_64-2.6/simplejson/__init__.py")
-py_compile.compile("build/lib.linux-x86_64-2.6/simplejson/compat.py")
-py_compile.compile("build/lib.linux-x86_64-2.6/simplejson/decoder.py")
-py_compile.compile("build/lib.linux-x86_64-2.6/simplejson/encoder.py")
-py_compile.compile("build/lib.linux-x86_64-2.6/simplejson/ordered_dict.py")
-py_compile.compile("build/lib.linux-x86_64-2.6/simplejson/scanner.py")
-py_compile.compile("build/lib.linux-x86_64-2.6/simplejson/tool.py")
-EOF
-python -O - <<'EOF'
-import py_compile
-py_compile.compile("build/lib.linux-x86_64-2.6/simplejson/__init__.py")
-py_compile.compile("build/lib.linux-x86_64-2.6/simplejson/compat.py")
-py_compile.compile("build/lib.linux-x86_64-2.6/simplejson/decoder.py")
-py_compile.compile("build/lib.linux-x86_64-2.6/simplejson/encoder.py")
-py_compile.compile("build/lib.linux-x86_64-2.6/simplejson/ordered_dict.py")
-py_compile.compile("build/lib.linux-x86_64-2.6/simplejson/scanner.py")
-py_compile.compile("build/lib.linux-x86_64-2.6/simplejson/tool.py")
-EOF
-cp build/lib.linux-x86_64-2.6/simplejson/*.pyo $TOPDIR/usr/lib64/python2.6/site-packages/simplejson
-cp build/lib.linux-x86_64-2.6/simplejson/*.py $TOPDIR/usr/lib64/python2.6/site-packages/simplejson
-cp build/lib.linux-x86_64-2.6/simplejson/*.pyc $TOPDIR/usr/lib64/python2.6/site-packages/simplejson
-cp build/lib.linux-x86_64-2.6/simplejson/_speedups.so $TOPDIR/usr/lib64/python2.6/site-packages/simplejson
-cp -r PKG-INFO $TOPDIR/usr/lib64/python2.6/site-packages/simplejson/simplejson.egg-info
 
 cd $TOPDIR
 #pyelasticsearch
@@ -185,7 +154,7 @@ cd $TOPDIR
 cat > hltd.spec <<EOF
 Name: hltd
 Version: 1.3.2
-Release: 4
+Release: 7
 Summary: hlt daemon
 License: gpl
 Group: Hacks
@@ -200,7 +169,7 @@ Provides:/etc/hltd.conf
 Provides:/etc/logrotate.d/hltd
 Provides:/etc/init.d/hltd
 Provides:/usr/lib64/python2.6/site-packages/prctl.pyc
-Requires:python,libcap,python-six,python-requests
+Requires:python,libcap,python-six,python-requests,python-simplejson >= 3.3.1
 
 %description
 fff hlt daemon
@@ -233,7 +202,6 @@ rm -rf /etc/appliance/except/*
 /etc/init.d/hltd
 /etc/appliance
 /usr/lib64/python2.6/site-packages/*prctl*
-/usr/lib64/python2.6/site-packages/*simplejson*
 /usr/lib64/python2.6/site-packages/*watcher*
 /usr/lib64/python2.6/site-packages/*_inotify.so*
 /usr/lib64/python2.6/site-packages/*python_inotify*

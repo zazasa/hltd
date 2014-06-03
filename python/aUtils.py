@@ -11,10 +11,12 @@ import _inotify as inotify
 
 
 ES_DIR_NAME = "TEMP_ES_DIRECTORY"
-UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,INI,EOLS,EOR,COMPLETE,DAT,PDAT,CRASH,MODULELEGEND,PATHLEGEND,BOX = range(17)            #file types 
+UNKNOWN,JSD,STREAM,INDEX,FAST,SLOW,OUTPUT,STREAMERR,STREAMDQMHIST,INI,EOLS,EOR,COMPLETE,DAT,PDAT,CRASH,MODULELEGEND,PATHLEGEND,BOX,BOLS = range(20)            #file types 
 TO_ELASTICIZE = [STREAM,INDEX,OUTPUT,EOLS,EOR,COMPLETE]
 TEMPEXT = ".recv"
-
+ZEROLS = 'ls0000'
+STREAMERRORNAME = 'streamError'
+STREAMDQMHISTNAME = 'streamDQMHistograms'
 
 #Output redirection class
 class stdOutLog:
@@ -106,13 +108,15 @@ class fileHandler(object):
             if ext == ".ini" and "PID" in name: return INI
             if ext == ".jsd" and "OUTPUT" in name: return JSD
             if ext == ".jsn":
-                if "STREAM" in name and "PID" in name: return STREAM
-                #if "STREAM" in name and "PID" not in name: return OUTPUT
+                if STREAMERRORNAME.upper() in name: return STREAMERR
+                elif STREAMDQMHISTNAME.upper() in name: return STREAME
+                elif "BOLS" in name : return BOLS
+                elif "STREAM" in name and "PID" in name: return STREAM
                 elif "INDEX" in name and  "PID" in name: return INDEX
                 elif "CRASH" in name and "PID" in name: return CRASH
                 elif "EOLS" in name: return EOLS
                 elif "EOR" in name: return EOR
-        if "STREAM" in name and "PID" not in name: return OUTPUT
+        if "STREAM" in name and "PID" not in name and ext==".jsn": return OUTPUT
         if name.endswith("COMPLETE"): return COMPLETE
         if ".fast" in filename: return FAST
         if "slow" in filename: return SLOW
@@ -129,7 +133,7 @@ class fileHandler(object):
         if filetype in [STREAM,INI,PDAT,CRASH]: self.run,self.ls,self.stream,self.pid = splitname
         elif filetype == SLOW: self.run,self.ls,self.pid = splitname
         elif filetype == FAST: self.run,self.pid = splitname
-        elif filetype in [DAT,OUTPUT]: self.run,self.ls,self.stream,self.host = splitname
+        elif filetype in [DAT,OUTPUT,STREAMERR]: self.run,self.ls,self.stream,self.host = splitname
         elif filetype == INDEX: self.run,self.ls,self.index,self.pid = splitname
         elif filetype == EOLS: self.run,self.ls,self.eols = splitname
         else: 
@@ -172,7 +176,7 @@ class fileHandler(object):
 
     def setJsdfile(self,jsdfile):
         self.jsdfile = jsdfile
-        if self.filetype in [OUTPUT,CRASH]: self.initData()
+        if self.filetype in [OUTPUT,CRASH,STREAMERR]: self.initData()
         
     def initData(self):
         defs = self.definitions
@@ -238,6 +242,7 @@ class fileHandler(object):
 
 
     def deleteFile(self):
+        #return True
         filepath = self.filepath
         self.logger.info(filepath)
         if os.path.isfile(filepath):
@@ -298,14 +303,16 @@ class fileHandler(object):
     def exists(self):
         return os.path.exists(self.filepath)
 
-        #write self.outputData in json self.outputFile
-    def writeout(self):
+        #write self.outputData in json self.filepath
+    def writeout(self,empty=False):
         filepath = self.filepath
         outputData = self.data
         self.logger.info(filepath)
+
         try:
-            with open(filepath,"w") as fi: 
-                json.dump(outputData,fi)
+            with open(filepath,"w") as fi:
+                if empty==False:
+                    json.dump(outputData,fi)
         except Exception,e:
             self.logger.exception(e)
             return False
@@ -409,26 +416,8 @@ class Aggregator(object):
             return "N/A"
         
     def action_cat(self,data1,data2):
-        if data2: return str(data1)+","+str(data2)
-        else: return str(data1)
+        if data2 and data1: return str(data1)+","+str(data2)
+        elif data1: return str(data1)
+        elif data2: return str(data2)
+        else: return ""
 
-
-#class ErrorStreamDesc(object):
-#
-#    def __init__(self,run,ls,pid,ErrorEvents,ReturnCode,FileList):
-#        self.run = run
-#        self.ls = ls
-#        self.pid = pid
-#        self.filename = 
-#        self.document['Processed'] = ErrorEvents
-#        self.document['Accepted'] = ErrorEvents
-#        self.document['ErrorEvents'] = ErrorEvents
-#        self.document['ReturnCodeMask'] = ReturnCode
-#        self.document['FileList']=FileList
-#        self.ReturnCodeMask = ReturnCodeMask
-#        self.FileList = FileList
-#
-#    def writeErrorStreamJson(filepath):
-#        try:
-#            with open(filepath,"w") as fi:
-#                json.dump(document,fi)

@@ -35,6 +35,7 @@ class hltdConf:
         self.process_restart_limit = int(self.process_restart_limit)
         self.cmssw_threads_autosplit = int(self.cmssw_threads_autosplit)
         self.cmssw_threads = int(self.cmssw_threads)
+        self.resource_use_fraction = float(self.resource_use_fraction)
         self.service_log_level = getattr(logging,self.service_log_level)
         self.autodetect_parameters()
 

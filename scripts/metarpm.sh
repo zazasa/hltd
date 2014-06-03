@@ -24,12 +24,14 @@ read readin
 if [ ${#readin} != "0" ]; then
 lines[0]=$readin
 fi
-echo "ES tribe server hostname (press enter for \"${lines[1]}\"):"
-readin=""
-read readin
-if [ ${#readin} != "0" ]; then
-lines[1]=$readin
-fi
+#echo "ES tribe server hostname (press enter for \"${lines[1]}\"):"
+#readin=""
+#read readin
+#if [ ${#readin} != "0" ]; then
+#lines[1]=$readin
+#fi
+lines[1]="empty"
+
 
 echo "CMSSW base (press enter for \"${lines[2]}\"):"
 readin=""
@@ -128,12 +130,16 @@ TOPDIR=$PWD
 echo "working in $PWD"
 ls
 
+pluginpath="/opt/fff/esplugins/"
+pluginname1="bigdesk"
+pluginfile1="lukas-vlcek-bigdesk-v2.4.0-2-g9807b92-mod.zip"
+
 cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > fffmeta.spec <<EOF
 Name: fffmeta
 Version: 1.3.2
-Release: 4
+Release: 6
 Summary: hlt daemon
 License: gpl
 Group: Hacks
@@ -142,15 +148,15 @@ Source: none
 %define _topdir $TOPDIR
 BuildArch: $BUILD_ARCH
 AutoReqProv: no
-Requires:elasticsearch >= 1.0.2, hltd >= 1.3.2, cx_Oracle >= 5.1.2, java-1.6.0-openjdk
+Requires:elasticsearch >= 1.0.2, hltd >= 1.3.2, cx_Oracle >= 5.1.2, java-1.7.0-openjdk
 
 Provides:/opt/fff/configurefff.sh
 Provides:/opt/fff/setupmachine.py
-
-Provides:/opt/fff/elasticsearch.yml
-Provides:/opt/fff/elasticsearch
-Provides:/opt/fff/hltd.conf
 Provides:/etc/init.d/fffmeta
+
+#Provides:/opt/fff/backup/elasticsearch.yml
+#Provides:/opt/fff/backup/elasticsearch
+#Provides:/opt/fff/backup/hltd.conf
 
 %description
 fffmeta configuration setup package
@@ -162,14 +168,20 @@ fffmeta configuration setup package
 rm -rf \$RPM_BUILD_ROOT
 mkdir -p \$RPM_BUILD_ROOT
 %__install -d "%{buildroot}/opt/fff"
+%__install -d "%{buildroot}/opt/fff/backup"
+%__install -d "%{buildroot}/opt/fff/esplugins"
 %__install -d "%{buildroot}/etc/init.d"
 
-mkdir -p opt/fff
+mkdir -p opt/fff/esplugins
+mkdir -p opt/fff/backup
 cp $BASEDIR/python/setupmachine.py %{buildroot}/opt/fff/setupmachine.py
 echo "#!/bin/bash" > %{buildroot}/opt/fff/configurefff.sh
 echo python2.6 /opt/fff/setupmachine.py elasticsearch,hltd $params >> %{buildroot}/opt/fff/configurefff.sh 
 
-#TODO:check if elasticsearch / hltd are already running and restart them if they are
+cp $BASEDIR/esplugins/$pluginfile1 %{buildroot}/opt/fff/esplugins/$pluginfile1
+cp $BASEDIR/esplugins/install.sh %{buildroot}/opt/fff/esplugins/install.sh
+cp $BASEDIR/esplugins/uninstall.sh %{buildroot}/opt/fff/esplugins/uninstall.sh
+
 
 mkdir -p etc/init.d/
 echo "#!/bin/bash"                       >> %{buildroot}/etc/init.d/fffmeta
@@ -198,6 +210,9 @@ echo "fi"                                >> %{buildroot}/etc/init.d/fffmeta
 %attr( 755 ,root, root) /opt/fff/setupmachine.pyo
 %attr( 700 ,root, root) /opt/fff/configurefff.sh
 %attr( 755 ,root, root) /etc/init.d/fffmeta
+%attr( 444 ,root, root) /opt/fff/esplugins/$pluginfile1
+%attr( 755 ,root, root) /opt/fff/esplugins/install.sh
+%attr( 755 ,root, root) /opt/fff/esplugins/uninstall.sh
 
 %post
 #echo "post install trigger"
@@ -205,9 +220,17 @@ chkconfig fffmeta on
 
 %triggerin -- elasticsearch
 #echo "triggered on elasticsearch update or install"
+/sbin/service elasticsearch stop
 python2.6 /opt/fff/setupmachine.py restore,elasticsearch
 python2.6 /opt/fff/setupmachine.py elasticsearch $params
-/sbin/service elasticsearch restart
+#update permissions in case new rpm changed uid/guid
+chown -R elasticsearch:elasticsearch /var/log/elasticsearch
+chown -R elasticsearch:elasticsearch /var/lib/elasticsearch
+echo /opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname1
+/opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname1
+echo /opt/fff/esplugins/install.sh /usr/share/elasticsearch $pluginfile1 $pluginname1
+/opt/fff/esplugins/install.sh /usr/share/elasticsearch $pluginfile1 $pluginname1
+/sbin/service elasticsearch start
 chkconfig elasticsearch on
 
 %triggerin -- hltd
@@ -238,18 +261,9 @@ if [ \$1 == 0 ]; then
   chkconfig hltd off
 
   /sbin/service elasticsearch stop || true
-  #if ["\$?" == "0" ]; then
-  #echo success hltd
-  #else
-  #echo unsuccess hltd
-  #fi
+  /opt/fff/esplugins/uninstall.sh /usr/share/elasticsearch $pluginname1 || true
 
   /sbin/service hltd stop || true
-  #if ["\$?" == "0" ]; then
-  #echo success hltd
-  #else
-  #echo unsuccess hltd
-  #fi
 
   python2.6 /opt/fff/setupmachine.py restore,hltd,elasticsearch
 fi

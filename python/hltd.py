@@ -68,10 +68,17 @@ def cleanup_resources():
     dirlist = os.listdir(quarantined)
     for cpu in dirlist:
         os.rename(quarantined+cpu,idles+cpu)
+    dirlist = os.listdir(idles)
+    #quarantine files beyond use fraction limit (rounded to closest integer)
+    num_excluded = round(len(dirlist)*(1.-conf.resource_use_fraction))
+    for i in range(0,int(num_excluded)):
+        os.rename(idles+dirlist[i],quarantined+dirlist[i])
+
     if conf.dqm_machine:
         dqm_configs = os.listdir(dqm_used_configs)
         for dqm_config in dqm_configs:
             os.rename(dqm_used_configs+dqm_config,dqm_free_configs+dqm_config)
+
 
 def cleanup_mountpoints():
     bu_disk_list[:] = []
@@ -476,7 +483,7 @@ class ProcessWatchdog(threading.Thread):
                 filepath = os.path.join(outdir,filename)
                 document = {"errorCode":returncode}
                 try: 
-                    with open(filepath,"w") as fi: 
+                    with open(filepath,"w+") as fi: 
                         json.dump(document,fi)
                 except: logging.exception("unable to create %r" %filename)
                 logging.info("pid crash file: %r" %filename)
@@ -511,9 +518,11 @@ class ProcessWatchdog(threading.Thread):
                         self.resource.quarantined.append(cpu)
 
             #successful end= release resource
-            elif returncode == 0:
-
-                logging.info('releasing resource, exit0 meaning end of run '+str(self.resource.cpu))
+            elif returncode == 0 or returncode ==127:
+                if returncode==0:
+                    logging.info('releasing resource, exit 0 meaning end of run '+str(self.resource.cpu))
+                else:
+                    logging.fatal('error executing start script. Maybe CMSSW environment is not available.')
                 # generate an end-of-run marker if it isn't already there - it will be picked up by the RunRanger
                 endmarker = conf.watch_directory+'/end'+str(self.resource.runnumber).zfill(conf.run_number_padding)
                 stoppingmarker = self.resource.statefiledir+'/'+Run.STOPPING
@@ -640,7 +649,7 @@ class Run:
         if conf.role == "fu":
             try:
                 logging.info("starting anelastic.py with arguments:"+self.dirname)
-                elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname,str(self.runnumber)]
+                elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname,str(self.runnumber), self.rawinputdir]
                 self.anelastic_monitor = subprocess.Popen(elastic_args,
                                                     preexec_fn=preexec_function,
                                                     close_fds=True
@@ -1069,18 +1078,20 @@ class RunRanger:
             os.remove(event.fullpath)
             if conf.role == 'fu':
                 logging.info("killing all CMSSW child processes")
-                for run in run_list:
+                run_list_copy = run_list
+                for run in run_list_copy:
                     run.Shutdown(True)
             if conf.role == 'bu':
                 boxdir = conf.resource_base +'/boxes/'
                 try:
-                    dirlist = os.listdir(idles)
+                    dirlist = os.listdir(boxdir)
                     current_time = time.time()
                     logging.info("sending herod to child FUs")
                     for name in dirlist:
                         if name == os.uname()[1]:continue
-                        age = current_time - os.path.getmtime(idles+boxdir)
-                        if age < 10:
+                        age = current_time - os.path.getmtime(boxdir+name)
+                        logging.info('found box '+name+' with keepalive age '+str(age))
+                        if age < 20:
                             connection = httplib.HTTPConnection(name, 8000)
                             connection.request("GET",'cgi-bin/herod_cgi.py')
                             response = connection.getresponse()

@@ -21,16 +21,53 @@ import csv
 import requests
 import simplejson as json
 
-index_name = "runindex"
+import socket
+
+#hack: replacing DNS alias round robin for central ES until it is available
+rotate_temp=0
+centralListTemp=["srv-c2a11-07-01","srv-c2a11-08-01","srv-c2a11-09-01","srv-c2a11-10-01","srv-c2a11-11-01","srv-c2a11-14-01","srv-c2a11-15-01","srv-c2a11-16-01","srv-c2a11-17-01","srv-c2a11-18-01","srv-c2a11-19-01","srv-c2a11-20-01","srv-c2a11-21-01","srv-c2a11-22-01","srv-c2a11-23-01","srv-c2a11-26-01","srv-c2a11-27-01","srv-c2a11-28-01","srv-c2a11-29-01","srv-c2a11-30-01"]
+
+def rotateAddr():
+  global rotate_temp
+  if rotate_temp>=len(centralListTemp): rotate_temp=0
+  ip = socket.gethostbyname(centralListTemp[rotate_temp])
+  rotate_temp+=1
+  return ip
+
+def getURLwithIP(url):
+  try:
+      prefix = ''
+      if url.startswith('http://'):
+          prefix='http://'
+          url = url[7:]
+      suffix=''
+      port_pos=url.rfind(':')
+      if port_pos!=-1:
+          suffix=url[port_pos:]
+          url = url[:port_pos]
+  except Exception as ex:
+      logging.error('could not parse URL ' +url)
+      raise(ex)
+  #@SM: hacks for DNS alias
+  if url!='localhost':
+      ip = rotateAddr()
+  else: ip='127.0.0.1'
+  #ip = socket.gethostbyname(url)
+
+  return prefix+str(ip)+suffix
+
 
 class elasticBandBU:
 
     def __init__(self,es_server_url,runnumber,startTime,runMode=True):
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.es = ElasticSearch(es_server_url)
+        self.es_server_url=es_server_url
+        self.index_name=conf.elastic_runindex_name
         self.runnumber = str(runnumber)
         self.startTime = startTime
         self.host = os.uname()[1]
+        self.stopping=False
+        self.threadEvent = threading.Event()
         self.settings = {
             "analysis":{
                 "analyzer": {
@@ -175,26 +212,57 @@ class elasticBandBU:
             }
 
 
+        connectionAttempts=0
+        while True:
+            if self.stopping:break
+            connectionAttempts+=1
+            try:
+                self.logger.info('writing to elastic index '+self.index_name)
+                ip_url=getURLwithIP(es_server_url)
+                self.es = ElasticSearch(es_server_url)
+                self.es.create_index(self.index_name, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
+                break
+            except ElasticHttpError as ex:
+                #this is normally fine as the index gets created somewhere across the cluster
+                if "IndexAlreadyExistsException" in str(ex):
+                    self.logger.info(ex)
+                    break
+                else:
+                    self.logger.error(ex)
+                    if runMode and connectionAttempts>100:
+                        self.logger.error('elastic (BU): exiting after 100 ElasticHttpError reports from '+ es_server_url)
+                        sys.exit(1)
+                    elif runMode==False and connectionAttempts>10:
+                        self.threadEvent.wait(60)
+                    else:
+                        self.threadEvent.wait(1)
+                    continue
 
-
-        try:
-            self.logger.info('writing to elastic index '+index_name)
-            self.es.create_index(index_name, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
-        except ElasticHttpError as ex:
-            self.logger.info(ex)
-#            print "Index already existing - records will be overridden"
-            #this is normally fine as the index gets created somewhere across the cluster
-            pass
+            except ConnectionError as ex:
+                #try to reconnect with different IP from DNS load balancing
+                if runMode and connectionAttempts>100:
+                   self.logger.error('elastic (BU): exiting after 100 connection attempts to '+ es_server_url)
+                   sys.exit(1)
+                elif runMode==False and connectionAttempts>10:
+                   self.threadEvent.wait(60)
+                else:
+                   self.threadEvent.wait(1)
+                continue
+            
         #write run number document
         if runMode == True:
             document = {}
             document['runNumber'] = self.runnumber
             document['startTime'] = startTime
-            try:
-                self.es.index(index_name,'run',document)
-            except ElasticHttpError as ex:
-                self.logger.info(ex)
-                pass
+            documents = [document]
+            self.index_documents('run',documents)
+            #except ElasticHttpError as ex:
+            #    self.logger.info(ex)
+            #    pass
+
+    def resetURL(url):
+        self.es = None
+        self.es = ElasticSearch(url)
 
     def read_line(self,fullpath):
         with open(fullpath,'r') as fp:
@@ -209,7 +277,7 @@ class elasticBandBU:
         document['id']= "microstatelegend_"+self.runnumber
         document['names']= self.read_line(fullpath)
         documents = [document]
-        self.es.bulk_index(index_name,'microstatelegend',documents)
+        return self.index_documents('microstatelegend',documents)
 
 
     def elasticize_pathlegend(self,fullpath):
@@ -221,7 +289,7 @@ class elasticBandBU:
         document['id']= "pathlegend_"+self.runnumber
         document['names']= self.read_line(fullpath)
         documents = [document]
-        self.es.bulk_index(index_name,'pathlegend',documents)
+        return self.index_documents('pathlegend',documents)
 
     def elasticize_runend_time(self,endtime):
 
@@ -230,17 +298,21 @@ class elasticBandBU:
         document['runNumber'] = self.runnumber
         document['startTime'] = self.startTime
         document['endTime'] = endtime
-        self.es.index(index_name,'run',document)
+        documents = [document]
+        self.index_documents('run',documents)
 
     def elasticize_box(self,infile):
 
         basename = infile.basename
         self.logger.debug(basename)
-        document = infile.data
-        #document['_parent']= self.runnumber
-        document['id']= basename + '_' + document['fm_date'].split('.')[0] #strip seconds
-        documents = [document]
-        self.es.bulk_index(index_name,'boxinfo',documents)
+        try:
+            document = infile.data
+            document['id']= basename + '_' + document['fm_date'].split('.')[0] #strip seconds
+            documents = [document]
+        except:
+            #in case of malformed box info
+            return
+        self.index_documents('boxinfo',documents)
 
     def elasticize_eols(self,infile):
         basename = infile.basename
@@ -256,7 +328,7 @@ class elasticBandBU:
         document['id'] = infile.name+"_"+os.uname()[1]
         document['_parent']= self.runnumber
         documents = [document]
-        self.es.bulk_index(index_name,'eols',documents)
+        self.index_documents('eols',documents)
 
     def elasticize_minimerge(self,infile):
         basename = infile.basename
@@ -271,33 +343,30 @@ class elasticBandBU:
         document['id'] = infile.name
         document['_parent']= self.runnumber
         documents = [document]
-        self.es.bulk_index(index_name,'minimerge',documents)
+        self.index_documents('minimerge',documents)
 
-#used when connection to central ES fails
-class elasticBandDummy():
-
-    def __init__(self):
-        return
-
-    def elasticize_modulelegend(self,fullpath):
-        return
-
-    def elasticize_pathlegend(self,fullpath):
-        return
-
-    def elasticize_runend_time(self,endtime):
-        return
-
-    def elasticize_box(self,infile):
-        return
-
-    def elasticize_eols(self,infile):
-        return
-
-    def elasticize_minimerge(self,infile):
-        return
-
-
+    def index_documents(self,name,documents):
+        attempts=0
+        while True:
+            attempts+=1
+            try:
+                self.es.bulk_index(self.index_name,name,documents)
+                return True
+            except ElasticHttpError as ex:
+                if attempts==0:continue
+                self.logger.error('elasticsearch HTTP error. skipping document '+name)
+                #self.logger.exception(ex)
+                return False
+            except ConnectionError as ex:
+                if attempts>100 and self.runMode:
+                    raise(ex)
+                self.logger.error('elasticsearch connection error. retry.')
+                if self.stopping:return False
+                time.sleep(0.1)
+                ip_url=getURLwithIP(self.es_server_url)
+                self.es = ElasticSearch(ip_url)
+        return False
+             
 
 class elasticCollectorBU():
 
@@ -310,7 +379,6 @@ class elasticCollectorBU():
         self.insertedModuleLegend = False
         self.insertedPathLegend = False
         self.eorCheckPath = inRunDir + '/run' +  str(rn).zfill(conf.run_number_padding) + '_ls0000_EoR.jsn'
-        #self.endingFilePath = watchdir + '/eor' + str(rn)
         
         self.stoprequest = threading.Event()
         self.emptyQueue = threading.Event()
@@ -346,9 +414,9 @@ class elasticCollectorBU():
                         dt=os.path.getctime(self.eorCheckPath)
                         endtime = datetime.datetime.utcfromtimestamp(dt).isoformat()
                         es.elasticize_runend_time(endtime)
-                    #create endingXXXXXX file to signal main process to look for completition in appliance ES cluster
-                    #endingFile = open(self.endingFilePath, 'w+')
-                    #close(endingFile)
+                    break
+                if False==os.path.exists(self.eorCheckPath[:self.eorCheckPath.rfind('/')]):
+                    #run dir deleted
                     break
         self.logger.info("Stop main loop")
 
@@ -364,11 +432,11 @@ class elasticCollectorBU():
         eventtype = self.eventtype
         if es and eventtype & (inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO):
             if filetype in [MODULELEGEND] and self.insertedModuleLegend == False:
-                es.elasticize_modulelegend(filepath)
-                self.insertedModuleLegend = True
+                if es.elasticize_modulelegend(filepath):
+                    self.insertedModuleLegend = True
             elif filetype in [PATHLEGEND] and self.insertedPathLegend == False:
-                es.elasticize_pathlegend(filepath)
-                self.insertedPathLegend = True          
+                if es.elasticize_pathlegend(filepath):
+                    self.insertedPathLegend = True
             elif filetype == EOLS:
                 self.logger.info(self.infile.basename)
                 es.elasticize_eols(self.infile)
@@ -422,10 +490,7 @@ class elasticBoxCollectorBU():
         eventtype = self.eventtype
         if filetype == BOX:
             #self.logger.info(self.infile.basename)
-            try:
-                self.es.elasticize_box(self.infile)
-            except Exception,ex:
-                self.logger.info("Unable to send box info update to elastic server: "+ str(ex))
+            self.es.elasticize_box(self.infile)
 
 
 class BoxInfoUpdater(threading.Thread):
@@ -452,17 +517,7 @@ class BoxInfoUpdater(threading.Thread):
 
     def run(self):
         try:
-            while self.stopping==False:
-              try:
-                if conf.elastic_bu_test is not None:
-                    self.es = elasticBandBU('http://localhost:9200',0,'',False)
-                    break;
-                else:
-                    self.es = elasticBandBU(conf.elastic_runindex_url,0,'',False)
-                    break;
-              except:
-                self.threadEvent.wait(60)
-
+            self.es = elasticBandBU(conf.elastic_runindex_url,0,'',False)
             if self.stopping:return
 
             self.ec = elasticBoxCollectorBU(self.es)
@@ -477,6 +532,9 @@ class BoxInfoUpdater(threading.Thread):
         try:
             self.stopping=True
             self.threadEvent.set()
+            if self.es:
+                self.es.stopping=True
+                self.es.threadEvent.set()
             if self.mr is not None:
                 self.mr.stop_inotify()
             if self.ec is not None:
@@ -625,7 +683,6 @@ if __name__ == "__main__":
     watchdir = conf.watch_directory
     dt=os.path.getctime(dirname)
     startTime = datetime.datetime.utcfromtimestamp(dt).isoformat()
-    index_name = conf.elastic_runindex_name
     
     #EoR file path to watch for
 
@@ -664,20 +721,7 @@ if __name__ == "__main__":
 
         mr.start_inotify()
 
-        try:
-            if conf.elastic_bu_test is not None:
-                es = elasticBandBU('http://localhost:9200',runnumber,startTime)
-            else:
-                es = elasticBandBU(conf.elastic_runindex_url,runnumber,startTime)
-        except:
-            try:
-                es = elasticBandBU(conf.elastic_runindex_url,runnumber,startTime)
-
-            except ConnectionError,ex:
-                logger.exception(ex)
-                logger.info('falling back to dummy ES mode (no connections to central server in this run)')
-                es = elasticBandDummy()
-                
+        es = elasticBandBU(conf.elastic_runindex_url,runnumber,startTime)
 
         #starting elasticCollector thread
         ec = elasticCollectorBU(monDir,dirname, watchdir, runnumber.zfill(conf.run_number_padding))

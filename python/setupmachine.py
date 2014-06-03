@@ -358,6 +358,8 @@ if True:
     elif cluster == 'daq2':
         runindex_name = 'runindex_prod' 
     else:
+        
+
         runindex_name = 'runindex_test' 
 
     buName = ''
@@ -443,7 +445,6 @@ if True:
 
         escfg.commit()
 
-    argvc+=1
     if "hltd" in selection:
 
       #first prepare bus.config file
@@ -491,6 +492,8 @@ if True:
           hltdcfg.reg('role','fu','[General]')
           hltdcfg.reg('elastic_cluster',clusterName,'[Monitoring]')
           hltdcfg.reg('es_cmssw_log_level',cmsswloglevel,'[Monitoring]')
+          hltdcfg.reg('elastic_runindex_url',sys.argv[2],'[Monitoring]')
+          hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
           hltdcfg.reg('cmssw_base',cmssw_base,'[CMSSW]')
           hltdcfg.reg('cmssw_threads',nthreads,'[CMSSW]')
           hltdcfg.removeEntry('watch_directory')
