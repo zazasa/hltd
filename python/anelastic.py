@@ -296,7 +296,7 @@ class LumiSectionHandler():
         if filetype == STREAM: self.processStreamFile()
         elif filetype == INDEX: self.processIndexFile()
         elif filetype == EOLS: self.processEOLSFile()
-	elif filetype == DAT: self.processDATFile()
+        elif filetype == DAT: self.processDATFile()
         elif filetype == PB: self.processDATFile()
         elif filetype == CRASH: self.processCRASHFile()
         elif filetype == STREAMDQMHISTOUTPUT: self.processStreamDQMHistoOutput()
