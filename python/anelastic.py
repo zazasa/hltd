@@ -4,6 +4,7 @@ import sys,traceback
 import os
 import time
 import shutil
+import subprocess
 
 import filecmp
 from inotifywrapper import InotifyWrapper
@@ -98,7 +99,7 @@ class LumiSectionRanger():
         filetype = self.infile.filetype
         eventtype = self.eventtype
 
-        if eventtype & inotify.IN_CLOSE_WRITE:
+        if eventtype:# & inotify.IN_CLOSE_WRITE:
             if filetype == JSD and not self.jsdfile: self.jsdfile=self.infile.filepath
             elif filetype == COMPLETE:
                 self.processCompleteFile()
@@ -106,7 +107,7 @@ class LumiSectionRanger():
             elif not self.firstStream.isSet():
                 self.buffer.append(self.infile)
                 if filetype == STREAM: self.flushBuffer()
-            elif filetype in [STREAM,INDEX,EOLS,DAT]:
+            elif filetype in [STREAM,STREAMDQMHISTOUTPUT,INDEX,EOLS,DAT,PB]:
                 run,ls = (self.infile.run,self.infile.ls)
                 key = (run,ls)
                 if key not in self.LSHandlerList and not filetype == EOLS :
@@ -119,8 +120,8 @@ class LumiSectionRanger():
                 self.processCRASHfile()
             elif filetype == EOR:
                 self.processEORFile()
-        elif eventtype & inotify.IN_MOVED_TO:
-           if filetype == JSD and not self.jsdfile: self.jsdfile=self.infile.filepath
+#        elif eventtype & inotify.IN_MOVED_TO:
+#           if filetype == JSD and not self.jsdfile: self.jsdfile=self.infile.filepath
     
     def processCRASHfile(self):
         #send CRASHfile to every LSHandler
@@ -178,7 +179,9 @@ class LumiSectionRanger():
                 self.infile.deleteFile()
 
         #start DQM merger thread
-        if STREAMDQMHISTONAME.upper() in stream.upper():
+        if STREAMDQMHISTNAME.upper() in stream.upper():
+            self.logger.debug('DQM histogram ini file: starting DQM merger...')
+            global dqmHandler
             if dqmHandler == None:
                 dqmHandler = DQMMerger()
                 if dqmHandler.active==False:
@@ -293,9 +296,10 @@ class LumiSectionHandler():
         if filetype == STREAM: self.processStreamFile()
         elif filetype == INDEX: self.processIndexFile()
         elif filetype == EOLS: self.processEOLSFile()
-        elif filetype == DAT: self.processDATFile()
+	elif filetype == DAT: self.processDATFile()
+        elif filetype == PB: self.processDATFile()
         elif filetype == CRASH: self.processCRASHFile()
-        elif filetype == STREAMDQMHISTOOUTPUT: self.processStreamDQMOutput()
+        elif filetype == STREAMDQMHISTOUTPUT: self.processStreamDQMHistoOutput()
 
         self.checkClosure()
 
@@ -389,13 +393,11 @@ class LumiSectionHandler():
             file2merge.setFieldByName("InputFiles",inputFileList)
             self.streamErrorFile.merge(file2merge)
 
-    def processStreamDQMOutput(self):
-        #DQM histogram stream finished
+    def processStreamDQMHistoOutput(self):
+        self.logger.info(self.infile.basename)
+        stream = self.infile.stream
         outfile = next((outfile for outfile in self.outfileList if outfile.stream == stream),False)
-        if outfile:
-            outfile.updateData(infile)
-            outfile.dqmStage+=1
-            outfile.writeout()
+        if outfile and outfile.mergeStage==1: outfile.mergeStage+=1
 
     def processDATFile(self):
         self.logger.info(self.infile.basename)
@@ -428,13 +430,13 @@ class LumiSectionHandler():
             processed = outfile.getFieldByName("Processed")+outfile.getFieldByName("ErrorEvents")
             if processed == self.totalEvent:
 
-                if outfile.type==STREAMDQMHISTOUTPUT:
-                    if outfile.dqmStage==0:
+                if outfile.filetype==STREAMDQMHISTOUTPUT:
+                    if outfile.mergeStage==0:
                         #give to the merging thread
+                        outfile.mergeStage+=1
                         dqmQueue.put(outfile)
-                        dqmStage+=1
                         continue
-                    elif outfile.dqmStage==1:
+                    elif outfile.mergeStage==1:
                         #still merging
                         continue
 
@@ -514,93 +516,122 @@ class DQMMerger(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.test_command = conf.cmssw_script_location+'/testHadd.sh'
         self.command = 'fastHadd'
         self.threadEvent = threading.Event()
         self.abort = False
         self.active=False
         try:
             mergeEnabled = True
-            self.logger.info('checking fastHadd presence.....')
-            p = subprocess.Popen(self.test_command,shell=True,stdout=subprocess.PIPE)
+            p = subprocess.Popen(self.command,shell=True,stdout=subprocess.PIPE)
             p.wait()
+            if p.returncode!=1 and p.returncode!=0:
+                self.logger.error('fastHadd exit code:'+str(p.returncode))
+                mergeEnabled=False
         except Exception as ex:
             mergeEnabled = False
-        if p.returncode!=0 or mergeEnabled == False:
-            self.logger.error('fastHadd not present. DQM histogram merging is disabled!')
-            return
-        else: self.logger.info('fastHadd is found!')
+            self.logger.error('fastHadd not present or not working:')
+            self.logger.exception(ex)
+        if mergeEnabled == False:return
+        else: self.logger.info('fastHadd binary tested successfully')
         self.start()
         self.active=True
-        return True
 
     def run(self):
-        while self.abort == True:
+        while self.abort == False:
             try:
-                mergeDesc = dqmQueue.get(True,0.5) #blocking with timeout
-                #self.infile = fileHandler(event.fullpath)
+                dqmJson = dqmQueue.get(True,0.5) #blocking with timeout
                 #self.emptyQueue.clear()
-                self.process(mergeDesc) 
+                self.process(dqmJson) 
             except Queue.Empty as e:
                 continue
             except KeyboardInterrupt as e:
                 break
 
     def process(self,outfile):
-       outputName = outfile.getFieldByName('Filelist') #should not be dat!
+       outputName,outputExt = os.path.splitext(outfile.basename)
+       outputName+='.pb'
        fullOutputPath = os.path.join(watchDir,outputName)
-       command_args = [self.command,"-o",fullOutputPath]
+       command_args = [self.command,"add","-o",fullOutputPath]
+
+       totalEvents = outfile.getFieldByName("Processed")+outfile.getFieldByName("ErrorEvents")
+
        processedEvents = 0
        acceptedEvents = 0
        errorEvents = 0
 
-       for f in outputfile.inputs:
-           fullpath = os.path.join(watchDir,f.getFieldByName('Filelist'))
+       numFiles=0
+       for f in outfile.inputs:
+#           try:
+           fname = f.getFieldByName('Filelist')
+           fullpath = os.path.join(watchDir,fname)
            try:
-               os.stat(fullpath)
-               command_args.append(fullpath)
-               numFiles+=1
-               processedEvents+= f.infile.getFieldByName('Processed')
-               acceptedEvents+= f.infile.getFieldByName('Accepted')
-               errorEvents+= f.infile.getFieldByName('ErrorEvents')
+               proc = f.getFieldByName('Processed')
+               acc = f.getFieldByName('Accepted')
+               err = f.getFieldByName('ErrorEvents')
+               #self.logger.info('merging file : ' + str(fname) + ' counts:'+str(proc) + ' ' + str(acc) + ' ' + str(err))
+               if fname:
+                   os.stat(fullpath)
+                   command_args.append(fullpath)
+                   numFiles+=1
+                   processedEvents+= proc
+                   acceptedEvents+= acc
+                   errorEvents+= err
+               else:
+                   if proc>0:
+                       self.logger.info('no histograms pb file : '+ str(fullpath))
+                   errorEvents+= proc+err
+
+
            except OSError as ex:
                #file missing?
                errorEvents+= f.getFieldByName('Processed') + f.getFieldByName('ErrorEvents')
-               self.logger.error('fastHadd pb file missing? : '+ fullpath)
+               self.logger.error('fastHadd pb file is missing? : '+ fullpath)
                self.logger.exception(ex)
 
        filesize=0
        hasError=False
-       exitCodes =  outfile.getFieldByName('ReturnExitCodes')
+       exitCodes =  outfile.getFieldByName('ReturnCodeMask')
        if numFiles>=0:
-           #self.process = subprocess.Popen(command_args,close_fds=True)
-           p = subprocess.Popen(command_args)#TODO:have close_fds?
-           p.wait()
-           if p.returncode!=0:
-               self.logger.error('fastHadd returned with exit code '+str(p.returncode))
-               outfile.getFieldByName('ReturnExitCodes', str(p.returncode))
-               hasError=True
+           if numFiles == 1:
+               #fastHadd crashes trying to merge only one file
+               os.rename(command_args[4],command_args[3])
            else:
+               p = subprocess.Popen(command_args)
+               p.wait()
+               if p.returncode!=0:
+                   self.logger.error('fastHadd returned with exit code '+str(p.returncode))
+                   outfile.setFieldByName('ReturnCodeMask', str(p.returncode))
+                   hasError=True
+           if numFiles==1 or p.returncode==0:
                try:
                    filesize = os.stat(fullOutputPath).st_size
                except:
-                   self.logger.error('Error checking fastHadd output file '+ fullOutputPath)
+                   self.logger.error('Error checking fastHadd output file size: '+ fullOutputPath)
                    hasError=True
+           if numFiles>1:
+               for f in command_args[3:]:
+                   try:
+                       os.remove(f)
+                   except OSError as ex:
+                       self.logger.warning('exception removing file '+f+' : '+str(ex))
        else:
            hasError=True
 
        if hasError:
-           errorEvents+=processesEvents
+           errorEvents+=processedEvents
            processedEvents=0
            acceptedEvents=0
            fullOutputPath=""
            filesize=0
-            
-       outfile.setFieldByName('Processed',processedEvents)
-       outfile.setFieldByName('Accepted',acceptedEvents)
-       outfile.setFieldByName('ErrorEvents',errorEvents)
+
+       #correct for the missing event count in input file (when we have a crash)
+       if totalEvents>processedEvents+errorEvents: errorEvents += totalEvents - processedEvents - errorEvents
+
+       outfile.setFieldByName('Processed',str(processedEvents))
+       outfile.setFieldByName('Accepted',str(acceptedEvents))
+       outfile.setFieldByName('ErrorEvents',str(errorEvents))
        outfile.setFieldByName('Filelist',outputName)
-       outfile.setFieldByName('Filesize',filesize)
+       outfile.setFieldByName('Filesize',str(filesize))
        outfile.writeout()
  
 
