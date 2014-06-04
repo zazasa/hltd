@@ -159,10 +159,23 @@ class LumiSectionRanger():
         localdir,name,ext,filepath = infile.dir,infile.name,infile.ext,infile.filepath
         run,ls,stream = infile.run,infile.ls,infile.stream
 
-            #calc generic local ini path
+        #start DQM merger thread
+        if STREAMDQMHISTNAME.upper() in stream.upper():
+            self.logger.info('DQM histogram ini file: starting DQM merger...')
+            global dqmHandler
+            if dqmHandler == None:
+                dqmHandler = DQMMerger()
+                if dqmHandler.active==False:
+                    dqmHandler = None
+                    self.logger.error('Failed to start DQM merging thread. Histogram stream will be ignored in this run.')
+                    return
+
+        #calc generic local ini path
         filename = "_".join([run,ls,stream,self.host])+ext
         localfilepath = os.path.join(localdir,filename)
         remotefilepath = os.path.join(self.outdir,run,filename)
+
+
             #check and move/delete ini file
         if not os.path.exists(localfilepath):
             if stream not in self.activeStreams:
@@ -177,15 +190,6 @@ class LumiSectionRanger():
                 self.logger.warning("Found a bad ini file %s" %filepath)
             else:
                 self.infile.deleteFile()
-
-        #start DQM merger thread
-        if STREAMDQMHISTNAME.upper() in stream.upper():
-            self.logger.debug('DQM histogram ini file: starting DQM merger...')
-            global dqmHandler
-            if dqmHandler == None:
-                dqmHandler = DQMMerger()
-                if dqmHandler.active==False:
-                    dqmHandler = None
 
         self.createErrIniFile()
 
@@ -314,7 +318,14 @@ class LumiSectionHandler():
         #if self.closed.isSet(): self.closed.clear()
         if infile.data:
             #update pidlist
-            if stream not in self.pidList[pid]["streamList"]: self.pidList[pid]["streamList"].append(stream)
+            try:
+                if stream not in self.pidList[pid]["streamList"]: self.pidList[pid]["streamList"].append(stream)
+            except KeyError as ex:
+                #this case can be ignored for DQM stream (missing fastHadd)
+                if STREAMDQMHISTNAME.upper() not in stream.upper():
+                    self.logger.exception(ex)
+                    raise(ex)
+                return False
 
             #update output files
             outfile = next((outfile for outfile in self.outfileList if outfile.stream == stream),False)
