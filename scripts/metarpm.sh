@@ -186,7 +186,7 @@ cp $BASEDIR/esplugins/uninstall.sh %{buildroot}/opt/fff/esplugins/uninstall.sh
 mkdir -p etc/init.d/
 echo "#!/bin/bash"                       >> %{buildroot}/etc/init.d/fffmeta
 echo "#"                                 >> %{buildroot}/etc/init.d/fffmeta
-echo "# chkconfig:   2345 79 21"         >> %{buildroot}/etc/init.d/fffmeta
+echo "# chkconfig:   2345 79 19"         >> %{buildroot}/etc/init.d/fffmeta
 echo "#"                                 >> %{buildroot}/etc/init.d/fffmeta
 echo "if [ \\\$1 == \"start\" ]; then"   >> %{buildroot}/etc/init.d/fffmeta
 echo "  /opt/fff/configurefff.sh"  >> %{buildroot}/etc/init.d/fffmeta
@@ -249,6 +249,7 @@ if [ -f /var/log/hltd/anelastic.log ]; then
 chown ${lines[8]} /var/log/hltd/anelastic.log
 fi
 
+/sbin/service hltd stop || true
 /sbin/service hltd restart
 chkconfig hltd on
 
