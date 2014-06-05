@@ -233,6 +233,13 @@ echo /opt/fff/esplugins/install.sh /usr/share/elasticsearch $pluginfile1 $plugin
 /sbin/service elasticsearch start
 chkconfig elasticsearch on
 
+#taskset elasticsearch process
+#sleep 1
+#ESPID=`cat /var/run/elasticsearch/elasticsearch.pid` || (echo "could not find elasticsearch pid";ESPID=0)
+#if[ \$ESPID !="0" ]; then
+#taskset -pc 3,4 \$ESPID
+#fi
+
 %triggerin -- hltd
 #echo "triggered on hltd update or install"
 python2.6 /opt/fff/setupmachine.py restore,hltd
