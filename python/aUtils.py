@@ -191,7 +191,7 @@ class fileHandler(object):
             self.data["data"] = [self.nullValue(f["type"]) for f in defs]
 
     def nullValue(self,ftype):
-        if ftype == "integer": return 0
+        if ftype == "integer": return "0"
         elif ftype  == "string": return ""
         else: 
             self.logger.warning("bad field type %r" %(ftype))

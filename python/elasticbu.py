@@ -50,9 +50,9 @@ def getURLwithIP(url):
       raise(ex)
   #@SM: hacks for DNS alias
   if url!='localhost':
-      ip = rotateAddr()
+      #ip = rotateAddr()
+      ip = socket.gethostbyname(url)
   else: ip='127.0.0.1'
-  #ip = socket.gethostbyname(url)
 
   return prefix+str(ip)+suffix
 
@@ -506,6 +506,11 @@ class BoxInfoUpdater(threading.Thread):
             boxesDir =  os.path.join(ramdisk,'appliance/boxes')
             boxesMask = inotify.IN_CLOSE_WRITE 
             self.logger.info("starting elastic for "+boxesDir)
+
+            try:
+                os.makedirs(boxesDir)
+            except:
+                pass
     
             self.eventQueue = Queue.Queue()
             self.mr = MonitorRanger()

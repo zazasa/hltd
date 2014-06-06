@@ -455,7 +455,7 @@ class LumiSectionHandler():
                 self.logger.info("%r,%r complete" %(self.ls,outfile.stream))
 
                 #create BoLS file in output dir
-                bols_file = str(self.run)+"_"+str(self.ls).zfill(4)+"_"+stream+"_BoLS.jsn"
+                bols_file = str(self.run)+"_"+self.ls+"_"+stream+"_BoLS.jsn"
                 bols_path =  os.path.join(self.outdir,self.run,bols_file)
                 try:
                     open(bols_path,'a').close()
@@ -495,9 +495,22 @@ class LumiSectionHandler():
             #moving streamError file
             self.logger.info("Writing streamError file ")
             errfile = self.streamErrorFile
+            #create BoLS file in output dir
+            bols_file = str(self.run)+"_"+self.ls+"_"+errfile.stream+"_BoLS.jsn"
+            bols_path =  os.path.join(self.outdir,self.run,bols_file)
+            try:
+                open(bols_path,'a').close()
+            except:
+                time.sleep(0.1)
+                try:open(bols_path,'a').close()
+                except:
+                    self.logger.warning('unable to create BoLS file for ls ', self.ls)
+            logger.info("bols file "+ str(bols_path) + " is created in the output")
+
+
             numErr = errfile.getFieldByName("ErrorEvents") or 0
             total = self.totalEvent
-            errfile.setFieldByName("Processed", total - numErr )
+            errfile.setFieldByName("Processed", str(total - numErr) )
             errfile.writeout()
             newfilepath = os.path.join(self.outdir,errfile.run,errfile.basename)
             errfile.moveFile(newfilepath)

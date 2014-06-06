@@ -186,7 +186,7 @@ cp $BASEDIR/esplugins/uninstall.sh %{buildroot}/opt/fff/esplugins/uninstall.sh
 mkdir -p etc/init.d/
 echo "#!/bin/bash"                       >> %{buildroot}/etc/init.d/fffmeta
 echo "#"                                 >> %{buildroot}/etc/init.d/fffmeta
-echo "# chkconfig:   2345 79 21"         >> %{buildroot}/etc/init.d/fffmeta
+echo "# chkconfig:   2345 79 19"         >> %{buildroot}/etc/init.d/fffmeta
 echo "#"                                 >> %{buildroot}/etc/init.d/fffmeta
 echo "if [ \\\$1 == \"start\" ]; then"   >> %{buildroot}/etc/init.d/fffmeta
 echo "  /opt/fff/configurefff.sh"  >> %{buildroot}/etc/init.d/fffmeta
@@ -233,11 +233,18 @@ echo /opt/fff/esplugins/install.sh /usr/share/elasticsearch $pluginfile1 $plugin
 /sbin/service elasticsearch start
 chkconfig elasticsearch on
 
+#taskset elasticsearch process
+#sleep 1
+#ESPID=`cat /var/run/elasticsearch/elasticsearch.pid` || (echo "could not find elasticsearch pid";ESPID=0)
+#if[ \$ESPID !="0" ]; then
+#taskset -pc 3,4 \$ESPID
+#fi
+
 %triggerin -- hltd
 #echo "triggered on hltd update or install"
+/sbin/service hltd stop || true
 python2.6 /opt/fff/setupmachine.py restore,hltd
 python2.6 /opt/fff/setupmachine.py hltd $params
-killall hltd
 
 #adjust ownership of unpriviledged child process log files
 
@@ -251,7 +258,6 @@ fi
 
 /sbin/service hltd restart
 chkconfig hltd on
-
 %preun
 
 if [ \$1 == 0 ]; then 
