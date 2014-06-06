@@ -466,7 +466,7 @@ class LumiSectionHandler():
             logger.info("bols file "+ str(bols_path) + " is created in the output")
 
 
-            numErr = errfile.getFieldByName("ErrorEvents") or "0"
+            numErr = errfile.getFieldByName("ErrorEvents") or 0
             total = self.totalEvent
             errfile.setFieldByName("Processed", str(total - numErr) )
             errfile.writeout()
