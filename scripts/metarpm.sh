@@ -138,8 +138,8 @@ cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > fffmeta.spec <<EOF
 Name: fffmeta
-Version: 1.3.2
-Release: 6
+Version: 1.3.3
+Release: 0
 Summary: hlt daemon
 License: gpl
 Group: Hacks
@@ -242,9 +242,9 @@ chkconfig elasticsearch on
 
 %triggerin -- hltd
 #echo "triggered on hltd update or install"
+/sbin/service hltd stop || true
 python2.6 /opt/fff/setupmachine.py restore,hltd
 python2.6 /opt/fff/setupmachine.py hltd $params
-killall hltd
 
 #adjust ownership of unpriviledged child process log files
 
@@ -256,10 +256,8 @@ if [ -f /var/log/hltd/anelastic.log ]; then
 chown ${lines[8]} /var/log/hltd/anelastic.log
 fi
 
-/sbin/service hltd stop || true
 /sbin/service hltd restart
 chkconfig hltd on
-
 %preun
 
 if [ \$1 == 0 ]; then 
