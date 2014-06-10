@@ -14,11 +14,13 @@ class Daemon2:
     attn: May change in the near future to use PEP daemon
     """
 
-    def __init__(self, pidfile, stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
+    def __init__(self, pidfile, processname, stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
                       self.stdin = stdin
                       self.stdout = stdout
                       self.stderr = stderr
                       self.pidfile = pidfile
+                      self.processname = processname
+
     def daemonize(self):
 
         """
@@ -59,7 +61,7 @@ class Daemon2:
         os.dup2(se.fileno(), sys.stderr.fileno())
 
         #change process name
-        procname.setprocname("hltd")
+        procname.setprocname(self.processname)
 
         # write pidfile
         atexit.register(self.delpid)
@@ -101,14 +103,14 @@ class Daemon2:
         except IOError:
             pid = None
         if not pid:
-            message = "hltd not running no pidfile %s\n"
+            message = self.processname+" not running no pidfile %s\n"
         else:
             try:
                 os.kill(pid,0)
-                message = "hltd is running with pidfile %s\n"
+                message = self.processname+" is running with pidfile %s\n"
                 retval = True
             except:
-                message = "hltd pid exist in %s but process is not running\n"
+                message = self.processname+" pid exist in %s but process is not running\n"
 
         sys.stderr.write(message % self.pidfile)
         return retval
@@ -126,7 +128,7 @@ class Daemon2:
         except IOError:
             pid = None
         if not pid:
-            message = "hltd not running no pidfile %s\n"
+            message = self.processname+" not running no pidfile %s\n"
         else:
             try:
                 os.kill(pid,0)
@@ -135,7 +137,7 @@ class Daemon2:
                 pass
 
         return retval
-        
+
     def stop(self):
         """
         Stop the daemon
@@ -153,7 +155,7 @@ class Daemon2:
             sys.stderr.write(message % self.pidfile)
             return # not an error in a restart
 
-        # Try killing the daemon process       
+        # Try killing the daemon process
         try:
             # signal the daemon to stop
             os.kill(pid, SIGINT)
@@ -178,7 +180,7 @@ class Daemon2:
             else:
                 print str(err)
                 sys.exit(1)
-        sys.stdout.write('[OK]\n')                
+        sys.stdout.write('[OK]\n')
 
     def restart(self):
         """

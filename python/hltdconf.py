@@ -34,7 +34,7 @@ class hltdConf:
         self.elastic_log = cfg.get('Monitoring','elastic_log')
 
         self.cgi_port = cfg.getint('Web','cgi_port')
-
+        self.soap2file_port = cfg.getint('Web','soap2file_port')
 
         self.resource_base = cfg.get('Resources','resource_base')
 

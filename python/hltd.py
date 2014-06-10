@@ -839,7 +839,7 @@ class ResourceRanger(pyinotify.ProcessEvent):
 
 class hltd(Daemon2,object):
     def __init__(self, pidfile):
-        Daemon2.__init__(self,pidfile)
+        Daemon2.__init__(self,pidfile,'hltd')
 
     def stop(self):
         if self.silentStatus():
