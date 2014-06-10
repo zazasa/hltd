@@ -588,6 +588,7 @@ class HLTDLogIndex():
         self.logger = logging.getLogger(self.__class__.__name__)
         self.es_server_url=es_server_url
         self.host = os.uname()[1]
+        self.threadEvent = threading.Event()
 
         if 'localhost' in es_server_url:
             nshards = 16
