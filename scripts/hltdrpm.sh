@@ -197,7 +197,7 @@ Provides:/etc/hltd.conf
 Provides:/etc/init.d/hltd
 Provides:/usr/lib64/python2.6/site-packages/prctl.pyc
 Provides:/usr/lib64/python2.6/site-packages/pyinotify.py
-Requires:python,libcap,python-six,python-requests
+Requires:python,libcap,python-six,python-requests,SOAPpy
 
 %description
 fff hlt daemon
