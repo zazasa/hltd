@@ -10,6 +10,11 @@ try:
     import cx_Oracle
 except ImportError:
     pass
+try:
+    import MySQLdb
+except ImportError:
+    pass
+
 
 import socket
 
@@ -108,8 +113,12 @@ def getBUAddr(parentTag,hostname):
         if parentTag == 'daq2':
             equipmentSet = default_eqset_daq2
 
-    con = cx_Oracle.connect(dblogin+'/'+dbpwd+'@'+dbhost+':10121/'+dbsid,
+    if env == "vm":
+        con = MySQLdb.connect( host= dbhost, user = dblogin, passwd = dbpwd, db = dbsid)
+    else:
+        con = cx_Oracle.connect(dblogin+'/'+dbpwd+'@'+dbhost+':10121/'+dbsid,
                         cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
+    
     #print con.version
 
     cur = con.cursor()
@@ -276,6 +285,12 @@ if True:
                 pass
 
         sys.exit(0)
+
+    argvc += 1
+    if not sys.argv[argvc]:
+        print "Enviroment parameter missing"
+        sys.exit(1)
+    env = sys.argv[argvc]
 
     argvc += 1
     if not sys.argv[argvc]:

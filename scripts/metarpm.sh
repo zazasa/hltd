@@ -18,20 +18,24 @@ else
   done
 fi
 
-echo "ES server URL containg common run index (press enter for \"${lines[0]}\"):"
+
+
+
+
+echo "Enviroment (prod,vm) (press enter for \"${lines[0]}\"):"
 readin=""
 read readin
 if [ ${#readin} != "0" ]; then
 lines[0]=$readin
 fi
-#echo "ES tribe server hostname (press enter for \"${lines[1]}\"):"
-#readin=""
-#read readin
-#if [ ${#readin} != "0" ]; then
-#lines[1]=$readin
-#fi
-lines[1]="empty"
+lines[0]="empty"
 
+echo "ES server URL containg common run index (press enter for \"${lines[1]}\"):"
+readin=""
+read readin
+if [ ${#readin} != "0" ]; then
+lines[1]=$readin
+fi
 
 echo "CMSSW base (press enter for \"${lines[2]}\"):"
 readin=""
@@ -47,7 +51,7 @@ if [ ${#readin} != "0" ]; then
 lines[3]=$readin
 fi
 
-echo "HWCFG DB SID (press enter for: \"${lines[4]}\"):"
+echo "HWCFG DB SID (or db name in VM enviroment) (press enter for: \"${lines[4]}\"):"
 readin=""
 read readin
 if [ ${#readin} != "0" ]; then
@@ -68,7 +72,7 @@ if [ ${#readin} != "0" ]; then
 lines[6]=$readin
 fi
 
-echo "Equipment set (press enter for: \"${lines[7]}\") - type 'latest' to use latest eq set or 'default' for default one:"
+echo "Equipment set (press enter for: \"${lines[7]}\") - type 'latest' to use latest eq set or 'default' for default one or 'test' for VM enviroment:"
 readin=""
 read readin
 if [ ${#readin} != "0" ]; then
