@@ -169,7 +169,7 @@ Provides:/etc/hltd.conf
 Provides:/etc/logrotate.d/hltd
 Provides:/etc/init.d/hltd
 Provides:/usr/lib64/python2.6/site-packages/prctl.pyc
-Requires:python,libcap,python-six,python-requests,python-simplejson >= 3.3.1
+Requires:python,libcap,python-six,python-requests,SOAPpy,python-simplejson >= 3.3.1
 
 %description
 fff hlt daemon
