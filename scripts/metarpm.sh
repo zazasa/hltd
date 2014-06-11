@@ -28,7 +28,6 @@ read readin
 if [ ${#readin} != "0" ]; then
 lines[0]=$readin
 fi
-lines[0]="empty"
 
 echo "ES server URL containg common run index (press enter for \"${lines[1]}\"):"
 readin=""
