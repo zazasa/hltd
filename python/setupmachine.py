@@ -60,7 +60,7 @@ def countCPUs():
     return resource_count
 
 def getmachinetype():
-    myhost = os.uname()[1]
+    myhost = socket.getfqdn()
     #print "running on host ",myhost
     if   myhost.startswith('dvrubu-') : return 'daq2val','fu'
     elif myhost.startswith('dvbu-') : return 'daq2val','bu'
@@ -411,15 +411,15 @@ if True:
                 sys.exit(-1)
  
         elif cluster =='test':
-            addrList = [os.uname()[1]]
-            buName = os.uname()[1]
-            buDataAddr = os.uname()[1]
+            addrList = [socket.getfqdn()]
+            buName = socket.getfqdn()
+            buDataAddr = socket.getfqdn()
         else:
             print "FU configuration in cluster",cluster,"not supported yet !!"
             sys.exit(-2)
 
     elif type == 'bu':
-       buName = os.uname()[1]
+       buName = socket.getfqdn()
        addrList = buName
 
     #print "detected address", addrList," and name ",buName
@@ -488,7 +488,7 @@ if True:
           #get needed info here
           hltdcfg.reg('user',username,'[General]')
           hltdcfg.reg('micromerge_output','/fff/output','[General]')
-          hltdcfg.reg('elastic_runindex_url',sys.argv[2],'[Monitoring]')
+          hltdcfg.reg('elastic_runindex_url',sys.argv[3],'[Monitoring]')
           hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
           hltdcfg.removeEntry('watch_directory')
           hltdcfg.commit() 
@@ -508,7 +508,7 @@ if True:
           hltdcfg.reg('role','fu','[General]')
           hltdcfg.reg('elastic_cluster',clusterName,'[Monitoring]')
           hltdcfg.reg('es_cmssw_log_level',cmsswloglevel,'[Monitoring]')
-          hltdcfg.reg('elastic_runindex_url',sys.argv[2],'[Monitoring]')
+          hltdcfg.reg('elastic_runindex_url',sys.argv[3],'[Monitoring]')
           hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
           hltdcfg.reg('cmssw_base',cmssw_base,'[CMSSW]')
           hltdcfg.reg('cmssw_threads',nthreads,'[CMSSW]')
