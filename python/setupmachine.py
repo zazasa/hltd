@@ -1,6 +1,6 @@
 #!/bin/env python
 
-import os,sys
+import os,sys,socket
 import shutil
 sys.path.append('/opt/hltd/python')
 #from fillresources import *
@@ -15,8 +15,6 @@ try:
 except ImportError:
     pass
 
-
-import socket
 
 backup_dir = '/opt/fff'
 
@@ -167,6 +165,7 @@ def getBUAddr(parentTag,hostname):
     for res in cur:
         retval.append(res)
     cur.close()
+    #print retval
     return retval
 
 class FileManager:
@@ -264,7 +263,6 @@ def restoreFileMaybe(file):
 
 #main function
 if True:
-
     argvc = 1
     if not sys.argv[argvc]:
         print "selection of packages to set up (hltd and/or elastic) missing"
@@ -292,6 +290,8 @@ if True:
         sys.exit(1)
     env = sys.argv[argvc]
 
+
+
     argvc += 1
     if not sys.argv[argvc]:
         print "global elasticsearch URL name missing"
@@ -304,11 +304,11 @@ if True:
     if len(elastic_host.split(':'))<3:
         elastic_host+=':9200'
 
-    argvc += 1
-    if not sys.argv[argvc]:
-        print "elasticsearch tribe hostname name missing"
-        sys.exit(1)
-    elastic_host2 = sys.argv[argvc]
+    #argvc += 1
+    #if not sys.argv[argvc]:
+    #    print "elasticsearch tribe hostname name missing"
+    #    sys.exit(1)
+    #elastic_host2 = sys.argv[argvc]
 
     argvc += 1
     if not sys.argv[argvc]:
@@ -358,6 +358,7 @@ if True:
         print "CMSSW number of threads/process is missing"
     nthreads = sys.argv[argvc]
 
+
     argvc+=1
     if not sys.argv[argvc]:
         print "CMSSW log collection level is missing"
@@ -366,7 +367,7 @@ if True:
     cluster,type = getmachinetype()
     #override for daq2val!
     #if cluster == 'daq2val': cmsswloglevel =  'INFO'
-    cnhostname = os.uname()[1]+".cms"
+    cnhostname = socket.getfqdn()
 
     if cluster == 'daq2val':
         runindex_name = 'runindex'
@@ -517,8 +518,6 @@ if True:
 
           #removeResources()
           #fillResources(num_max_cores)
-
-    
 
 #/opt/hltd/python/fillresources.py
 
