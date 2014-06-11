@@ -256,6 +256,9 @@ if [ -f /var/log/hltd/anelastic.log ]; then
 chown ${lines[8]} /var/log/hltd/anelastic.log
 fi
 
+#set up resources for hltd
+/opt/hltd/python/fillresources.py
+
 /sbin/service hltd restart
 chkconfig hltd on
 %preun

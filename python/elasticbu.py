@@ -24,15 +24,15 @@ import simplejson as json
 import socket
 
 #hack: replacing DNS alias round robin for central ES until it is available
-rotate_temp=0
-centralListTemp=["srv-c2a11-07-01","srv-c2a11-08-01","srv-c2a11-09-01","srv-c2a11-10-01","srv-c2a11-11-01","srv-c2a11-14-01","srv-c2a11-15-01","srv-c2a11-16-01","srv-c2a11-17-01","srv-c2a11-18-01","srv-c2a11-19-01","srv-c2a11-20-01","srv-c2a11-21-01","srv-c2a11-22-01","srv-c2a11-23-01","srv-c2a11-26-01","srv-c2a11-27-01","srv-c2a11-28-01","srv-c2a11-29-01","srv-c2a11-30-01"]
+#rotate_temp=0
+#centralListTemp=["srv-c2a11-07-01","srv-c2a11-08-01","srv-c2a11-09-01","srv-c2a11-10-01","srv-c2a11-11-01","srv-c2a11-14-01","srv-c2a11-15-01","srv-c2a11-16-01","srv-c2a11-17-01","srv-c2a11-18-01","srv-c2a11-19-01","srv-c2a11-20-01","srv-c2a11-21-01","srv-c2a11-22-01","srv-c2a11-23-01","srv-c2a11-26-01","srv-c2a11-27-01","srv-c2a11-28-01","srv-c2a11-29-01","srv-c2a11-30-01"]
 
-def rotateAddr():
-  global rotate_temp
-  if rotate_temp>=len(centralListTemp): rotate_temp=0
-  ip = socket.gethostbyname(centralListTemp[rotate_temp])
-  rotate_temp+=1
-  return ip
+#def rotateAddr():
+#  global rotate_temp
+#  if rotate_temp>=len(centralListTemp): rotate_temp=0
+#  ip = socket.gethostbyname(centralListTemp[rotate_temp])
+#  rotate_temp+=1
+#  return ip
 
 def getURLwithIP(url):
   try:
@@ -403,7 +403,9 @@ class elasticCollectorBU():
                     self.emptyQueue.clear()
                     self.process() 
                 except (KeyboardInterrupt,Queue.Empty) as e:
-                    self.emptyQueue.set() 
+                    self.emptyQueue.set()
+                except (ValueError,IOError) as ex:
+                    self.logger.exception(ex)
             else:
                 time.sleep(1.0)
             #check for EoR file every 5 intervals
@@ -475,7 +477,9 @@ class elasticBoxCollectorBU():
                     self.emptyQueue.clear()
                     self.process() 
                 except (KeyboardInterrupt,Queue.Empty) as e:
-                    self.emptyQueue.set() 
+                    self.emptyQueue.set()
+                except (ValueError,IOError) as ex:
+                    self.logger.exception(ex)
             else:
                 time.sleep(1.0)
         self.logger.info("Stop main loop")
@@ -629,8 +633,9 @@ class RunCompletedChecker(threading.Thread):
 
             try:
                 time.sleep(10)
-                resp = requests.post(self.urlclose)
-                self.logger.info('closed appliance ES index for run '+str(self.nr))
+                if conf.close_es_index==True:
+                    resp = requests.post(self.urlclose)
+                    self.logger.info('closed appliance ES index for run '+str(self.nr))
 
             except Exception,ex:
                 self.logger.error('Error in run completition check')
@@ -648,8 +653,9 @@ class RunCompletedChecker(threading.Thread):
                         #all hosts are finished, close the index
                         #wait a bit for indexing and querying to complete
                         time.sleep(10)
-                        resp = requests.post(self.urlclose)
-                        self.logger.info('closed appliance ES index for run '+str(self.nr))
+                        if conf.close_es_index==True:
+                            resp = requests.post(self.urlclose)
+                            self.logger.info('closed appliance ES index for run '+str(self.nr))
                         break
                     else:
                         time.sleep(5)
