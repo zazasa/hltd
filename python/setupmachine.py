@@ -397,6 +397,7 @@ if True:
         runindex_name = 'runindex_test' 
 
     buName = ''
+    budomain = ''
     if type == 'fu':
         if cluster == 'daq2val' or cluster == 'daq2': 
             addrList =  getBUAddr(cluster,cnhostname)
@@ -409,6 +410,7 @@ if True:
                     buDataAddr = addr[1]
                     if addr[1].find('.'):
                         buName = addr[1].split('.')[0]
+                        budomain = addr[1][addr[1].find('.'):]
                     else:
                         buName = addr[1]
                     selectedAddr=True
@@ -447,7 +449,11 @@ if True:
     if 'elasticsearch' in selection:
 
         res = getSelfDataAddr(cluster)
-        if len(res)==0: es_publish_host=os.uname()[1]+'.cms'
+        if len(res)==0:
+            if budomain=='':
+                es_publish_host=os.uname()[1]+'.cms'
+            else:
+                es_publish_host=os.uname()[1]+budomain
         else: es_publish_host = res[0]
 
         #print "will modify sysconfig elasticsearch configuration"
