@@ -460,8 +460,12 @@ if True:
           hltdcfg.reg('elastic_runindex_url',sys.argv[2],'[Monitoring]')
           hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
           #hltdcfg.removeEntry('watch_directory')
-          hltdcfg.commit() 
-
+          hltdcfg.commit()
+          #remove /fff/data from BU (hack)
+          try:
+              shutil.rmtree('/fff/data')
+          except:
+              pass
 
       if type=='fu':
 
