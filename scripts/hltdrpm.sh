@@ -190,7 +190,7 @@ rm \$RPM_BUILD_ROOT/opt/hltd/python/setupmachine.py
 rm -rf /etc/appliance/online/*
 rm -rf /etc/appliance/offline/*
 rm -rf /etc/appliance/except/*
-/opt/hltd/python/fillresources.py
+#/opt/hltd/python/fillresources.py #--> in fffmeta
 #/sbin/service hltd restart #restart delegated to fffmeta!
 %files
 %dir %attr(777, -, -) /var/log/hltd

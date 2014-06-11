@@ -27,6 +27,7 @@ class hltdConf:
         self.run_number_padding = int(self.run_number_padding)
         self.delete_run_dir = bool(self.delete_run_dir=="True")
         self.use_elasticsearch = bool(self.use_elasticsearch=="True")
+        self.close_es_index = bool(self.close_es_index=="True")
         self.cgi_port = int(self.cgi_port)
 
         self.dqm_machine = bool(self.dqm_machine=="True")

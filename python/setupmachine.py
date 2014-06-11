@@ -30,23 +30,6 @@ default_eqset_daq2val = 'eq_140325_attributes'
 #default_eqset_daq2 = 'eq_14-508_emu'
 default_eqset_daq2 = 'eq_140522_emu'
 
-def removeResources():
-    try:
-        shutil.rmtree('/etc/appliance/online/*')
-    except:
-        pass
-    try:
-        shutil.rmtree('/etc/appliance/offline/*')
-    except:
-        pass
-    try:
-        shutil.rmtree('/etc/appliance/except/*')
-    except:
-        pass
-    try:
-        shutil.rmtree('/etc/appliance/quarantined/*')
-    except:
-        pass
 
 def countCPUs():
     fp=open('/proc/cpuinfo','r')
@@ -471,10 +454,12 @@ if True:
       
           #get needed info here
           hltdcfg.reg('user',username,'[General]')
+          hltdcfg.reg('watch_directory','/fff/ramdisk','[General]')
+          hltdcfg.reg('role','bu','[General]')
           hltdcfg.reg('micromerge_output','/fff/output','[General]')
           hltdcfg.reg('elastic_runindex_url',sys.argv[2],'[Monitoring]')
           hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
-          hltdcfg.removeEntry('watch_directory')
+          #hltdcfg.removeEntry('watch_directory')
           hltdcfg.commit() 
 
 
@@ -489,6 +474,7 @@ if True:
           #num_threads = nthreads 
  
           hltdcfg.reg('user',username,'[General]')
+          hltdcfg.reg('watch_directory','/fff/data','[General]')
           hltdcfg.reg('role','fu','[General]')
           hltdcfg.reg('elastic_cluster',clusterName,'[Monitoring]')
           hltdcfg.reg('es_cmssw_log_level',cmsswloglevel,'[Monitoring]')
@@ -496,14 +482,6 @@ if True:
           hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
           hltdcfg.reg('cmssw_base',cmssw_base,'[CMSSW]')
           hltdcfg.reg('cmssw_threads',nthreads,'[CMSSW]')
-          hltdcfg.removeEntry('watch_directory')
+          #hltdcfg.removeEntry('watch_directory')
           hltdcfg.commit()
-          #get customized info here
-
-          #removeResources()
-          #fillResources(num_max_cores)
-
-    
-
-#/opt/hltd/python/fillresources.py
 
