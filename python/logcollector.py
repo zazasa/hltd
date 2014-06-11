@@ -671,6 +671,7 @@ class HLTDLogIndex():
 
             #filter cgi "error" messages
             if "HTTP/1.1\" 200" in msg[0]: return
+            if "response was 200" in msg[0]: return
 
             for line_index, line in enumerate(msg):
                 if line_index==len(msg)-1:
