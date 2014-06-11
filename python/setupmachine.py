@@ -411,16 +411,17 @@ if True:
                 sys.exit(-1)
  
         elif cluster =='test':
-            addrList = [socket.getfqdn()]
-            buName = socket.getfqdn()
-            buDataAddr = socket.getfqdn()
+            hn = socket.getfqdn().split(".")[0]
+            addrList = [hn]
+            buName = hn
+            buDataAddr = hn
         else:
             print "FU configuration in cluster",cluster,"not supported yet !!"
             sys.exit(-2)
 
     elif type == 'bu':
-       buName = socket.getfqdn()
-       addrList = buName
+        buName = socket.getfqdn().split(".")[0]
+        addrList = buName
 
     #print "detected address", addrList," and name ",buName
     print "running configuration for machine",cnhostname,"of type",type,"in cluster",cluster,"; appliance bu is:",buName
