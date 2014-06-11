@@ -104,7 +104,7 @@ fi
 
 
 params=""
-for (( i=0; i < 11; i++ ))
+for (( i=0; i < 12; i++ ))
 do
   params="$params ${lines[i]}"
 done
