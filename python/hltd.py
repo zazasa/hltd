@@ -19,6 +19,7 @@ import cgitb
 import httplib
 import demote
 import re
+import shutil
 
 #modules distributed with hltd
 import prctl
