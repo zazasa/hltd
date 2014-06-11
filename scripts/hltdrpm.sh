@@ -153,8 +153,8 @@ cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > hltd.spec <<EOF
 Name: hltd
-Version: 1.3.2
-Release: 7
+Version: 1.3.3
+Release: 0
 Summary: hlt daemon
 License: gpl
 Group: Hacks
@@ -169,7 +169,7 @@ Provides:/etc/hltd.conf
 Provides:/etc/logrotate.d/hltd
 Provides:/etc/init.d/hltd
 Provides:/usr/lib64/python2.6/site-packages/prctl.pyc
-Requires:python,libcap,python-six,python-requests,python-simplejson >= 3.3.1
+Requires:python,libcap,python-six,python-requests,SOAPpy,python-simplejson >= 3.3.1
 
 %description
 fff hlt daemon
@@ -190,7 +190,7 @@ rm \$RPM_BUILD_ROOT/opt/hltd/python/setupmachine.py
 rm -rf /etc/appliance/online/*
 rm -rf /etc/appliance/offline/*
 rm -rf /etc/appliance/except/*
-/opt/hltd/python/fillresources.py
+#/opt/hltd/python/fillresources.py #--> in fffmeta
 #/sbin/service hltd restart #restart delegated to fffmeta!
 %files
 %dir %attr(777, -, -) /var/log/hltd
@@ -207,8 +207,10 @@ rm -rf /etc/appliance/except/*
 /usr/lib64/python2.6/site-packages/*python_inotify*
 /usr/lib64/python2.6/site-packages/pyelasticsearch
 %preun
-/sbin/service hltd stop
-/sbin/service hltd stop
+if [ \$1 == 0 ]; then
+  /sbin/service hltd stop
+  /sbin/service hltd stop
+fi
 EOF
 mkdir -p RPMBUILD/{RPMS/{noarch},SPECS,BUILD,SOURCES,SRPMS}
 rpmbuild --define "_topdir `pwd`/RPMBUILD" -bb hltd.spec

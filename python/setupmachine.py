@@ -30,23 +30,6 @@ default_eqset_daq2val = 'eq_140325_attributes'
 #default_eqset_daq2 = 'eq_14-508_emu'
 default_eqset_daq2 = 'eq_140522_emu'
 
-def removeResources():
-    try:
-        shutil.rmtree('/etc/appliance/online/*')
-    except:
-        pass
-    try:
-        shutil.rmtree('/etc/appliance/offline/*')
-    except:
-        pass
-    try:
-        shutil.rmtree('/etc/appliance/except/*')
-    except:
-        pass
-    try:
-        shutil.rmtree('/etc/appliance/quarantined/*')
-    except:
-        pass
 
 def countCPUs():
     fp=open('/proc/cpuinfo','r')
@@ -159,6 +142,57 @@ def getBUAddr(parentTag,hostname):
         retval.append(res)
     cur.close()
     return retval
+
+
+def getSelfDataAddr(parentTag):
+
+
+    global equipmentSet
+    #con = cx_Oracle.connect('CMS_DAQ2_TEST_HW_CONF_W/'+dbpwd+'@'+dbhost+':10121/int2r_lb.cern.ch',
+    #equipmentSet = 'eq_140325_attributes'
+
+    if equipmentSet == 'default':
+        if parentTag == 'daq2val':
+            equipmentSet = default_eqset_daq2val
+        if parentTag == 'daq2':
+            equipmentSet = default_eqset_daq2
+
+    con = cx_Oracle.connect(dblogin+'/'+dbpwd+'@'+dbhost+':10121/'+dbsid,
+                        cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
+    #print con.version
+
+    cur = con.cursor()
+
+    hostname = os.uname()[1]
+
+    qstring1= "select dnsname from DAQ_EQCFG_DNSNAME where dnsname like '%"+os.uname()[1]+"%' \
+                AND d.eqset_id = (select child.eqset_id from DAQ_EQCFG_EQSET child, DAQ_EQCFG_EQSET \
+                parent WHERE child.parent_id = parent.eqset_id AND parent.cfgkey = '"+parentTag+"' and child.cfgkey = '"+ equipmentSet + "')"
+
+    qstring2 = "select dnsname from DAQ_EQCFG_DNSNAME where dnsname like '%"+os.uname()[1]+"%' \
+                AND eqset_id = (select child.eqset_id from DAQ_EQCFG_EQSET child, DAQ_EQCFG_EQSET parent \
+                WHERE child.parent_id = parent.eqset_id AND parent.cfgkey = '"+parentTag+"' and child.cfgkey = '"+ equipmentSet + "')"
+
+
+    if equipmentSet == 'latest':
+        cur.execute(qstring1)
+    else:
+        print "query equipment set (data network name): ",parentTag+'/'+equipmentSet
+        #print '\n',qstring2
+        cur.execute(qstring2)
+
+    retval = []
+    for res in cur:
+        if res[0] != os.uname()[1]+".cms": retval.append(res[0])
+    cur.close()
+
+    if len(retval)>1:
+        for r in res:
+            #prefer .daq2 network if available
+            if r.startswith(os.uname()[1]+'.daq2'): return [r]
+
+    return retval
+
 
 class FileManager:
     def __init__(self,file,sep,edited,os1='',os2=''):
@@ -363,6 +397,7 @@ if True:
         runindex_name = 'runindex_test' 
 
     buName = ''
+    budomain = ''
     if type == 'fu':
         if cluster == 'daq2val' or cluster == 'daq2': 
             addrList =  getBUAddr(cluster,cnhostname)
@@ -375,6 +410,7 @@ if True:
                     buDataAddr = addr[1]
                     if addr[1].find('.'):
                         buName = addr[1].split('.')[0]
+                        budomain = addr[1][addr[1].find('.'):]
                     else:
                         buName = addr[1]
                     selectedAddr=True
@@ -412,6 +448,14 @@ if True:
     clusterName='appliance_'+buName
     if 'elasticsearch' in selection:
 
+        res = getSelfDataAddr(cluster)
+        if len(res)==0:
+            if budomain=='':
+                es_publish_host=os.uname()[1]+'.cms'
+            else:
+                es_publish_host=os.uname()[1]+budomain
+        else: es_publish_host = res[0]
+
         #print "will modify sysconfig elasticsearch configuration"
         #maybe backup vanilla versions
         essysEdited =  checkModifiedConfigInFile(elasticsysconf)
@@ -429,15 +473,17 @@ if True:
         if type == 'fu':
             essyscfg = FileManager(elasticsysconf,'=',essysEdited)
             essyscfg.reg('ES_HEAP_SIZE','512M')
-            escfg.reg('discovery.zen.ping.multicast.enabled','false')
-            escfg.reg('discovery.zen.ping.unicast.hosts','[ \"'+buDataAddr+'\" ]')
+            #escfg.reg('discovery.zen.ping.multicast.enabled','false')
+            #escfg.reg('discovery.zen.ping.unicast.hosts','[ \"'+buDataAddr+'\" ]')
+            escfg.reg('network.publish_host',es_publish_host)
             escfg.reg('transport.tcp.compress','true')
             if cluster != 'test':
                 escfg.reg('node.master','false')
                 escfg.reg('node.data','true')
             essyscfg.commit()
         if type == 'bu':
-            escfg.reg('discovery.zen.ping.multicast.enabled','false')
+            escfg.reg('network.publish_host',es_publish_host)
+            #escfg.reg('discovery.zen.ping.multicast.enabled','false')
             #escfg.reg('discovery.zen.ping.unicast.hosts','[ \"'+elastic_host2+'\" ]')
             escfg.reg('transport.tcp.compress','true')
             escfg.reg('node.master','true')
@@ -471,12 +517,18 @@ if True:
       
           #get needed info here
           hltdcfg.reg('user',username,'[General]')
+          hltdcfg.reg('watch_directory','/fff/ramdisk','[General]')
+          hltdcfg.reg('role','bu','[General]')
           hltdcfg.reg('micromerge_output','/fff/output','[General]')
           hltdcfg.reg('elastic_runindex_url',sys.argv[2],'[Monitoring]')
           hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
-          hltdcfg.removeEntry('watch_directory')
-          hltdcfg.commit() 
-
+          #hltdcfg.removeEntry('watch_directory')
+          hltdcfg.commit()
+          #remove /fff/data from BU (hack)
+          try:
+              shutil.rmtree('/fff/data')
+          except:
+              pass
 
       if type=='fu':
 
@@ -489,6 +541,7 @@ if True:
           #num_threads = nthreads 
  
           hltdcfg.reg('user',username,'[General]')
+          hltdcfg.reg('watch_directory','/fff/data','[General]')
           hltdcfg.reg('role','fu','[General]')
           hltdcfg.reg('elastic_cluster',clusterName,'[Monitoring]')
           hltdcfg.reg('es_cmssw_log_level',cmsswloglevel,'[Monitoring]')
@@ -496,14 +549,6 @@ if True:
           hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
           hltdcfg.reg('cmssw_base',cmssw_base,'[CMSSW]')
           hltdcfg.reg('cmssw_threads',nthreads,'[CMSSW]')
-          hltdcfg.removeEntry('watch_directory')
+          #hltdcfg.removeEntry('watch_directory')
           hltdcfg.commit()
-          #get customized info here
-
-          #removeResources()
-          #fillResources(num_max_cores)
-
-    
-
-#/opt/hltd/python/fillresources.py
 

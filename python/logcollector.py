@@ -588,6 +588,7 @@ class HLTDLogIndex():
         self.logger = logging.getLogger(self.__class__.__name__)
         self.es_server_url=es_server_url
         self.host = os.uname()[1]
+        self.threadEvent = threading.Event()
 
         if 'localhost' in es_server_url:
             nshards = 16
@@ -670,6 +671,7 @@ class HLTDLogIndex():
 
             #filter cgi "error" messages
             if "HTTP/1.1\" 200" in msg[0]: return
+            if "response was 200" in msg[0]: return
 
             for line_index, line in enumerate(msg):
                 if line_index==len(msg)-1:

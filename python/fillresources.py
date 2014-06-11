@@ -1,19 +1,35 @@
 #!/bin/env python
 
 import os
+import shutil
 import hltdconf
-import subprocess
 
 conf=hltdconf.hltdConf('/etc/hltd.conf')
 
 role=None
 
-
 if not conf.role and 'bu' in os.uname()[1]: role='bu'
-else:
-    role='fu'
+elif not conf.role and 'fu' in os.uname()[1]: role='fu'
 
 if role=='fu':
+
+    try:
+        shutil.rmtree('/etc/appliance/online/*')
+    except:
+        pass
+    try:
+        shutil.rmtree('/etc/appliance/offline/*')
+    except:
+        pass
+    try:
+        shutil.rmtree('/etc/appliance/except/*')
+    except:
+        pass
+    try:
+        shutil.rmtree('/etc/appliance/quarantined/*')
+    except:
+        pass
+
 
     fp=open('/proc/cpuinfo','r')
     resource_count = 0
@@ -23,14 +39,22 @@ if role=='fu':
             resource_count+=1
 
     try:
-        os.makedirs(conf.watch_directory)
+        os.umask(0)
+        os.makedirs(watch_directory)
     except OSError:
-        pass
+        try: 
+            os.chmod(watch_directory,0777)
+        except:
+            pass
 
 elif role=='bu':
 
     try:
-        os.makedirs(conf.watch_directory+'/appliance')
+        os.umask(0)
+        os.makedirs(watch_directory+'/appliance')
     except OSError:
-        pass
+        try:
+            os.chmod(watch_directory+'/appliance',0777)
+        except:
+            pass
 

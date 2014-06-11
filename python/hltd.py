@@ -19,6 +19,7 @@ import cgitb
 import httplib
 import demote
 import re
+import shutil
 
 #modules distributed with hltd
 import prctl
@@ -341,7 +342,9 @@ class OnlineResource:
     def NotifyShutdown(self):
         connection = httplib.HTTPConnection(self.cpu[0], 8000)
         connection.request("GET",'cgi-bin/stop_cgi.py?run='+str(self.runnumber))
+        time.sleep(0.05)
         response = connection.getresponse()
+        time.sleep(0.05)
 #do something intelligent with the response code
         if response.status > 300: self.hoststate = 0
 
@@ -908,9 +911,15 @@ class Run:
                     logging.info("Exception encountered in waiting for termination of anelastic:" +str(ex))
                      
             if conf.use_elasticsearch == True:
-                self.elastic_monitor.wait()
+                try:
+                    self.elastic_monitor.wait()
+                except OSError,ex:
+                    logging.info("Exception encountered in waiting for termination of nelastic:" +str(ex))
             if conf.delete_run_dir is not None and conf.delete_run_dir == True:
-                shutil.rmtree(dirname)
+                try:
+                    shutil.rmtree(self.dirname)
+                except Exception as ex:
+                    logging.exception(ex)
 
             global active_runs
             logging.info("active runs.."+str(active_runs))
@@ -1055,8 +1064,9 @@ class RunRanger:
                             #os.remove(event.fullpath)
                             run_list.remove(runtoend[0])
                         elif len(runtoend)==0:
-                            logging.error('request to end run '+str(nr)
+                            logging.warning('request to end run '+str(nr)
                                           +' which does not exist')
+                            os.remove(event.fullpath)
                         else:
                             logging.error('request to end run '+str(nr)
                                           +' has more than one run object - this should '
@@ -1282,7 +1292,7 @@ class ResourceRanger:
 
 class hltd(Daemon2,object):
     def __init__(self, pidfile):
-        Daemon2.__init__(self,pidfile)
+        Daemon2.__init__(self,pidfile,'hltd')
 
     def stop(self):
         if self.silentStatus():
@@ -1325,6 +1335,11 @@ class hltd(Daemon2,object):
             cleanup_mountpoints()
 
             calculate_threadnumber()
+
+            try:
+                os.makedirs(conf.watch_directory)
+            except:
+                pass
 
 
         """
