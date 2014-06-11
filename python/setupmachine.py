@@ -60,7 +60,7 @@ def countCPUs():
     return resource_count
 
 def getmachinetype():
-    myhost = socket.getfqdn()
+    myhost = os.uname()[1]
     #print "running on host ",myhost
     if   myhost.startswith('dvrubu-') : return 'daq2val','fu'
     elif myhost.startswith('dvbu-') : return 'daq2val','bu'
@@ -367,7 +367,7 @@ if True:
     cluster,type = getmachinetype()
     #override for daq2val!
     #if cluster == 'daq2val': cmsswloglevel =  'INFO'
-    cnhostname = socket.getfqdn()
+    cnhostname = os.uname()[1]
 
     if cluster == 'daq2val':
         runindex_name = 'runindex'
@@ -411,7 +411,7 @@ if True:
                 sys.exit(-1)
  
         elif cluster =='test':
-            hn = socket.getfqdn().split(".")[0]
+            hn = os.uname()[1].split(".")[0]
             addrList = [hn]
             buName = hn
             buDataAddr = hn
@@ -420,7 +420,7 @@ if True:
             sys.exit(-2)
 
     elif type == 'bu':
-        buName = socket.getfqdn().split(".")[0]
+        buName = os.uname()[1].split(".")[0]
         addrList = buName
 
     #print "detected address", addrList," and name ",buName
