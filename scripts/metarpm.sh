@@ -7,12 +7,12 @@ BASEDIR=$PWD
 if [ -f $SCRIPTDIR/paramcache ];
 then
   readarray lines < $SCRIPTDIR/paramcache
-  for (( i=0; i < 11; i++ ))
+  for (( i=0; i < 12; i++ ))
   do
     lines[$i]=`echo -n ${lines[$i]} | tr -d "\n"`
   done
 else
-  for (( i=0; i < 11; i++ ))
+  for (( i=0; i < 12; i++ ))
   do
     lines[$i]=""
   done
@@ -114,7 +114,7 @@ if [ -f $SCRIPTDIR/paramcache ];
 then
 rm -rf -f $SCRIPTDIR/paramcache
 fi
-for (( i=0; i < 11; i++ ))
+for (( i=0; i < 12; i++ ))
 do
   echo ${lines[$i]} >> $SCRIPTDIR/paramcache
 done
