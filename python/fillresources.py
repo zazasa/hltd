@@ -8,8 +8,10 @@ conf=hltdconf.hltdConf('/etc/hltd.conf')
 
 role=None
 
-if not conf.role and 'bu' in os.uname()[1]: role='bu'
-elif not conf.role and 'fu' in os.uname()[1]: role='fu'
+if conf.role==None:
+    if 'bu' in os.uname()[1]: role='bu'
+    elif 'fu' in os.uname()[1]: role='fu'
+else: role = conf.role
 
 if role=='fu':
 
@@ -40,10 +42,10 @@ if role=='fu':
 
     try:
         os.umask(0)
-        os.makedirs(watch_directory)
+        os.makedirs(conf.watch_directory)
     except OSError:
         try: 
-            os.chmod(watch_directory,0777)
+            os.chmod(conf.watch_directory,0777)
         except:
             pass
 
@@ -51,10 +53,10 @@ elif role=='bu':
 
     try:
         os.umask(0)
-        os.makedirs(watch_directory+'/appliance')
+        os.makedirs(conf.watch_directory+'/appliance')
     except OSError:
         try:
-            os.chmod(watch_directory+'/appliance',0777)
+            os.chmod(conf.watch_directory+'/appliance',0777)
         except:
             pass
 
