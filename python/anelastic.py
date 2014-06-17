@@ -111,9 +111,9 @@ class LumiSectionRanger():
                 run,ls = (self.infile.run,self.infile.ls)
                 key = (run,ls)
                 if filetype == EOLS :
-                    for key in self.LSHandlerList:
-                        if  self.LSHandlerList[key].ls < ls and not self.LSHandlerList[key].EOLS:
-                            self.createEOLSFile(ls)
+                    for lskey in self.LSHandlerList:
+                        if  self.LSHandlerList[lskey].ls < ls and not self.LSHandlerList[lskey].EOLS:
+                            self.createEOLSFile(self.LSHandlerList[lskey].ls)
                 if key not in self.LSHandlerList and not filetype == EOLS :
                     self.LSHandlerList[key] = LumiSectionHandler(run,ls,self.activeStreams,self.streamCounters,self.tempdir,self.outdir,self.jsdfile)
                 if key in self.LSHandlerList:
