@@ -1,6 +1,6 @@
 #!/bin/env python
 
-import os,sys
+import os,sys,socket
 import shutil
 sys.path.append('/opt/hltd/python')
 #from fillresources import *
@@ -10,8 +10,11 @@ try:
     import cx_Oracle
 except ImportError:
     pass
+try:
+    import MySQLdb
+except ImportError:
+    pass
 
-import socket
 
 backup_dir = '/opt/fff'
 
@@ -91,8 +94,12 @@ def getBUAddr(parentTag,hostname):
         if parentTag == 'daq2':
             equipmentSet = default_eqset_daq2
 
-    con = cx_Oracle.connect(dblogin+'/'+dbpwd+'@'+dbhost+':10121/'+dbsid,
+    if env == "vm":
+        con = MySQLdb.connect( host= dbhost, user = dblogin, passwd = dbpwd, db = dbsid)
+    else:
+        con = cx_Oracle.connect(dblogin+'/'+dbpwd+'@'+dbhost+':10121/'+dbsid,
                         cclass="FFFSETUP",purity = cx_Oracle.ATTR_PURITY_SELF)
+    
     #print con.version
 
     cur = con.cursor()
@@ -141,6 +148,7 @@ def getBUAddr(parentTag,hostname):
     for res in cur:
         retval.append(res)
     cur.close()
+    #print retval
     return retval
 
 
@@ -289,7 +297,6 @@ def restoreFileMaybe(file):
 
 #main function
 if True:
-
     argvc = 1
     if not sys.argv[argvc]:
         print "selection of packages to set up (hltd and/or elastic) missing"
@@ -313,6 +320,14 @@ if True:
 
     argvc += 1
     if not sys.argv[argvc]:
+        print "Enviroment parameter missing"
+        sys.exit(1)
+    env = sys.argv[argvc]
+
+
+
+    argvc += 1
+    if not sys.argv[argvc]:
         print "global elasticsearch URL name missing"
         sys.exit(1)
     elastic_host = sys.argv[argvc]
@@ -323,11 +338,11 @@ if True:
     if len(elastic_host.split(':'))<3:
         elastic_host+=':9200'
 
-    argvc += 1
-    if not sys.argv[argvc]:
-        print "elasticsearch tribe hostname name missing"
-        sys.exit(1)
-    elastic_host2 = sys.argv[argvc]
+    #argvc += 1
+    #if not sys.argv[argvc]:
+    #    print "elasticsearch tribe hostname name missing"
+    #    sys.exit(1)
+    #elastic_host2 = sys.argv[argvc]
 
     argvc += 1
     if not sys.argv[argvc]:
@@ -377,6 +392,7 @@ if True:
         print "CMSSW number of threads/process is missing"
     nthreads = sys.argv[argvc]
 
+
     argvc+=1
     if not sys.argv[argvc]:
         print "CMSSW log collection level is missing"
@@ -385,7 +401,7 @@ if True:
     cluster,type = getmachinetype()
     #override for daq2val!
     #if cluster == 'daq2val': cmsswloglevel =  'INFO'
-    cnhostname = os.uname()[1]+".cms"
+    cnhostname = os.uname()[1]
 
     if cluster == 'daq2val':
         runindex_name = 'runindex'
@@ -431,16 +447,17 @@ if True:
                 sys.exit(-1)
  
         elif cluster =='test':
-            addrList = [os.uname()[1]]
-            buName = os.uname()[1]
-            buDataAddr = os.uname()[1]
+            hn = os.uname()[1].split(".")[0]
+            addrList = [hn]
+            buName = hn
+            buDataAddr = hn
         else:
             print "FU configuration in cluster",cluster,"not supported yet !!"
             sys.exit(-2)
 
     elif type == 'bu':
-       buName = os.uname()[1]
-       addrList = buName
+        buName = os.uname()[1].split(".")[0]
+        addrList = buName
 
     #print "detected address", addrList," and name ",buName
     print "running configuration for machine",cnhostname,"of type",type,"in cluster",cluster,"; appliance bu is:",buName
@@ -521,7 +538,7 @@ if True:
           hltdcfg.reg('watch_directory','/fff/ramdisk','[General]')
           hltdcfg.reg('role','bu','[General]')
           hltdcfg.reg('micromerge_output','/fff/output','[General]')
-          hltdcfg.reg('elastic_runindex_url',sys.argv[2],'[Monitoring]')
+          hltdcfg.reg('elastic_runindex_url',sys.argv[3],'[Monitoring]')
           hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
           #hltdcfg.removeEntry('watch_directory')
           hltdcfg.commit()
@@ -546,7 +563,7 @@ if True:
           hltdcfg.reg('role','fu','[General]')
           hltdcfg.reg('elastic_cluster',clusterName,'[Monitoring]')
           hltdcfg.reg('es_cmssw_log_level',cmsswloglevel,'[Monitoring]')
-          hltdcfg.reg('elastic_runindex_url',sys.argv[2],'[Monitoring]')
+          hltdcfg.reg('elastic_runindex_url',sys.argv[3],'[Monitoring]')
           hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
           hltdcfg.reg('cmssw_base',cmssw_base,'[CMSSW]')
           hltdcfg.reg('cmssw_threads',nthreads,'[CMSSW]')
