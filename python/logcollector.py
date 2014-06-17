@@ -24,6 +24,7 @@ from pyelasticsearch.client import ElasticSearch
 from pyelasticsearch.client import IndexAlreadyExistsError
 from pyelasticsearch.client import ElasticHttpError
 from pyelasticsearch.client import ConnectionError
+from pyelasticsearch.client import Timeout
 
 from hltdconf import *
 from elasticBand import elasticBand
@@ -655,7 +656,7 @@ class HLTDLogIndex():
                 #this is normally fine as the index gets created somewhere across the cluster
                 self.logger.info(ex)
                 break
-            except ConnectionError as ex:
+            except (ConnectionError,Timeout) as ex:
                 #try to reconnect with different IP from DNS load balancing
                 self.threadEvent.wait(2)
                 continue
@@ -768,7 +769,7 @@ class HLTDLogParser(threading.Thread):
                                 line_counter=0
                                 startpos=0
                                 f.close()
-                                f.open(self.fullpath)
+                                f = open(self.fullpath)
                                 self.logger.info('reopened file '+self.filename)
                         except Exception,ex:
                             self.logger.info('problem reopening file')

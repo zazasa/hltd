@@ -38,6 +38,7 @@ used = conf.resource_base+'/online/'
 broken = conf.resource_base+'/except/'
 quarantined = conf.resource_base+'/quarantined/'
 nthreads = None
+nstreams = None
 expected_processes = None
 run_list=[]
 bu_disk_list=[]
@@ -149,15 +150,18 @@ def cleanup_mountpoints():
 
 def calculate_threadnumber():
     global nthreads
+    global nstreams
     global expected_processes
     idlecount = len(os.listdir(idles))
     if conf.cmssw_threads_autosplit>0:
         nthreads = idlecount/conf.cmssw_threads_autosplit
+        nstreams = idlecount/conf.cmssw_threads_autosplit
         if nthreads*conf.cmssw_threads_autosplit != nthreads:
             logging.error("idle cores can not be evenly split to cmssw threads")
     else:
         nthreads = conf.cmssw_threads
-    expected_processes = idlecount/nthreads
+        nstreams = conf.cmssw_threads
+    expected_processes = idlecount/nstreams
 
 class system_monitor(threading.Thread):
 
@@ -348,7 +352,7 @@ class OnlineResource:
 #do something intelligent with the response code
         if response.status > 300: self.hoststate = 0
 
-    def StartNewProcess(self ,runnumber, startindex, arch, version, menu,num_threads):
+    def StartNewProcess(self ,runnumber, startindex, arch, version, menu,num_threads,num_streams):
         logging.debug("OnlineResource: StartNewProcess called")
         self.runnumber = runnumber
 
@@ -372,7 +376,8 @@ class OnlineResource:
                             str(runnumber),
                             input_disk,
                             conf.watch_directory,
-                            str(num_threads)]
+                            str(num_threads),
+                            str(num_streams)]
         else: # a dqm machine
             new_run_args = [conf.cmssw_script_location+'/startDqmRun.sh',
                             dqm_used_configs+self.dqm_config,
@@ -594,20 +599,31 @@ class Run:
             active_runs.append(int(self.runnumber))
         else:
             #currently unused on BU
-            active_runs=[0]
+            active_runs.append(int(self.runnumber))
 
         self.menu_directory = bu_dir+'/'+conf.menu_directory
+        readMenuAttempts=0
         if os.path.exists(self.menu_directory):
-            self.menu = self.menu_directory+'/'+conf.menu_name
-            if os.path.exists(self.menu_directory+'/'+conf.arch_file):
-                fp = open(self.menu_directory+'/'+conf.arch_file,'r')
-                self.arch = fp.readline().strip()
-                fp.close()
-            if os.path.exists(self.menu_directory+'/'+conf.version_file):
-                fp = open(self.menu_directory+'/'+conf.version_file,'r')
-                self.version = fp.readline().strip()
-                fp.close()
-            logging.info("Run "+str(self.runnumber)+" uses "+self.version+" ("+self.arch+") with "+self.menu)
+            while True:
+                self.menu = self.menu_directory+'/'+conf.menu_name
+                if os.path.exists(self.menu_directory+'/'+conf.arch_file):
+                    fp = open(self.menu_directory+'/'+conf.arch_file,'r')
+                    self.arch = fp.readline().strip()
+                    fp.close()
+                if os.path.exists(self.menu_directory+'/'+conf.version_file):
+                    fp = open(self.menu_directory+'/'+conf.version_file,'r')
+                    self.version = fp.readline().strip()
+                    fp.close()
+                try:
+                    logging.info("Run "+str(self.runnumber)+" uses "+ self.version+" ("+self.arch+") with "+self.menu)
+                    break
+                except Exception as ex:
+                    logging.exception(ex)
+                    logging.error("Run parameters obtained for run "+str(self.runnumber)+": "+ str(self.version)+" ("+str(self.arch)+") with "+str(self.menu))
+                    time.sleep(.5)
+                    readMenuAttempts+=1
+                    if readMenuAttempts==3: raise Exception("Unable to parse HLT parameters")
+                    continue
         else:
             self.arch = conf.cmssw_arch
             self.version = conf.cmssw_default_version
@@ -721,7 +737,7 @@ class Run:
                 age = current_time - os.path.getmtime(idles+cpu)
                 logging.info("found resource "+cpu+" which is "+str(age)+" seconds old")
                 if conf.role == 'fu':
-                    if count == nthreads:
+                    if count == nstreams:
                       dqm_config = dqm_configs.pop(0) if conf.dqm_machine else None
                       self.AcquireResource(cpu_group,'idle', dqm_config)
                       cpu_group=[]
@@ -754,11 +770,13 @@ class Run:
         resource.statefiledir=conf.watch_directory+'/run'+str(self.runnumber).zfill(conf.run_number_padding)
         mondir = os.path.join(resource.statefiledir,'mon')
         resource.associateddir=mondir
+        logging.info(str(nthreads)+' '+str(nstreams))
         resource.StartNewProcess(self.runnumber,
                                  self.online_resource_list.index(resource),
                                  self.arch,
                                  self.version,
                                  self.menu,
+                                 int(round((len(resource.cpu)*float(nthreads)/nstreams))),
                                  len(resource.cpu))
         logging.debug("StartOnResource process started")
         logging.debug("StartOnResource going to acquire lock")
@@ -973,7 +991,7 @@ class Run:
                 logging.info('start checking completition of run '+str(self.runnumber))
                 #mode 1: check for complete entries in ES
                 #mode 2: check for runs in 'boxes' files
-                self.endChecker = RunCompletedChecker(1,int(self.runnumber),self.online_resource_list)
+                self.endChecker = RunCompletedChecker(1,int(self.runnumber),self.online_resource_list,self.dirname, active_runs)
                 self.endChecker.start()
             except Exception,ex:
                 logging.error('failure to start run completition checker:')
@@ -1110,6 +1128,7 @@ class RunRanger:
                     logging.error("exception encountered in contacting resources")
                     logging.info(ex)
                 run_list=[]
+                active_runs=[]
 
         elif dirname.startswith('populationcontrol'):
             logging.info("terminating all ongoing runs")
@@ -1214,13 +1233,13 @@ class ResourceRanger:
                     #acquire sufficient cores for a multithreaded process start 
                     resourcenames = []
                     for resname in reslist:
-                        if len(resourcenames) < nthreads:
+                        if len(resourcenames) < nstreams:
                             resourcenames.append(resname)
                         else:
                             break
 
                     acquired_sufficient = False
-                    if len(resourcenames) == nthreads:
+                    if len(resourcenames) == nstreams:
                         acquired_sufficient = True
                         res = ongoing_run.AcquireResource(resourcenames,resourcestate)
                     #ongoing_run.lock.release()
@@ -1252,11 +1271,11 @@ class ResourceRanger:
                                     return
                             resourcenames = []
                             for resname in reslist:
-                                if len(resourcenames) < nthreads:
+                                if len(resourcenames) < nstreams:
                                     resourcenames.append(resname)
                                 else:
                                     break
-                            if len(resourcenames) == nthreads:
+                            if len(resourcenames) == nstreams:
                                 for resname in resourcenames:
                                     os.rename(broken+resname,idles+resname)
 
@@ -1309,6 +1328,8 @@ class hltd(Daemon2,object):
                     time.sleep(1.)
                     count-=1
             except OSError, err:
+                pass
+            except IOError, err:
                 pass
         super(hltd,self).stop()
 

@@ -8,6 +8,8 @@ import time
 
 
 
+runDiscoveryUrl=None
+
 logThreshold=1 #INFO
 repeatsMax=100
 connurl='http://localhost:9200'
@@ -41,6 +43,13 @@ if len(sys.argv)>1:
 
         elif arg=='--black':
             termWhite=False
+        elif arg.startswith('--mode'):
+            dmode = arg[arg.find('=')+1:].strip()
+            if dmode=='daq2':
+                runDiscoveryUrl='http://es-cdaq.cms:9200/runindex_prod/run/_search?size=2'
+            elif dmode=='daq2val':
+                runDiscoveryUrl='http://es-cdaq.cms:9200/runindex/run/_search?size=2'
+            connurl='http://es-tribe.cms:9200'
 
 if printHelp==True:
     print "Usage: . logprint.py -c=%URL -l=%[DEBUG,INFO,WARNING,ERROR,FATAL] -r=%[-1,0,...] --black --light"
@@ -49,6 +58,7 @@ if printHelp==True:
     print " -r: DEBUG/INFO repeat suppression threshold (default: 100, disable: -1)"
     print " --black: color scheme for black background terminal (default: disabled)"
     print " --light: your terminal background color (default: white)"
+    print " --mode: daq2 or daqval. will discover runs from the es-cdaq index (default: off)"
     print " --help: print this info and quit"
 
 if quit:
@@ -57,7 +67,11 @@ elif printHelp==True:
     print "\n Starting logger using default values..."
 
 #url =  'http://localhost:9200/run*/cmsswlog/_search'
-url =  connurl+'/run*/cmsswlog/_search'
+urlend='/cmsswlog/_search'
+urlbegin=connurl+'/'
+
+url =  urlbegin+'run*'+urlend
+urlcustom = url
 
 #resp = requests.post(url, query)
 
@@ -107,9 +121,9 @@ qdoc = {
 #          }
 #        }
 #      }
-    }
-  },
+    },
   "sort": { "_timestamp": { "order": "asc" }}
+  }
 }
 
 if logThreshold==0:
@@ -118,6 +132,10 @@ if logThreshold==0:
 else:
     useFilters2=True
     qdoc['query']['filtered']['filter'] = filter2
+
+
+runindex_query =  '{  "query": { "filtered": {"query": {"match_all": {}}}, "sort": { "_timestamp": { "order": "asc" }}}}'
+
 
 sleept = 0.5
 
@@ -140,6 +158,22 @@ print "loop start...."
 
 while True:
 
+
+    if runDiscoveryUrl!=None:
+        cdaqr = requests.post(runDiscoveryUrl,runindex_query)
+
+        runs_string = ''
+        chits = json.loads(cdaqr.content)['hits']['hits']
+	for i,c in enumerate(chits):
+	    if i==0:
+	        runs_string+='run' + str(c['_source']['runNumber'])
+	    else:
+	        runs_string+=',run' + str(c['_source']['runNumber'])
+	
+	if runs_string=='':runs_string='run*'
+        urlcustom =  urlbegin+runs_string+urlend
+        
+
     counter+=1
     tbefore = tnow
     tnow = tfuture
@@ -161,7 +195,7 @@ while True:
     q = json.dumps(qdoc)
 
 
-    resp = requests.post(url, q)
+    resp = requests.post(urlcustom, q)
     data = json.loads(resp.content)
     lastEmpty==True
     maxhostlen=0

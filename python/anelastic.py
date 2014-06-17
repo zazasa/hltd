@@ -110,6 +110,10 @@ class LumiSectionRanger():
             elif filetype in [STREAM,INDEX,EOLS,DAT]:
                 run,ls = (self.infile.run,self.infile.ls)
                 key = (run,ls)
+                if filetype == EOLS :
+                    for key in self.LSHandlerList:
+                        if  self.LSHandlerList[key].ls < ls and not self.LSHandlerList[key].EOLS:
+                            self.createEOLSFile(ls)
                 if key not in self.LSHandlerList and not filetype == EOLS :
                     self.LSHandlerList[key] = LumiSectionHandler(run,ls,self.activeStreams,self.streamCounters,self.tempdir,self.outdir,self.jsdfile)
                 if key in self.LSHandlerList:
@@ -180,7 +184,13 @@ class LumiSectionRanger():
 
         self.createErrIniFile()
 
-
+    def createEOLSFile(self,ls):
+        eolname = os.path.join(self.tempdir,'run'+self.run_number.zfill(conf.run_number_padding)+"_ls"+ls.zfill(4)+"_EoLS.jsn")
+        try:
+            with open(eolname,"w") as fi:
+                self.logger.warning("EOLS file "+eolname+" was not present. Creating it by hltd.")
+        except:pass
+            
 
     def processEORFile(self):
         self.logger.info(self.infile.basename)

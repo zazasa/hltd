@@ -30,6 +30,14 @@ options.register ('numThreads',
                   VarParsing.VarParsing.varType.int,          # string, int, or float
                   "Number of CMSSW threads")
 
+options.register ('numStreams',
+                  1, # default value
+                  VarParsing.VarParsing.multiplicity.singleton,
+                  VarParsing.VarParsing.varType.int,          # string, int, or float
+                  "Number of CMSSW streams")
+
+
+
 options.parseArguments()
 process = cms.Process("TESTFU")
 process.maxEvents = cms.untracked.PSet(
@@ -38,7 +46,7 @@ process.maxEvents = cms.untracked.PSet(
 
 process.options = cms.untracked.PSet(
     numberOfThreads = cms.untracked.uint32(options.numThreads),
-    numberOfStreams = cms.untracked.uint32(options.numThreads),
+    numberOfStreams = cms.untracked.uint32(options.numStreams),
     multiProcesses = cms.untracked.PSet(
     maxChildProcesses = cms.untracked.int32(0)
     )

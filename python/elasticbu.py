@@ -16,6 +16,7 @@ from pyelasticsearch.client import ElasticSearch
 from pyelasticsearch.client import IndexAlreadyExistsError
 from pyelasticsearch.client import ElasticHttpError
 from pyelasticsearch.client import ConnectionError
+from pyelasticsearch.client import Timeout
 import csv
 
 import requests
@@ -68,6 +69,7 @@ class elasticBandBU:
         self.host = os.uname()[1]
         self.stopping=False
         self.threadEvent = threading.Event()
+        self.runMode=runMode
         self.settings = {
             "analysis":{
                 "analyzer": {
@@ -169,7 +171,8 @@ class elasticBandBU:
                     'usedRamdisk'   :{'type':'integer'},
                     'totalRamdisk'  :{'type':'integer'},
                     'usedOutput'    :{'type':'integer'},
-                    'totalOutput'   :{'type':'integer'}
+                    'totalOutput'   :{'type':'integer'},
+                    'activeRuns'    :{'type':'string'}
                     },
                 '_timestamp' : { 
                     'enabled'   : True,
@@ -238,7 +241,7 @@ class elasticBandBU:
                         self.threadEvent.wait(1)
                     continue
 
-            except ConnectionError as ex:
+            except (ConnectionError,Timeout) as ex:
                 #try to reconnect with different IP from DNS load balancing
                 if runMode and connectionAttempts>100:
                    self.logger.error('elastic (BU): exiting after 100 connection attempts to '+ es_server_url)
@@ -353,11 +356,11 @@ class elasticBandBU:
                 self.es.bulk_index(self.index_name,name,documents)
                 return True
             except ElasticHttpError as ex:
-                if attempts==0:continue
+                if attempts<=1:continue
                 self.logger.error('elasticsearch HTTP error. skipping document '+name)
                 #self.logger.exception(ex)
                 return False
-            except ConnectionError as ex:
+            except (ConnectionError,Timeout) as ex:
                 if attempts>100 and self.runMode:
                     raise(ex)
                 self.logger.error('elasticsearch connection error. retry.')
@@ -556,7 +559,7 @@ class BoxInfoUpdater(threading.Thread):
 
 class RunCompletedChecker(threading.Thread):
 
-    def __init__(self,mode,nr,nresources):
+    def __init__(self,mode,nr,nresources,run_dir,active_runs):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.mode = mode
         self.nr = nr
@@ -567,6 +570,8 @@ class RunCompletedChecker(threading.Thread):
         self.logurlclose = 'http://localhost:9200/log_run'+str(nr).zfill(conf.run_number_padding)+'*/_close'
         self.stop = False
         self.threadEvent = threading.Event()
+        self.run_dir = run_dir
+        self.active_runs = active_runs
         try:
             threading.Thread.__init__(self)
 
@@ -632,6 +637,7 @@ class RunCompletedChecker(threading.Thread):
                 else: self.threadEvent.wait(5)
 
             try:
+                self.active_runs.remove(int(self.nr))
                 time.sleep(10)
                 if conf.close_es_index==True:
                     resp = requests.post(self.urlclose)
@@ -649,7 +655,21 @@ class RunCompletedChecker(threading.Thread):
                 while self.stop == False:
                     resp = requests.post(self.url, '')
                     data = json.loads(resp.content)
+
+                    #check for clearing run number from active runs (no run dir or FUs done)
+                    try:
+                        os.stat(self.run_dir)
+                    except OSError:
+                        try:
+                            self.active_runs.remove(int(self.nr))
+                        except:pass
+
                     if int(data['count']) >= len(self.nresources):
+
+                        try:
+                            self.active_runs.remove(int(self.nr))
+                        except:pass
+
                         #all hosts are finished, close the index
                         #wait a bit for indexing and querying to complete
                         time.sleep(10)
