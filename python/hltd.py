@@ -1035,7 +1035,12 @@ class RunRanger:
                     logging.info('new run '+str(nr))
                     if conf.role == 'fu':
                         bu_dir = bu_disk_list[0]+'/'+conf.ramdisk_subdirectory+'/'+dirname
-                        os.symlink(bu_dir+'/jsd',event.fullpath+'/jsd')
+                        try:
+                            os.symlink(bu_dir+'/jsd',event.fullpath+'/jsd')
+                        except:
+                            if not dqm_machine:
+                                self.logger.warning('jsd directory symlink error, continuing without creating link')
+                            pass
                     else:
                         bu_dir = ''
                     run_list.append(Run(nr,event.fullpath,bu_dir)) #@@MO in case of the BU, the run_list grows until the hltd is stopped
