@@ -1,18 +1,14 @@
 #!/bin/env /bin/bash
-
-set -x
-logname="/var/log/hltd/pid/dqm_run$2_pid$$.log"
-
-echo -e "\n************************************************************" >> $logname 2>&1
-echo -e "This is the CMSSW simulation run \n"                            >> $logname 2>&1
-echo -e "Running on machine: $(hostname) \n"                             >> $logname 2>&1
-echo -e "Host details: "                                                 >> $logname 2>&1
-echo -e "\tkernel-name: $(uname --kernel-name)"                          >> $logname 2>&1
-echo -e "\tkernel-release: $(uname --kernel-release)"                    >> $logname 2>&1
-echo -e "\tkernel-version: $(uname --kernel-version)"                    >> $logname 2>&1
-echo -e "\tmachine: $(uname --machine)"                                  >> $logname 2>&1
-echo -e "\thardware-platform: $(uname --hardware-platform) \n"           >> $logname 2>&1
-echo -e "PID: $$"                                                        >> $logname 2>&1
-echo -e "Run Number: $2 \n\n"                                            >> $logname 2>&1
-echo -e "The CMSSW will be started like this: CMSSW $1 \n"               >> $logname 2>&1
-echo -e "************************************************************\n" >> $logname 2>&1
+set -x #echo on
+TODAY=$(date)
+logname="/var/log/hltd/pid/hlt_run$6_pid$$.log"
+#override the noclobber option by using >| operator for redirection - then keep appending to log
+echo startDqmRun invoked $TODAY with arguments $1 $2 $3 $4 $5 $6 $7 $8 >| $logname
+export SCRAM_ARCH=$2
+source $1/cmsset_default.sh >> $logname
+cd $5;
+pwd >> $logname 2>&1
+eval `scram runtime -sh`;
+cd $4;
+pwd >> $logname 2>&1
+exec cmsRun `readlink $8` runInputDir=$7 runNumber=$6 >> $logname 2>&1
