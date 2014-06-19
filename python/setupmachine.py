@@ -390,6 +390,13 @@ if True:
 
     argvc+=1
     if not sys.argv[argvc]:
+        print "CMSSW number of framework streams/process is missing"
+    nfwkstreams = sys.argv[argvc]
+
+
+
+    argvc+=1
+    if not sys.argv[argvc]:
         print "CMSSW log collection level is missing"
     cmsswloglevel =  sys.argv[argvc]
 
@@ -569,6 +576,7 @@ if True:
           hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
           hltdcfg.reg('cmssw_base',cmssw_base,'[CMSSW]')
           hltdcfg.reg('cmssw_threads',nthreads,'[CMSSW]')
+          hltdcfg.reg('cmssw_streams',nfwkstreams,'[CMSSW]')
           #hltdcfg.removeEntry('watch_directory')
           hltdcfg.commit()
 
