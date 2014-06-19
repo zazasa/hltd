@@ -16,7 +16,10 @@ except ImportError:
     pass
 
 
-backup_dir = '/opt/fff'
+backup_dir = '/opt/fff/backup'
+try:
+    os.makedirs(backup_dir)
+except:pass
 
 hltdconf = '/etc/hltd.conf'
 busconfig = '/etc/appliance/resources/bus.config'

@@ -151,7 +151,7 @@ Source: none
 %define _topdir $TOPDIR
 BuildArch: $BUILD_ARCH
 AutoReqProv: no
-Requires:elasticsearch >= 1.0.2, hltd >= 1.3.2, cx_Oracle >= 5.1.2, java-1.7.0-openjdk
+Requires:elasticsearch >= 1.2.0, hltd >= 1.3.3, cx_Oracle >= 5.1.2, java-1.7.0-openjdk
 
 Provides:/opt/fff/configurefff.sh
 Provides:/opt/fff/setupmachine.py
