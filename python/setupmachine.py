@@ -324,8 +324,6 @@ if True:
         sys.exit(1)
     env = sys.argv[argvc]
 
-
-
     argvc += 1
     if not sys.argv[argvc]:
         print "global elasticsearch URL name missing"
@@ -337,12 +335,6 @@ if True:
         #add default port name for elasticsearch
     if len(elastic_host.split(':'))<3:
         elastic_host+=':9200'
-
-    #argvc += 1
-    #if not sys.argv[argvc]:
-    #    print "elasticsearch tribe hostname name missing"
-    #    sys.exit(1)
-    #elastic_host2 = sys.argv[argvc]
 
     argvc += 1
     if not sys.argv[argvc]:
@@ -401,7 +393,11 @@ if True:
     cluster,type = getmachinetype()
     #override for daq2val!
     #if cluster == 'daq2val': cmsswloglevel =  'INFO'
-    cnhostname = os.uname()[1]
+    if env == "vm":
+        cnhostname = os.uname()[1]
+    else:
+        cnhostname = os.uname()[1]+'.cms'
+       
 
     if cluster == 'daq2val':
         runindex_name = 'runindex'
@@ -456,7 +452,10 @@ if True:
             sys.exit(-2)
 
     elif type == 'bu':
-        buName = os.uname()[1].split(".")[0]
+        if env == "vm":
+            buName = os.uname()[1].split(".")[0]
+        else:
+            buName = os.uname()[1]
         addrList = buName
 
     #print "detected address", addrList," and name ",buName
@@ -538,7 +537,7 @@ if True:
           hltdcfg.reg('watch_directory','/fff/ramdisk','[General]')
           hltdcfg.reg('role','bu','[General]')
           hltdcfg.reg('micromerge_output','/fff/output','[General]')
-          hltdcfg.reg('elastic_runindex_url',sys.argv[3],'[Monitoring]')
+          hltdcfg.reg('elastic_runindex_url',elastic_host,'[Monitoring]')
           hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
           #hltdcfg.removeEntry('watch_directory')
           hltdcfg.commit()
@@ -563,7 +562,7 @@ if True:
           hltdcfg.reg('role','fu','[General]')
           hltdcfg.reg('elastic_cluster',clusterName,'[Monitoring]')
           hltdcfg.reg('es_cmssw_log_level',cmsswloglevel,'[Monitoring]')
-          hltdcfg.reg('elastic_runindex_url',sys.argv[3],'[Monitoring]')
+          hltdcfg.reg('elastic_runindex_url',elastic_host,'[Monitoring]')
           hltdcfg.reg('elastic_runindex_name',runindex_name,'[Monitoring]')
           hltdcfg.reg('cmssw_base',cmssw_base,'[CMSSW]')
           hltdcfg.reg('cmssw_threads',nthreads,'[CMSSW]')
