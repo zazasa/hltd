@@ -349,7 +349,7 @@ class OnlineResource:
         time.sleep(0.05)
         response = connection.getresponse()
         time.sleep(0.05)
-#do something intelligent with the response code
+        #do something intelligent with the response code
         if response.status > 300: self.hoststate = 0
 
     def StartNewProcess(self ,runnumber, startindex, arch, version, menu,num_threads,num_streams):
@@ -818,8 +818,7 @@ class Run:
         #herod mode sends sigkill to all process, however waits for all scripts to finish
         logging.debug("Run:Shutdown called")
         self.is_active_run = False
-        if conf.role == 'fu':
-            self.changeMarkerMaybe(Run.ABORTED)
+        self.changeMarkerMaybe(Run.ABORTED)
 
         try:
             for resource in self.online_resource_list:
@@ -840,14 +839,6 @@ class Run:
                     for cpu in resource.cpu:
                       os.rename(used+cpu,idles+cpu)
                     resource.process=None
-                elif conf.role == 'bu':
-                    resource.NotifyShutdown()
-                    if self.endChecker:
-                        try:
-                            self.endChecker.stop()
-                            seld.endChecker.join()
-                        except Exception,ex:
-                            pass
 
             self.online_resource_list = []
             self.releaseDqmConfigs()
@@ -877,10 +868,11 @@ class Run:
             logging.info("exception encountered in shutting down resources")
             logging.exception(ex)
 
-            global active_runs
-            for run_num in active_runs:
-                if run_num == self.runnumber:
-                    active_runs.remove(run_num)
+        global active_runs
+        active_runs_copy = active_runs[:]
+        for run_num in active_runs_copy:
+            if run_num == self.runnumber:
+                active_runs.remove(run_num)
 
         try:
             if conf.delete_run_dir is not None and conf.delete_run_dir == True:
@@ -890,6 +882,36 @@ class Run:
             pass
  
         logging.info('Shutdown of run '+str(self.runnumber).zfill(conf.run_number_padding)+' completed')
+
+    def ShutdownBU(self):
+
+        self.is_active_run = False
+        if conf.role == 'bu':
+            for resource in self.online_resource_list:
+                if self.endChecker:
+                    try:
+                        self.endChecker.stop()
+                        seld.endChecker.join()
+                    except Exception,ex:
+                        pass
+
+        if conf.use_elasticsearch == True:
+            try:
+                if self.elastic_monitor:    
+                    self.elastic_monitor.terminate()
+                    time.sleep(.1)
+            except Exception as ex:
+                logging.info("exception encountered in shutting down elasticbu.py")
+                logging.exception(ex)
+
+        global active_runs
+        active_runs_copy = active_runs[:]
+        for run_num in active_runs_copy:
+            if run_num == self.runnumber:
+                active_runs.remove(run_num)
+
+        logging.info('Shutdown of run '+str(self.runnumber).zfill(conf.run_number_padding)+' on BU completed')
+ 
 
     def StartWaitForEnd(self):
         self.is_active_run = False
@@ -1111,10 +1133,11 @@ class RunRanger:
             os.remove(event.fullpath)
             if conf.role == 'fu':
                 logging.info("killing all CMSSW child processes")
-                run_list_copy = run_list
-                for run in run_list_copy:
+                for run in run_list:
                     run.Shutdown(True)
-            if conf.role == 'bu':
+            elif conf.role == 'bu':
+                for run in run_list:
+                    run.ShutdownBU()
                 boxdir = conf.resource_base +'/boxes/'
                 try:
                     dirlist = os.listdir(boxdir)
@@ -1132,15 +1155,19 @@ class RunRanger:
                 except Exception as ex:
                     logging.error("exception encountered in contacting resources")
                     logging.info(ex)
-                run_list=[]
-                active_runs=[]
+            run_list=[]
+            active_runs=[]
 
         elif dirname.startswith('populationcontrol'):
             logging.info("terminating all ongoing runs")
             for run in run_list:
-                run.Shutdown()
-            run_list[:] = []
-            logging.info("terminated all ongoing runs via cgi interface")
+                if conf.role=='fu':
+                    run.Shutdown()
+                elif conf.role=='bu':
+                    run.ShutdownBU()
+            run_list = []
+            active_runs=[]
+            logging.info("terminated all ongoing runs via cgi interface (populationcontrol)")
             os.remove(event.fullpath)
 
         elif dirname.startswith('harakiri') and conf.role == 'fu':
@@ -1432,7 +1459,10 @@ class hltd(Daemon2,object):
         except KeyboardInterrupt:
             logging.info("terminating all ongoing runs")
             for run in run_list:
-                run.Shutdown()
+                if conf.role=='fu':
+                    run.Shutdown()
+                elif conf.role=='bu':
+                    run.ShutdownBU()
             logging.info("terminated all ongoing runs")
             logging.info("stopping run ranger inotify helper")
             runRanger.stop_inotify()
