@@ -382,9 +382,7 @@ class OnlineResource:
             new_run_args = [conf.cmssw_script_location+'/startDqmRun.sh',
                             conf.cmssw_base,
                             arch,
-                            version,
                             conf.exec_directory,
-                            conf.dqm_project_dir,
                             str(runnumber),
                             input_disk,
                             dqm_used_configs+self.dqm_config]
