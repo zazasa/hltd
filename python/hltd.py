@@ -380,9 +380,12 @@ class OnlineResource:
                             str(num_streams)]
         else: # a dqm machine
             new_run_args = [conf.cmssw_script_location+'/startDqmRun.sh',
-                            dqm_used_configs+self.dqm_config,
-                            str(runnumber)
-                            ]
+                            conf.cmssw_base,
+                            arch,
+                            conf.exec_directory,
+                            str(runnumber),
+                            input_disk,
+                            dqm_used_configs+self.dqm_config]
         logging.info("arg array "+str(new_run_args).translate(None, "'"))
         try:
 #            dem = demote.demote(conf.user)
