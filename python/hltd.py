@@ -605,7 +605,17 @@ class Run:
             active_runs.append(int(self.runnumber))
 
         self.menu_directory = bu_dir+'/'+conf.menu_directory
+
         readMenuAttempts=0
+        #polling for HLT menu directory
+        while os.path.exists(self.menu_directory)==False:
+            time.sleep(.2)
+            readMenuAttempts+=1
+            #10 seconds allowed before defaulting to local configuration
+            if readMenuAttempts>50: break
+
+        readMenuAttempts=0
+        #try to read HLT parameters
         if os.path.exists(self.menu_directory):
             while True:
                 self.menu = self.menu_directory+'/'+conf.menu_name
