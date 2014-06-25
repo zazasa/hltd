@@ -608,7 +608,7 @@ class Run:
 
         readMenuAttempts=0
         #polling for HLT menu directory
-        while os.path.exists(self.menu_directory)==False and conf.dqm_machine==False:
+        while os.path.exists(self.menu_directory)==False and conf.dqm_machine==False and conf.role=='fu':
             time.sleep(.2)
             readMenuAttempts+=1
             #10 seconds allowed before defaulting to local configuration
