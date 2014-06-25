@@ -548,6 +548,9 @@ if __name__ == "__main__":
 
     except Exception,e:
         logger.exception("error: ")
+        logging.info("Closing notifier")
+        if mr is not None:
+            mr.stop_inotify()
         sys.exit(1)
 
     #make temp dir if we are here before elastic.py
