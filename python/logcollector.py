@@ -769,7 +769,7 @@ class HLTDLogParser(threading.Thread):
                                 line_counter=0
                                 startpos=0
                                 f.close()
-                                f = open(self.fullpath)
+                                f = open(fullpath)
                                 self.logger.info('reopened file '+self.filename)
                         except Exception,ex:
                             self.logger.info('problem reopening file')
@@ -782,24 +782,29 @@ class HLTDLogParser(threading.Thread):
                     if line.startswith('INFO:'):
                         if self.loglevel<2:
                             currentEvent = self.parseEntry(1,line)
-                        else:continue
+                        continue
                     if line.startswith('DEBUG:'):
                         if self.loglevel<1:
                             currentEvent = self.parseEntry(0,line)
-                        else:continue
+                        continue
                     if line.startswith('WARNING:'):
                         if self.loglevel<3:
                             currentEvent = self.parseEntry(2,line)
-                        else:continue
+                        continue
                     if line.startswith('ERROR:'):
                         if self.loglevel<4:
                             currentEvent = self.parseEntry(3,line)
-                        else:continue
+                        continue
                     if line.startswith('CRITICAL:'):
-                            currentEvent = self.parseEntry(4,line)
+                        currentEvent = self.parseEntry(4,line)
+                        continue
                     if line.startswith('Traceback'):
-                            if self.logOpen:
-                                self.msg.append(line)
+                        if self.logOpen:
+                            self.msg.append(line)
+                        else: currentEvent = self.parseEntry(3,line)
+                        continue
+                    else:
+                        if self.logOpen:self.msg.append(line)
 
         f.close()
 

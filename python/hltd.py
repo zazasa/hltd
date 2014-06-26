@@ -678,7 +678,7 @@ class Run:
             except OSError as ex:
                 logging.error("failed to start elasticsearch client")
                 logging.error(ex)
-        if conf.role == "fu":
+        if conf.role == "fu" and conf.dqm_machine==False:
             try:
                 logging.info("starting anelastic.py with arguments:"+self.dirname)
                 elastic_args = ['/opt/hltd/python/anelastic.py',self.dirname,str(self.runnumber), self.rawinputdir]
@@ -771,7 +771,7 @@ class Run:
                 resource.NotifyNewRun(self.runnumber)
                 #update begin time to after notifying FUs
                 self.beginTime = datetime.now()
-        if conf.role == 'fu':
+        if conf.role == 'fu' and conf.dqm_machine==False:
             self.changeMarkerMaybe(Run.ACTIVE)
             #start safeguard monitoring of anelastic.py
             self.startAnelasticWatchdog()
@@ -959,7 +959,8 @@ class Run:
                     os.remove(conf.watch_directory+'/end'+str(self.runnumber).zfill(conf.run_number_padding))
                 except:pass
                 try:
-                    self.anelastic_monitor.wait()
+                    if conf.dqm_machine==False:
+                        self.anelastic_monitor.wait()
                 except OSError,ex:
                     logging.info("Exception encountered in waiting for termination of anelastic:" +str(ex))
                      
