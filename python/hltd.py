@@ -41,7 +41,8 @@ nthreads = None
 nstreams = None
 expected_processes = None
 run_list=[]
-bu_disk_list=[]
+bu_disk_list_ramdisk=[]
+bu_disk_list_output=[]
 active_runs=[]
 dqm_free_configs = conf.dqm_config_files+'/free/'
 dqm_used_configs = conf.dqm_config_files+'/used/'
@@ -83,24 +84,57 @@ def cleanup_resources():
 
 
 def cleanup_mountpoints():
-    bu_disk_list[:] = []
+    bu_disk_list_ramdisk[:] = []
+    bu_disk_list_output[:] = []
     if conf.bu_base_dir[0] == '/':
-        bu_disk_list[:] = [conf.bu_base_dir]
+        bu_disk_list_ramdisk[:] = [os.path.join(conf.bu_base_dir,conf.ramdisk_subdirectory)]
+        bu_disk_list_output[:] = [os.path.join(conf.bu_base_dir,conf.output_subdirectory)]
+        #make subdirectories if necessary and return
+        try:
+            os.makedirs(conf.bu_base_dir)
+        except OSError:
+            pass
+        try:
+            os.makedirs(os.path.join(conf.bu_base_dir,conf.ramdisk_subdirectory))
+        except OSError:
+            pass
+        try:
+            os.makedirs(os.path.join(conf.bu_base_dir,conf.output_subdirectory))
+        except OSError:
+            pass
         return
     try:
         process = subprocess.Popen(['mount'],stdout=subprocess.PIPE)
         out = process.communicate()[0]
         mounts = re.findall('/'+conf.bu_base_dir+'[0-9]+',out)
+        if len(mounts)>1 and mounts[0]==mounts[1]: mounts=[mounts[0]]
         logging.info("cleanup_mountpoints: found following mount points ")
         logging.info(mounts)
         for point in mounts:
-            logging.error("trying umount of "+point)
+            logging.info("trying umount of "+point)
             try:
                 subprocess.check_call(['umount','/'+point])
             except subprocess.CalledProcessError, err1:
+                pass
+            try:
+                subprocess.check_call(['umount',os.path.join('/'+point,conf.ramdisk_subdirectory)])
+            except subprocess.CalledProcessError, err1:
                 logging.error("Error calling umount in cleanup_mountpoints")
                 logging.error(str(err1.returncode))
-            os.rmdir('/'+point)
+            try:
+                subprocess.check_call(['umount',os.path.join('/'+point,conf.output_subdirectory)])
+            except subprocess.CalledProcessError, err1:
+                logging.error("Error calling umount in cleanup_mountpoints")
+                logging.error(str(err1.returncode))
+            try: 
+	        os.rmdir(os.path.join('/'+point,conf.ramdisk_subdirectory))
+            except:pass
+            try:
+                os.rmdir(os.path.join('/'+point,conf.output_subdirectory))
+            except:pass
+            try:
+                os.rmdir('/'+point)
+            except:pass
         i = 0
         if os.path.exists(conf.resource_base+'/bus.config'):
             for line in open(conf.resource_base+'/bus.config'):
@@ -109,6 +143,15 @@ def cleanup_mountpoints():
                     os.makedirs('/'+conf.bu_base_dir+str(i))
                 except OSError:
                     pass
+                try:
+                    os.makedirs(os.path.join('/'+conf.bu_base_dir+str(i),conf.ramdisk_subdirectory))
+                except OSError:
+                    pass
+                try:
+                    os.makedirs(os.path.join('/'+conf.bu_base_dir+str(i),conf.output_subdirectory))
+                except OSError:
+                    pass
+
                 attemptsLeft = 8
                 while attemptsLeft>0:
                     #by default ping waits 10 seconds
@@ -126,22 +169,40 @@ def cleanup_mountpoints():
                     logging.fatal('hltd was unable to ping BU '+line.strip())
                     sys.exit(1)
                 else:
-                    logging.info("trying to mount "+line.strip()+':/ '+'/'+conf.bu_base_dir+str(i))
+                    logging.info("trying to mount "+line.strip()+':/ '+os.path.join('/'+conf.bu_base_dir+str(i),conf.ramdisk_subdirectory))
                     try:
                         subprocess.check_call(
                             [conf.mount_command,
                              '-t',
                              conf.mount_type,
                              '-o',
-                             conf.mount_options,
-                             line.strip()+':/',
-                             '/'+conf.bu_base_dir+str(i)]
+                             conf.mount_options_ramdisk,
+                             line.strip()+':/fff/'+conf.ramdisk_subdirectory,
+                             os.path.join('/'+conf.bu_base_dir+str(i),conf.ramdisk_subdirectory)]
                             )
-                        bu_disk_list.append('/'+conf.bu_base_dir+str(i))
+                        bu_disk_list_ramdisk.append(os.path.join('/'+conf.bu_base_dir+str(i),conf.ramdisk_subdirectory))
                     except subprocess.CalledProcessError, err2:
                         logging.error("Error calling mount in cleanup_mountpoints for "+line.strip()+':/',
                              '/'+conf.bu_base_dir+str(i))
                         logging.error(str(err2.returncode))
+
+                    logging.info("trying to mount "+line.strip()+': '+os.path.join('/'+conf.bu_base_dir+str(i),conf.output_subdirectory))
+                    try:
+                        subprocess.check_call(
+                            [conf.mount_command,
+                             '-t',
+                             conf.mount_type,
+                             '-o',
+                             conf.mount_options_output,
+                             line.strip()+':/fff/'+conf.output_subdirectory,
+                             os.path.join('/'+conf.bu_base_dir+str(i),conf.output_subdirectory)]
+                            )
+                        bu_disk_list_output.append(os.path.join('/'+conf.bu_base_dir+str(i),conf.output_subdirectory))
+                    except subprocess.CalledProcessError, err2:
+                        logging.error("Error calling mount in cleanup_mountpoints for "+line.strip()+':/',
+                             '/'+conf.bu_base_dir+str(i))
+                        logging.error(str(err2.returncode))
+
 
                 i+=1
     except Exception as ex:
@@ -176,7 +237,7 @@ class system_monitor(threading.Thread):
 
     def rehash(self):
         if conf.role == 'fu':
-            self.directory = ['/'+x+'/'+conf.ramdisk_subdirectory+'/appliance/boxes/' for x in bu_disk_list]
+            self.directory = ['/'+x+'/appliance/boxes/' for x in bu_disk_list_ramdisk]
         else:
             self.directory = [conf.watch_directory+'/appliance/boxes/']
         self.file = [x+self.hostname for x in self.directory]
@@ -280,7 +341,7 @@ class BUEmu:
         configtouse = conf.test_bu_config
         destination_base = None
         if role == 'fu':
-            destination_base = bu_disk_list[startindex%len(bu_disk_list)]+'/'+conf.ramdisk_subdirectory
+            destination_base = bu_disk_list_ramdisk[startindex%len(bu_disk_list_ramdisk)]
         else:
             destination_base = conf.watch_directory
             
@@ -361,7 +422,7 @@ class OnlineResource:
         independent mounts of the BU - it should not be necessary in due course
         IFF it is necessary, it should address "any" number of mounts, not just 2
         """
-        input_disk = bu_disk_list[startindex%len(bu_disk_list)]+'/'+conf.ramdisk_subdirectory
+        input_disk = bu_disk_list_ramdisk[startindex%len(bu_disk_list_ramdisk)]
         #run_dir = input_disk + '/run' + str(self.runnumber).zfill(conf.run_number_padding)
 
         logging.info("starting process with "+version+" and run number "+str(runnumber))
@@ -652,7 +713,7 @@ class Run:
             except Exception, ex:
                 logging.error("could not create mon dir inside the run input directory")
         else:
-            self.rawinputdir= bu_disk_list[0]+'/'+conf.ramdisk_subdirectory+'/run' + str(self.runnumber).zfill(conf.run_number_padding)
+            self.rawinputdir= bu_disk_list_ramdisk[0]+'/run' + str(self.runnumber).zfill(conf.run_number_padding)
 
         self.lock = threading.Lock()
         #conf.use_elasticsearch = False
@@ -1070,7 +1131,7 @@ class RunRanger:
                 try:
                     logging.info('new run '+str(nr))
                     if conf.role == 'fu':
-                        bu_dir = bu_disk_list[0]+'/'+conf.ramdisk_subdirectory+'/'+dirname
+                        bu_dir = bu_disk_list_ramdisk[0]+'/'+dirname
                         try:
                             os.symlink(bu_dir+'/jsd',event.fullpath+'/jsd')
                         except:
