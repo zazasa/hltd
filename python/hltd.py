@@ -127,13 +127,16 @@ def cleanup_mountpoints():
                 logging.error("Error calling umount in cleanup_mountpoints")
                 logging.error(str(err1.returncode))
             try: 
-	        os.rmdir(os.path.join('/'+point,conf.ramdisk_subdirectory))
+                if os.path.join('/'+point,conf.ramdisk_subdirectory)!='/':
+	            os.rmdir(os.path.join('/'+point,conf.ramdisk_subdirectory))
             except:pass
             try:
-                os.rmdir(os.path.join('/'+point,conf.output_subdirectory))
+                if os.path.join('/'+point,conf.output_subdirectory)!='/':
+                    os.rmdir(os.path.join('/'+point,conf.output_subdirectory))
             except:pass
             try:
-                os.rmdir('/'+point)
+                if os.path.join('/',point)!='/':
+                    os.rmdir('/'+point)
             except:pass
         i = 0
         if os.path.exists(conf.resource_base+'/bus.config'):
