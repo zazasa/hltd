@@ -578,6 +578,7 @@ if True:
           hltdcfg.reg('cmssw_base',cmssw_base,'[CMSSW]')
           hltdcfg.reg('cmssw_threads',nthreads,'[CMSSW]')
           hltdcfg.reg('cmssw_streams',nfwkstreams,'[CMSSW]')
+#          hltdcfg.reg('resource_use_fraction',"0.5",'[Resources]')
           #hltdcfg.removeEntry('watch_directory')
           hltdcfg.commit()
 
