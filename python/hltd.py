@@ -876,12 +876,24 @@ class Run:
             logging.debug("Updating existing log file "+monfile)
             fp=open(monfile,'r+')
             stat=json.load(fp)
-            me = filter(lambda x: x[0]==resource.cpu, stat)
-            if me:
-                me[0][1]=resource.process.pid
-                me[0][2]=resource.processstate
-            else:
-                stat.append([resource.cpu,resource.process.pid,resource.processstate])
+            attempts=0
+            while True:
+                try:
+                    me = filter(lambda x: x[0]==resource.cpu, stat)
+                    if me:
+                        me[0][1]=resource.process.pid
+                        me[0][2]=resource.processstate
+                    else:
+                        stat.append([resource.cpu,resource.process.pid,resource.processstate])
+                except Exception as ex:
+                    if attempts<5:
+                        attempts+=1
+                        time.sleep(.05)
+                        continue
+                    else:
+                        logging.error("could not retrieve process parameters")
+                        logging.exception(ex)
+                        break
         fp.seek(0)
         fp.truncate()
         json.dump(stat,fp)

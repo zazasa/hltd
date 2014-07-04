@@ -8,15 +8,10 @@ dir=$1
 export SCRAM_ARCH=$2
 source $dir/cmsset_default.sh >> $logname
 dir+=/$2/cms/cmssw/$3/src
-#dir+=/$3/src
 cd $dir;
 pwd >> $logname 2>&1
 eval `scram runtime -sh`;
 cd $4;
 logname="/var/log/hltd/pid/hlt_run$6_pid$$.log"
 type -P cmsRun &>/dev/null || (sleep 2;exit 127)
-#if [ $9 == ${10} ]; then 
-# exec cmsRun $5 "runNumber="$6 "buBaseDir="$7 "dataDir"=$8 "numThreads="$9  >> $logname 2>&1
-#else
 exec cmsRun $5 "runNumber="$6 "buBaseDir="$7 "dataDir"=$8 "numThreads="$9 "numFwkStreams"=${10} >> $logname 2>&1
-#fi
