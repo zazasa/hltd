@@ -538,8 +538,9 @@ class ProcessWatchdog(threading.Thread):
 
             #cleanup actions- remove process from list and
             # attempt restart on same resource
-            if returncode < 0:
-                logging.error("process "+str(pid)
+            if returncode != 0 and returncode!=127:
+                if returncode < 0:
+                    logging.error("process "+str(pid)
                               +" for run "+str(self.resource.runnumber)
                               +" on resource(s) " + str(self.resource.cpu)
                               +" exited with signal "
@@ -547,6 +548,16 @@ class ProcessWatchdog(threading.Thread):
                               +" restart is enabled ? "
                               +str(self.retry_enabled)
                               )
+                else:
+                    logging.error("process "+str(pid)
+                              +" for run "+str(self.resource.runnumber)
+                              +" on resource(s) " + str(self.resource.cpu)
+                              +" exited with code "
+                              +str(returncode)
+                              +" restart is enabled ? "
+                              +str(self.retry_enabled)
+                              )
+
 
 
                 #generate crashed pid json file like: run000001_ls0000_crash_pid12345.jsn
@@ -870,7 +881,19 @@ class Run:
         if not os.path.exists(monfile):
             logging.debug("No log file "+monfile+" found, creating one")
             fp=open(monfile,'w+')
-            stat.append([resource.cpu,resource.process.pid,resource.processstate])
+            attempts=0
+            while True:
+                try:
+                    stat.append([resource.cpu,resource.process.pid,resource.processstate])
+                    break
+                except:
+                    if attempts<5:
+                        attempts+=1
+                        continue
+                    else:
+                        logging.error("could not retrieve process parameters")
+                        logging.exception(ex)
+                        break
 
         else:
             logging.debug("Updating existing log file "+monfile)
@@ -885,6 +908,7 @@ class Run:
                         me[0][2]=resource.processstate
                     else:
                         stat.append([resource.cpu,resource.process.pid,resource.processstate])
+                    break
                 except Exception as ex:
                     if attempts<5:
                         attempts+=1
@@ -1056,6 +1080,7 @@ class Run:
             for run_num  in active_runs:
                 if run_num == self.runnumber:
                     active_runs.remove(run_num)
+            logging.info("new active runs.."+str(active_runs))
  
         except Exception as ex:
             logging.error("exception encountered in ending run")

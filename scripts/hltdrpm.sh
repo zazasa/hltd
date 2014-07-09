@@ -154,7 +154,7 @@ cd $TOPDIR
 cat > hltd.spec <<EOF
 Name: hltd
 Version: 1.3.3
-Release: 12
+Release: 13
 Summary: hlt daemon
 License: gpl
 Group: Hacks
