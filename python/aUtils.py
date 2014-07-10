@@ -109,7 +109,7 @@ class fileHandler(object):
             if ext == ".jsd" and "OUTPUT" in name: return JSD
             if ext == ".jsn":
                 if STREAMERRORNAME.upper() in name: return STREAMERR
-                elif STREAMDQMHISTNAME.upper() in name: return STREAME
+                elif STREAMDQMHISTNAME.upper() in name: return STREAM
                 elif "BOLS" in name : return BOLS
                 elif "STREAM" in name and "PID" in name: return STREAM
                 elif "INDEX" in name and  "PID" in name: return INDEX

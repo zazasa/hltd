@@ -44,6 +44,7 @@ run_list=[]
 bu_disk_list_ramdisk=[]
 bu_disk_list_output=[]
 active_runs=[]
+resource_lock = threading.Lock()
 dqm_free_configs = conf.dqm_config_files+'/free/'
 dqm_used_configs = conf.dqm_config_files+'/used/'
 
@@ -867,9 +868,9 @@ class Run:
                                  int(round((len(resource.cpu)*float(nthreads)/nstreams))),
                                  len(resource.cpu))
         logging.debug("StartOnResource process started")
-        logging.debug("StartOnResource going to acquire lock")
-        self.lock.acquire()
-        logging.debug("StartOnResource lock acquired")
+        #logging.debug("StartOnResource going to acquire lock")
+        #self.lock.acquire()
+        #logging.debug("StartOnResource lock acquired")
         try:
             os.makedirs(mondir)
         except OSError:
@@ -924,8 +925,8 @@ class Run:
 
         fp.flush()
         fp.close()
-        self.lock.release()
-        logging.debug("StartOnResource lock released")
+        #self.lock.release()
+        #logging.debug("StartOnResource lock released")
 
     def Shutdown(self,herod=False):
         #herod mode sends sigkill to all process, however waits for all scripts to finish
@@ -1163,7 +1164,6 @@ class RunRanger:
         global run_list
         logging.info('RunRanger: event '+event.fullpath)
         dirname=event.fullpath[event.fullpath.rfind("/")+1:]
-        #@@EM
         logging.info('RunRanger: new filename '+dirname)
         if dirname.startswith('run'):
             nr=int(dirname[3:])
@@ -1180,9 +1180,11 @@ class RunRanger:
                             pass
                     else:
                         bu_dir = ''
-                    run_list.append(Run(nr,event.fullpath,bu_dir)) #@@MO in case of the BU, the run_list grows until the hltd is stopped
+                    run_list.append(Run(nr,event.fullpath,bu_dir))
+                    resource_lock.acquire()
                     run_list[-1].AcquireResources(mode='greedy')
                     run_list[-1].Start()
+                    resource_lock.release()
                 except OSError as ex:
                     logging.error("RunRanger: "+str(ex)+" "+ex.filename)
                     logging.exception(ex)
@@ -1339,6 +1341,7 @@ class ResourceRanger:
             resourcepath=event.fullpath[1:event.fullpath.rfind("/")]
             resourcestate=resourcepath[resourcepath.rfind("/")+1:]
             resourcename=event.fullpath[event.fullpath.rfind("/")+1:]
+            resource_lock.acquire()
             if not (resourcestate == 'online' or resourcestate == 'offline'
                     or resourcestate == 'quarantined'):
                 logging.debug('ResourceNotifier: new resource '
@@ -1356,8 +1359,6 @@ class ResourceRanger:
                     #@@EM implement threaded acquisition of resources here
                     """
                     #find all idle cores
-                    #ongoing_run.lock.acquire()
-
                     idlesdir = '/'+resourcepath
 		    try:
                         reslist = os.listdir(idlesdir)
@@ -1376,6 +1377,7 @@ class ResourceRanger:
                         break
                         if fileFound==False:
                             #inotified file was already moved earlier
+                            resource_lock.release()
                             return                    
                     #acquire sufficient cores for a multithreaded process start 
                     resourcenames = []
@@ -1389,7 +1391,6 @@ class ResourceRanger:
                     if len(resourcenames) == nstreams:
                         acquired_sufficient = True
                         res = ongoing_run.AcquireResource(resourcenames,resourcestate)
-                    #ongoing_run.lock.release()
 
                     if acquired_sufficient:
                         logging.info("ResourceRanger: acquired resource(s) "+str(res.cpu))
@@ -1415,6 +1416,7 @@ class ResourceRanger:
                                     break
                                 if fileFound==False:
                                     #inotified file was already moved earlier
+                                    resource_lock.release()
                                     return
                             resourcenames = []
                             for resname in reslist:
@@ -1433,6 +1435,9 @@ class ResourceRanger:
         except Exception as ex:
             logging.error("exception in ResourceRanger")
             logging.error(ex)
+        try:
+            resource_lock.release()
+        except:pass
 
     def process_IN_MODIFY(self, event):
 
