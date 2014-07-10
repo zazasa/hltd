@@ -186,9 +186,9 @@ def cleanup_mountpoints():
                             )
                         bu_disk_list_ramdisk.append(os.path.join('/'+conf.bu_base_dir+str(i),conf.ramdisk_subdirectory))
                     except subprocess.CalledProcessError, err2:
-                        logging.error("Error calling mount in cleanup_mountpoints for "+line.strip()+':/',
-                             '/'+conf.bu_base_dir+str(i))
-                        logging.error(str(err2.returncode))
+                        logging.exception(err2)
+                        logging.fatal("Unable to mount ramdisk - exiting.")
+                        sys.exit(1)
 
                     logging.info("trying to mount "+line.strip()+': '+os.path.join('/'+conf.bu_base_dir+str(i),conf.output_subdirectory))
                     try:
@@ -203,15 +203,17 @@ def cleanup_mountpoints():
                             )
                         bu_disk_list_output.append(os.path.join('/'+conf.bu_base_dir+str(i),conf.output_subdirectory))
                     except subprocess.CalledProcessError, err2:
-                        logging.error("Error calling mount in cleanup_mountpoints for "+line.strip()+':/',
-                             '/'+conf.bu_base_dir+str(i))
-                        logging.error(str(err2.returncode))
+                        logging.exception(err2)
+                        logging.fatal("Unable to mount output - exiting.")
+                        sys.exit(1)
 
 
                 i+=1
     except Exception as ex:
         logging.error("Exception in cleanup_mountpoints")
-        logging.error(ex)
+        logging.exception(ex)
+        logging.fatal("Unable to handle mounting - exiting.")
+        sys.exit(1)
 
 def calculate_threadnumber():
     global nthreads
