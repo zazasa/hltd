@@ -172,9 +172,9 @@ process.streamA = cms.OutputModule("EvFOutputModule",
                                    SelectEvents = cms.untracked.PSet(SelectEvents = cms.vstring( 'p1' ))
                                    )
 
-process.streamB = cms.OutputModule("EvFOutputModule",
+process.streamDQM = cms.OutputModule("EvFOutputModule",
                                    SelectEvents = cms.untracked.PSet(SelectEvents = cms.vstring( 'p2' ))
                                    )
 
-process.ep = cms.EndPath(process.streamA+process.streamB)
+process.ep = cms.EndPath(process.streamA+process.streamDQM)
 

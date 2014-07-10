@@ -40,6 +40,7 @@ class LumiSectionRanger():
         self.tempdir = tempdir
         self.jsdfile = None
         self.buffer = []        # file list before the first stream file
+        self.emptyOutTemplate = None
 
 
 
@@ -100,7 +101,9 @@ class LumiSectionRanger():
         eventtype = self.eventtype
 
         if eventtype:# & inotify.IN_CLOSE_WRITE:
-            if filetype == JSD and not self.jsdfile: self.jsdfile=self.infile.filepath
+            if filetype == JSD and not self.jsdfile:
+                self.jsdfile=self.infile.filepath
+                self.createEmptyOutputTemplate()
             elif filetype == COMPLETE:
                 self.processCompleteFile()
             elif filetype == INI: self.processINIfile()
@@ -110,12 +113,14 @@ class LumiSectionRanger():
             elif filetype in [STREAM,STREAMDQMHISTOUTPUT,INDEX,EOLS,DAT,PB]:
                 run,ls = (self.infile.run,self.infile.ls)
                 key = (run,ls)
-                #if filetype == EOLS :
-                #    for lskey in self.LSHandlerList:
-                #        if  self.LSHandlerList[lskey].ls < ls and not self.LSHandlerList[lskey].EOLS:
-                #            self.createEOLSFile(self.LSHandlerList[lskey].ls)
+                if filetype == EOLS :
+                    for lskey in self.LSHandlerList:
+                        if  self.LSHandlerList[lskey].ls < ls and not self.LSHandlerList[lskey].EOLS:
+                            self.createEOLSFile(self.LSHandlerList[lskey].ls)
                 if key not in self.LSHandlerList and not filetype == EOLS :
                     self.LSHandlerList[key] = LumiSectionHandler(run,ls,self.activeStreams,self.streamCounters,self.tempdir,self.outdir,self.jsdfile)
+                if key not in self.LSHandlerList and filetype == EOLS :
+                    self.copyEmptyDQMJsons(ls)
                 if key in self.LSHandlerList:
                     self.LSHandlerList[key].processFile(self.infile)
                     if self.LSHandlerList[key].closed.isSet():
@@ -165,9 +170,9 @@ class LumiSectionRanger():
 
         #start DQM merger thread
         if STREAMDQMHISTNAME.upper() in stream.upper():
-            self.logger.info('DQM histogram ini file: starting DQM merger...')
             global dqmHandler
             if dqmHandler == None:
+                self.logger.info('DQM histogram ini file: starting DQM merger...')
                 dqmHandler = DQMMerger()
                 if dqmHandler.active==False:
                     dqmHandler = None
@@ -247,7 +252,27 @@ class LumiSectionRanger():
         f.moveFile(destName)
         self.logger.info('created local EoR file for '+stream)
 
+    def createEmptyOutputTemplate(self):
+        if self.emptyOutTemplate!=None:return
+        tempname = os.path.join(conf.watch_directory,'run'+self.run_number.zfill(conf.run_number_padding)+'/output_template.jsn')
+        document = {"definition":self.jsdfile,"data":[str(0),str(0),str(0),str(0),str(""),str(0),str("")],"source":os.uname()[1]}
+        try:
+            with open(tempname,"w") as fi:
+                json.dump(document,fi)
+            self.emptyOutTemplate=fileHandler(tempname)
+        except:logging.exception("unable to create %r" %tempname)
 
+    #special handling for DQM stream (empty lumisection output json is created)
+    def copyEmptyDQMJsons(self,ls):
+        destinationStem = os.path.join(conf.micromerge_output,'run'+self.run_number.zfill(conf.run_number_padding),'run'+self.run_number.zfill(conf.run_number_padding)+'_'+ls)
+        if "streamDQM" in self.activeStreams and self.emptyOutTemplate:
+            destinationName = destinationStem+'_streamDQM_'+os.uname()[1]+'.jsn'
+            self.logger.info("writing empty output json for streamDQM: "+str(ls))
+            self.emptyOutTemplate.moveFile(destinationName,True)
+        if "streamDQMHistograms" in self.activeStreams and self.emptyOutTemplate:
+            destinationName = destinationStem+'_streamDQMHistograms_'+os.uname()[1]+'.jsn'
+            self.logger.info("writing empty output json for streamDQMHistograms: "+str(ls))
+            self.emptyOutTemplate.moveFile(destinationName,True)
 
 class LumiSectionHandler():
     host = os.uname()[1]
@@ -261,7 +286,7 @@ class LumiSectionHandler():
         self.run = run
         self.outdir = outdir
         self.tempdir = tempdir   
-        self.jsdfile = jsdfile 
+        self.jsdfile = jsdfile
         
         self.outfileList = []
         self.streamErrorFile = ""
@@ -323,8 +348,16 @@ class LumiSectionHandler():
     def processStreamFile(self):
         self.logger.info(self.infile.basename)
         
-        if self.infile.pid not in self.pidList: 
-            self.logger.critical("pid %r not in pidlist as expected for ls %r. Skip file. " %(self.infile.pid,self.ls))
+        if self.infile.pid not in self.pidList:
+            if self.infile.stream=="streamDQMHistograms":
+                self.logger.info("DQM histograms for empty lumisection. This is currently not handled. Files will be removed.")
+                try:
+                    (filestem,ext)=os.path.splitext(self.infile.filepath)
+                    os.remove(filestem + '.pb')
+                    self.infile.deleteFile()
+                except:pass
+            else:
+                self.logger.critical("pid %r not in pidlist as expected for ls %r. Skip file. " %(self.infile.pid,self.ls))
             return False
         
         self.infile.checkSources()
