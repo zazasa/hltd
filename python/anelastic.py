@@ -650,7 +650,7 @@ class DQMMerger(threading.Thread):
                    self.logger.error('Error checking fastHadd output file size: '+ fullOutputPath)
                    hasError=True
            if numFiles>1:
-               for f in command_args[3:]:
+               for f in command_args[4:]:
                    try:
                        os.remove(f)
                    except OSError as ex:
