@@ -264,15 +264,32 @@ class LumiSectionRanger():
 
     #special handling for DQM stream (empty lumisection output json is created)
     def copyEmptyDQMJsons(self,ls):
-        destinationStem = os.path.join(conf.micromerge_output,'run'+self.run_number.zfill(conf.run_number_padding),'run'+self.run_number.zfill(conf.run_number_padding)+'_'+ls)
+        run = 'run'+self.run_number.zfill(conf.run_number_padding)
+        destinationStem = os.path.join(conf.micromerge_output,run,run+'_'+ls)
         if "streamDQM" in self.activeStreams and self.emptyOutTemplate:
             destinationName = destinationStem+'_streamDQM_'+os.uname()[1]+'.jsn'
             self.logger.info("writing empty output json for streamDQM: "+str(ls))
+            self.createBoLS(run,ls,"streamDQM")
             self.emptyOutTemplate.moveFile(destinationName,True)
         if "streamDQMHistograms" in self.activeStreams and self.emptyOutTemplate:
             destinationName = destinationStem+'_streamDQMHistograms_'+os.uname()[1]+'.jsn'
             self.logger.info("writing empty output json for streamDQMHistograms: "+str(ls))
+            self.createBoLS(run,ls,"streamDQMHistograms")
             self.emptyOutTemplate.moveFile(destinationName,True)
+
+    def createBoLS(self,run,ls,stream):
+        #create BoLS file in output dir
+        bols_file = run+"_"+ls+"_"+stream+"_BoLS.jsn"
+        bols_path =  os.path.join(self.outdir,run,bols_file)
+        try:
+           open(bols_path,'a').close()
+        except:
+           time.sleep(0.1)
+           try:open(bols_path,'a').close()
+           except:
+               self.logger.warning('unable to create BoLS file for ls ', ls)
+        logger.info("bols file "+ str(bols_path) + " is created in the output")
+
 
 class LumiSectionHandler():
     host = os.uname()[1]
