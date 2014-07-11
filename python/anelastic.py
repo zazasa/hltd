@@ -701,6 +701,10 @@ class DQMMerger(threading.Thread):
                except:
                    self.logger.error('Error checking fastHadd output file size: '+ fullOutputPath)
                    hasError=True
+               try:
+                   os.chmod(fullOutputPath,0666)
+               except:
+                   self.logger.error('Error fixing permissions of fastHadd output file: '+ fullOutputPath)
            if numFiles>1:
                for f in command_args[4:]:
                    try:
