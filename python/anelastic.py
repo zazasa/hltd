@@ -364,6 +364,15 @@ class LumiSectionHandler():
 
     def processStreamFile(self):
         self.logger.info(self.infile.basename)
+
+        #fastHadd was not detected, delete files from histogram stream
+        if self.infile.stream=="streamDQMHistograms" and dqmHandler==None:
+            try:
+                (filestem,ext)=os.path.splitext(self.infile.filepath)
+                os.remove(filestem + '.pb')
+                self.infile.deleteFile()
+            except:pass
+            return
         
         if self.infile.pid not in self.pidList:
             if self.infile.stream=="streamDQMHistograms":
