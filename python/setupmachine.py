@@ -416,6 +416,9 @@ if True:
         #hardcode minidaq hosts until role is available
         if cnhostname == 'bu-c2f13-27-01.cms' or cnhostname == 'fu-c2f13-19-03.cms' or cnhostname == 'fu-c2f13-19-04.cms':
             runindex_name = 'runindex_minidaq'
+        #hardcode dqm hosts until role is available
+        if cnhostname == 'bu-c2f13-31-01.cms' or cnhostname == 'fu-c2f13-39-01.cms' or cnhostname == 'fu-c2f13-39-02.cms' or cnhostname == 'fu-c2f13-39-03.cms' or cnhostname == 'fu-c2f13-39-04.cms':
+            runindex_name = 'runindex_dqm'
     else:
         
 
