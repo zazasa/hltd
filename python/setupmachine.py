@@ -412,7 +412,10 @@ if True:
     if cluster == 'daq2val':
         runindex_name = 'runindex'
     elif cluster == 'daq2':
-        runindex_name = 'runindex_prod' 
+        runindex_name = 'runindex_prod'
+        #hardcode minidaq hosts until role is available
+        if cnhostname == 'bu-c2f13-27-01.cms' or cnhostname == 'fu-c2f13-19-03.cms' or cnhostname == 'fu-c2f13-19-04.cms':
+            runindex_name = 'runindex_minidaq'
     else:
         
 
