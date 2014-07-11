@@ -611,6 +611,7 @@ class DQMMerger(threading.Thread):
         self.threadEvent = threading.Event()
         self.abort = False
         self.active=False
+        self.finish=False
         try:
             mergeEnabled = True
             p = subprocess.Popen(self.command,shell=True,stdout=subprocess.PIPE)
@@ -634,6 +635,7 @@ class DQMMerger(threading.Thread):
                 #self.emptyQueue.clear()
                 self.process(dqmJson) 
             except Queue.Empty as e:
+                if self.finish==True:break
                 continue
             except KeyboardInterrupt as e:
                 break
@@ -728,7 +730,10 @@ class DQMMerger(threading.Thread):
 
     def waitCompletition(self):
         self.join()
-        pass
+
+    def waitFinish(self):
+        self.finish=True
+        self.join()
 
     def abortMerging(self):
         self.abort = True
@@ -763,6 +768,14 @@ if __name__ == "__main__":
     mask = inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO  # watched events
     logger.info("starting anelastic for "+dirname)
     mr = None
+
+
+    #make temp dir if we are here before elastic.py
+    try:
+        os.makedirs(os.path.join(watchDir,ES_DIR_NAME))
+    except OSError:
+        pass
+
     try:
 
         #starting inotify thread
@@ -783,12 +796,8 @@ if __name__ == "__main__":
             mr.stop_inotify()
         sys.exit(1)
 
-    #make temp dir if we are here before elastic.py
-    try:
-        os.makedirs(os.path.join(watchDir,ES_DIR_NAME))
-    except OSError:
-        pass
-
+    #wait for termination of DQM handler
+    if dqmHandler:dqmHandler.waitFinish()
 
     logging.info("Closing notifier")
     if mr is not None:
