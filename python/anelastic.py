@@ -119,8 +119,8 @@ class LumiSectionRanger():
                             self.createEOLSFile(self.LSHandlerList[lskey].ls)
                 if key not in self.LSHandlerList and not filetype == EOLS :
                     self.LSHandlerList[key] = LumiSectionHandler(run,ls,self.activeStreams,self.streamCounters,self.tempdir,self.outdir,self.jsdfile)
-                if key not in self.LSHandlerList and filetype == EOLS :
-                    self.copyEmptyDQMJsons(ls)
+                #if key not in self.LSHandlerList and filetype == EOLS :
+                #    self.copyEmptyDQMJsons(ls)
                 if key in self.LSHandlerList:
                     self.LSHandlerList[key].processFile(self.infile)
                     if self.LSHandlerList[key].closed.isSet():

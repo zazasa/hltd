@@ -331,7 +331,7 @@ class elasticBandBU:
             #in case of malformed box info
             return
         self.index_documents('boxinfo',documents)
-        self.logger.info(str(document))#check that ID is not present...
+        #self.logger.info(str(document))#check that ID is not present...
         #TODO:write unique boxinfo
         #documents[0]['id']=basename
         #self.index_documents('boxinfo_last',documents)
@@ -599,7 +599,7 @@ class RunCompletedChecker(threading.Thread):
             self.logger.exception(ex)
 
 
-    def checkBoxes(self):
+    def checkBoxes(self,dir):
 
 
         files = os.listdir(dir)
@@ -665,7 +665,7 @@ class RunCompletedChecker(threading.Thread):
 
         while self.stop==False:
             if check_boxes:
-                check_boxes = checkBoxes(dir)
+                check_boxes = self.checkBoxes(dir)
 
             if check_boxes==False:
                 try:
