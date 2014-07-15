@@ -962,8 +962,7 @@ class Run:
                         logging.info('process '+str(resource.process.pid)+' terminated')
                     logging.info('releasing resource(s) '+str(resource.cpu))
                     for cpu in resource.cpu:
-                      if os.path.exists(used+cpu):
-                        os.rename(used+cpu,idles+cpu)
+                      os.rename(used+cpu,idles+cpu)
                     resource.process=None
 
             self.online_resource_list = []
