@@ -127,7 +127,7 @@ def cleanup_mountpoints():
             except subprocess.CalledProcessError, err1:
                 logging.error("Error calling umount in cleanup_mountpoints")
                 logging.error(str(err1.returncode))
-            try: 
+            try:
                 if os.path.join('/'+point,conf.ramdisk_subdirectory)!='/':
 	            os.rmdir(os.path.join('/'+point,conf.ramdisk_subdirectory))
             except:pass
@@ -300,7 +300,7 @@ class system_monitor(threading.Thread):
                         fp.write('activeRuns='+str(active_runs).strip('[]')+'\n')
                         fp.write('entriesComplete=True')
                         fp.close()
-                        
+
                 if conf.role == 'bu':
                     mfile = conf.resource_base+'/disk.jsn'
                     stat=[]
@@ -350,7 +350,7 @@ class BUEmu:
             destination_base = bu_disk_list_ramdisk[startindex%len(bu_disk_list_ramdisk)]
         else:
             destination_base = conf.watch_directory
-            
+
 
         new_run_args = [conf.cmssw_script_location+'/startRun.sh',
                         conf.cmssw_base,
@@ -571,8 +571,8 @@ class ProcessWatchdog(threading.Thread):
                 filename = "_".join([runnumber,ls,"crash",oldpid])+".jsn"
                 filepath = os.path.join(outdir,filename)
                 document = {"errorCode":returncode}
-                try: 
-                    with open(filepath,"w+") as fi: 
+                try:
+                    with open(filepath,"w+") as fi:
                         json.dump(document,fi)
                 except: logging.exception("unable to create %r" %filename)
                 logging.info("pid crash file: %r" %filename)
@@ -660,10 +660,10 @@ class Run:
         self.online_resource_list = []
         self.is_active_run = False
         self.anelastic_monitor = None
-        self.elastic_monitor = None   
+        self.elastic_monitor = None
         self.elastic_test = None
         self.endChecker = None
-        
+
         self.arch = None
         self.version = None
         self.menu = None
@@ -777,8 +777,17 @@ class Run:
                           +str(resourcenames)
                           +" from "+fromstate)
 
-            # mark the dqm config file as used
-            if dqmconfig: os.rename(dqm_free_configs+dqmconfig,dqm_used_configs+dqmconfig)
+            if dqmconfig:
+                # mark the dqm config file as used
+                os.rename(dqm_free_configs+dqmconfig,dqm_used_configs+dqmconfig)
+            elif conf.dqm_machine:
+                # in case of a dqm machine and no config specified try to get a free dqm config file
+                dqm_configs = os.listdir(dqm_free_configs)
+                if len(dqm_configs):
+                    # there is a free dqm config
+                    os.rename(dqm_free_configs+dqm_configs[0],dqm_used_configs+dqm_configs[0])
+                else:
+                    return None
 
             for resourcename in resourcenames:
               os.rename(idles+resourcename,used+resourcename)
@@ -996,7 +1005,7 @@ class Run:
             os.remove(conf.watch_directory+'/end'+str(self.runnumber).zfill(conf.run_number_padding))
         except:
             pass
- 
+
         logging.info('Shutdown of run '+str(self.runnumber).zfill(conf.run_number_padding)+' completed')
 
     def ShutdownBU(self):
@@ -1013,7 +1022,7 @@ class Run:
 
         if conf.use_elasticsearch == True:
             try:
-                if self.elastic_monitor:    
+                if self.elastic_monitor:
                     self.elastic_monitor.terminate()
                     time.sleep(.1)
             except Exception as ex:
@@ -1027,7 +1036,7 @@ class Run:
                 active_runs.remove(run_num)
 
         logging.info('Shutdown of run '+str(self.runnumber).zfill(conf.run_number_padding)+' on BU completed')
- 
+
 
     def StartWaitForEnd(self):
         self.is_active_run = False
@@ -1066,7 +1075,7 @@ class Run:
                         self.anelastic_monitor.wait()
                 except OSError,ex:
                     logging.info("Exception encountered in waiting for termination of anelastic:" +str(ex))
-                     
+
             if conf.use_elasticsearch == True:
                 try:
                     self.elastic_monitor.wait()
@@ -1084,7 +1093,7 @@ class Run:
                 if run_num == self.runnumber:
                     active_runs.remove(run_num)
             logging.info("new active runs.."+str(active_runs))
- 
+
         except Exception as ex:
             logging.error("exception encountered in ending run")
             logging.exception(ex)
@@ -1136,7 +1145,7 @@ class Run:
             except Exception,ex:
                 logging.error('failure to start run completition checker:')
                 logging.exception(ex)
- 
+
     def releaseDqmConfigs(self):
         if conf.dqm_machine:
             dqm_configs = os.listdir(dqm_used_configs)
@@ -1182,6 +1191,12 @@ class RunRanger:
                             pass
                     else:
                         bu_dir = ''
+
+                    # DQM always has only one active run so terminate everything from the run_list
+                    if conf.dqm_machine:
+                        for run in run_list:
+                            run.Shutdown()
+
                     run_list.append(Run(nr,event.fullpath,bu_dir))
                     resource_lock.acquire()
                     run_list[-1].AcquireResources(mode='greedy')
@@ -1380,8 +1395,8 @@ class ResourceRanger:
                         if fileFound==False:
                             #inotified file was already moved earlier
                             resource_lock.release()
-                            return                    
-                    #acquire sufficient cores for a multithreaded process start 
+                            return
+                    #acquire sufficient cores for a multithreaded process start
                     resourcenames = []
                     for resname in reslist:
                         if len(resourcenames) < nstreams:
@@ -1394,7 +1409,7 @@ class ResourceRanger:
                         acquired_sufficient = True
                         res = ongoing_run.AcquireResource(resourcenames,resourcestate)
 
-                    if acquired_sufficient:
+                    if acquired_sufficient and res:
                         logging.info("ResourceRanger: acquired resource(s) "+str(res.cpu))
                         ongoing_run.StartOnResource(res)
                         logging.info("ResourceRanger: started process on resource "
