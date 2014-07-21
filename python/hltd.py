@@ -488,9 +488,15 @@ class OnlineResource:
             self.watchdog.disableRestart()
 
     def clearQuarantined(self):
-        for cpu in self.quarantined:
-           os.rename(quarantined+cpu,idles+cpu)
-        self.quarantined = []
+        resource_lock.acquire()
+        try:
+            for cpu in self.quarantined:
+                logging.info('Clearing quarantined resource '+cpu)
+                os.rename(quarantined+cpu,idles+cpu)
+            self.quarantined = []
+        except Exception as ex:
+            logging.exception(ex)
+        resource_lock.release()
 
 class ProcessWatchdog(threading.Thread):
     def __init__(self,resource,lock):
@@ -500,6 +506,7 @@ class ProcessWatchdog(threading.Thread):
         self.retry_limit = conf.process_restart_limit
         self.retry_delay = conf.process_restart_delay_sec
         self.retry_enabled = True
+        self.quarantined = False
     def run(self):
         try:
             monfile = self.resource.associateddir+'/hltd.jsn'
@@ -605,6 +612,17 @@ class ProcessWatchdog(threading.Thread):
                     for cpu in self.resource.cpu:
                         os.rename(used+cpu,quarantined+cpu)
                         self.resource.quarantined.append(cpu)
+                    self.quarantined=True
+
+                    #write quarantined marker for RunRanger
+                    try:
+                        os.remove(conf.watch_directory+'/quarantined'+str(self.resource.runnumber).zfill(conf.run_number_padding))
+                    except:pass
+                    try:
+                        fp = open(conf.watch_directory+'/quarantined'+str(self.resource.runnumber).zfill(conf.run_number_padding),'w+')
+                        fp.close()
+                    except Exception as ex:
+                        logging.exception(ex)
 
             #successful end= release resource
             elif returncode == 0 or returncode ==127:
@@ -961,8 +979,19 @@ class Run:
                         resource.join()
                         logging.info('process '+str(resource.process.pid)+' terminated')
                     logging.info('releasing resource(s) '+str(resource.cpu))
+                    resource.clearQuarantined()
+                    
+                    resource_lock.acquire()
                     for cpu in resource.cpu:
-                      os.rename(used+cpu,idles+cpu)
+                        try:
+                            os.rename(used+cpu,idles+cpu)
+                        except OSError:
+                            #@SM:happens if t was quarantined
+                            logging.warning('Unable to find resource file '+used+cpu+'.')
+                        except Exception as ex:
+                            resource_lock.release()
+                            raise(ex)
+                    resource_lock.release()
                     resource.process=None
 
             self.online_resource_list = []
@@ -1058,8 +1087,10 @@ class Run:
                     logging.info('waiting for process '+str(resource.process.pid)+
                                  ' in state '+str(resource.processstate) +
                                  ' to complete ')
-                    resource.join()
-                    logging.info('process '+str(resource.process.pid)+' completed')
+                    try:
+                        resource.join()
+                        logging.info('process '+str(resource.process.pid)+' completed')
+                    except:pass
 #                os.rename(used+resource.cpu,idles+resource.cpu)
                 resource.clearQuarantined()
                 resource.process=None
@@ -1151,6 +1182,20 @@ class Run:
             dqm_configs = os.listdir(dqm_used_configs)
             for dqm_config in dqm_configs:
                 os.rename(dqm_used_configs+dqm_config,dqm_free_configs+dqm_config)
+
+    def checkQuarantinedLimit(self):
+        allQuarantined=True
+        for r in self.online_resource_list:
+            try:
+                if r.watchdog.quarantined==False or r.processstate==100:allQuarantined=False
+            except:
+                allQuarantined=False
+        if allQuarantined==True:
+            return True
+        else:
+            return False
+       
+
 
 class RunRanger:
 
@@ -1319,8 +1364,23 @@ class RunRanger:
                 logging.error("exception in committing harakiri - the blade is not sharp enough...")
                 logging.error(ex)
 
-        logging.debug("RunRanger completed handling of event "
-                      +event.fullpath)
+        elif dirname.startswith('quarantined'):
+            try:
+                os.remove(dirname)
+            except:
+                pass
+            if dirname[11:].isdigit():
+                nr=int(dirname[11:])
+                if nr!=0:
+                    try:
+                        runtoend = filter(lambda x: x.runnumber==nr,run_list)
+                        if len(runtoend)==1:
+                            if runtoend[0].checkQuarantinedLimit()==True:
+                                runtoend[0].Shutdown(True)#run abort in herod mode (wait for anelastic/elastic to shut down)
+                    except Exception as ex:
+                        logging.exception(ex)
+
+        logging.debug("RunRanger completed handling of event "+event.fullpath)
 
     def process_default(self, event):
         logging.info('RunRanger: event '+event.fullpath+' type '+str(event.mask))

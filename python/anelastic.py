@@ -250,7 +250,7 @@ class LumiSectionRanger():
 
         f = fileHandler(srcName)
         f.moveFile(destName)
-        self.logger.info('created local EoR file for '+stream)
+        self.logger.info('created local EoR files for output')
 
     def createEmptyOutputTemplate(self):
         if self.emptyOutTemplate!=None:return
