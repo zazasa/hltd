@@ -105,7 +105,7 @@ class elasticBand():
                         'type' : 'integer',
                         'store': "yes"
                     },
-                    'stream' : {'type' : 'string'},
+                    'stream' : {'type' : 'string','index' : 'not_analyzed'},
                     'source' : {
                         'type' : 'string',
                         'index_analyzer': 'prefix-test-analyzer',
@@ -171,7 +171,7 @@ class elasticBand():
                              }
                     },
                     'ls' : { 'type' : 'integer' },
-                    'stream' : {'type' : 'string'},#,"index" : "not_analyzed"},
+                    'stream' : {'type' : 'string','index' : 'not_analyzed'},
                     'source' : {
                         'type' : 'string',
                         'index_analyzer': 'prefix-test-analyzer',

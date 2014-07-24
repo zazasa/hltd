@@ -588,6 +588,11 @@ class RunCompletedChecker(threading.Thread):
         self.url = 'http://localhost:9200/run'+str(nr).zfill(conf.run_number_padding)+'*/fu-complete/_count'
         self.urlclose = 'http://localhost:9200/run'+str(nr).zfill(conf.run_number_padding)+'*/_close'
         self.logurlclose = 'http://localhost:9200/log_run'+str(nr).zfill(conf.run_number_padding)+'*/_close'
+
+        self.urlsearch = 'http://localhost:9200/run'+str(nr)+'*/fu-complete/_search&size=1'
+        self.url_query = '{  "query": { "filtered": {"query": {"match_all": {}}}}, "sort": { "fm_date": { "order": "desc" }}}'
+
+
         self.stop = False
         self.threadEvent = threading.Event()
         self.run_dir = run_dir
@@ -677,17 +682,23 @@ class RunCompletedChecker(threading.Thread):
                     resp = requests.post(self.url, '')
                     data = json.loads(resp.content)
                     if int(data['count']) >= len(self.nresources):
-                        #try:
-                        #    self.active_runs.remove(int(self.nr))
-                        #except:pass
+                        try:
+                            respq = requests.post(self.urlsearch,self.url_query)
+                            dataq = json.loads(respq.content)
+                            time = str(dataq['hits']['hits'][0]['_source']['fm_date'])
+                            #fill in central index completition time
+                            #EXPERIMENTAL!
+                            postq = "{runNumber\":\"" + str(self.nr) + "\",\"completedTime\" : \"" + time + "\"}"
+                            requests.post(conf.es_runindex_url+'/'+conf.es_runindex_name+'/run',putq)
+                            self.logger.info("filled in completition time for run"+str(self.nr))
+                        except Exception as ex:
+                            self.logger.exception(ex)
                         try:
                             if conf.close_es_index==True:
-                                #all hosts are finished, close the index
                                 #wait a bit for central ES queries to complete
                                 time.sleep(10)
                                 resp = requests.post(self.urlclose)
                                 self.logger.info('closed appliance ES index for run '+str(self.nr))
-                                #TODO:write completition time to global ES index
                         except Exception as exc:
                             self.logger.error('Error in run completition check')
                             self.logger.exception(exc)

@@ -480,13 +480,10 @@ if True:
     clusterName='appliance_'+buName
     if 'elasticsearch' in selection:
 
-        #res = getSelfDataAddr(cluster)
-        #if len(res)==0:
-        #    if budomain=='':
-        es_publish_host=os.uname()[1]+'.cms'
-        #    else:
-        #        es_publish_host=os.uname()[1]+budomain
-        #else: es_publish_host = res[0]
+        if env=="vm":
+            es_publish_host=os.uname()[1]
+        else:
+            es_publish_host=os.uname()[1]+'.cms'
 
         #print "will modify sysconfig elasticsearch configuration"
         #maybe backup vanilla versions
@@ -506,8 +503,10 @@ if True:
             essyscfg = FileManager(elasticsysconf,'=',essysEdited)
             essyscfg.reg('ES_HEAP_SIZE','512M')
             escfg.reg('discovery.zen.ping.multicast.enabled','false')
-            #escfg.reg('discovery.zen.ping.unicast.hosts','[ \"'+buDataAddr+'\" ]')
-            escfg.reg('discovery.zen.ping.unicast.hosts',"[\"" + buName + ".cms" + "\"]")
+            if env=="vm":
+                escfg.reg('discovery.zen.ping.unicast.hosts',"[\"" + buName + "\"]")
+            else:
+                escfg.reg('discovery.zen.ping.unicast.hosts',"[\"" + buName + ".cms" + "\"]")
             escfg.reg('network.publish_host',es_publish_host)
             escfg.reg('transport.tcp.compress','true')
             if cluster != 'test':
