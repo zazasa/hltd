@@ -219,7 +219,7 @@ class elasticBandBU:
                     'fm_date'       :{'type':'date'},
                     'id'            :{'type':'string'}, #run+appliance+stream+ls
                     'appliance'     :{'type':'string'},
-                    'stream'        :{'type':'string'},
+                    'stream'        :{'type':'string','index' : 'not_analyzed'},
                     'ls'            :{'type':'integer'},
                     'processed'     :{'type':'integer'},
                     'accepted'      :{'type':'integer'},
@@ -359,7 +359,9 @@ class elasticBandBU:
         data = infile.data['data']
         data.append(infile.mtime)
         data.append(infile.ls[2:])
-        data.append(infile.stream)
+        stream=infile.stream
+        if stream.startswith("stream"): stream = stream[6:]
+        data.append(stream)
         values = [int(f) if str(f).isdigit() else str(f) for f in data]
         keys = ["processed","accepted","errorEvents","fname","size","eolField1","eolField2","fm_date","ls","stream"]
         document = dict(zip(keys, values))

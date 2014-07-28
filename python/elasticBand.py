@@ -312,6 +312,8 @@ class elasticBand():
         run=infile.run
         ls=infile.ls
         stream=infile.stream
+        #removing 'stream' prefix
+        if stream.startswith("stream"): stream = stream[6:]
 
         values = [int(f) if f.isdigit() else str(f) for f in document['data']]
         keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","test"]
@@ -331,6 +333,8 @@ class elasticBand():
         run=infile.run
         ls=infile.ls
         stream=infile.stream
+        #removing 'stream' prefix
+        if stream.startswith("stream"): stream = stream[6:]
 
         values= [int(f) if f.isdigit() else str(f) for f in document['data']]
         keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","test"]

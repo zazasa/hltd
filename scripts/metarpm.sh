@@ -154,8 +154,8 @@ Version: 1.3.4
 Release: 2
 Summary: hlt daemon
 License: gpl
-Group: Hacks
-Packager: zee-sub-wun
+Group: DAQ
+Packager: smorovic
 Source: none
 %define _topdir $TOPDIR
 BuildArch: $BUILD_ARCH
