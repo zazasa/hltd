@@ -522,20 +522,21 @@ class ProcessWatchdog(threading.Thread):
             logging.debug('ProcessWatchdog: acquired lock thread '+str(pid))
 
             try:
-                fp=open(monfile,'r+')
+                with open(monfile,"r+") as fp:
 
-                stat=json.load(fp)
+                    stat=json.load(fp)
 
-                stat=[[x[0],x[1],returncode]
-                      if x[0]==self.resource.cpu else [x[0],x[1],x[2]] for x in stat]
-                fp.seek(0)
-                fp.truncate()
-                json.dump(stat,fp)
+                    stat=[[x[0],x[1],returncode]
+                          if x[0]==self.resource.cpu else [x[0],x[1],x[2]] for x in stat]
+                    fp.seek(0)
+                    fp.truncate()
+                    json.dump(stat,fp)
 
-                fp.flush()
-                fp.close()
+                    fp.flush()
             except IOError,ex:
                 logging.exception(ex)
+            except ValueError:
+                pass
 
             logging.debug('ProcessWatchdog: release lock thread '+str(pid))
             self.lock.release()
