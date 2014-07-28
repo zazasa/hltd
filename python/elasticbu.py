@@ -686,10 +686,10 @@ class RunCompletedChecker(threading.Thread):
                         try:
                             respq = requests.post(self.urlsearch,self.url_query)
                             dataq = json.loads(respq.content)
-                            time = str(dataq['hits']['hits'][0]['_source']['fm_date'])
+                            fm_time = str(dataq['hits']['hits'][0]['_source']['fm_date'])
                             #fill in central index completition time
                             #EXPERIMENTAL!
-                            postq = "{runNumber\":\"" + str(self.nr) + "\",\"completedTime\" : \"" + time + "\"}"
+                            postq = "{runNumber\":\"" + str(self.nr) + "\",\"completedTime\" : \"" + fm_time + "\"}"
                             requests.post(conf.es_runindex_url+'/'+conf.es_runindex_name+'/run',putq)
                             self.logger.info("filled in completition time for run"+str(self.nr))
                         except Exception as ex:
