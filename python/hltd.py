@@ -352,6 +352,12 @@ class BUEmu:
             destination_base = conf.watch_directory
 
 
+        if "_patch" in conf.cmssw_default_version:
+            full_release="cmssw-patch"
+        else:
+            full_release="cmssw"
+
+
         new_run_args = [conf.cmssw_script_location+'/startRun.sh',
                         conf.cmssw_base,
                         conf.cmssw_arch,
@@ -361,7 +367,9 @@ class BUEmu:
                         str(nr),
                         '/tmp', #input dir is not needed
                         destination_base,
-                        '1']
+                        '1',
+                        '1',
+                        full_release]
         try:
             self.process = subprocess.Popen(new_run_args,
                                             preexec_fn=preexec_function,
@@ -433,6 +441,11 @@ class OnlineResource:
 
         logging.info("starting process with "+version+" and run number "+str(runnumber))
 
+        if "_patch" in version:
+            full_release="cmssw-patch"
+        else:
+            full_release="cmssw"
+
         if not self.dqm_config:
             new_run_args = [conf.cmssw_script_location+'/startRun.sh',
                             conf.cmssw_base,
@@ -444,7 +457,8 @@ class OnlineResource:
                             input_disk,
                             conf.watch_directory,
                             str(num_threads),
-                            str(num_streams)]
+                            str(num_streams),
+                            full_release]
         else: # a dqm machine
             new_run_args = [conf.cmssw_script_location+'/startDqmRun.sh',
                             conf.cmssw_base,
