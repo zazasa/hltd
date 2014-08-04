@@ -458,7 +458,7 @@ class OnlineResource:
                             conf.exec_directory,
                             str(runnumber),
                             input_disk,
-                            self.cpu]
+                            used+self.cpu[0]]
         logging.info("arg array "+str(new_run_args).translate(None, "'"))
         try:
 #            dem = demote.demote(conf.user)
