@@ -50,9 +50,11 @@ echo "working in $PWD"
 ls opt/hltd
 
 echo "Creating DQM directories"
-mkdir -p etc/appliance/dqm/configs/free
-mkdir -p etc/appliance/dqm/configs/used
-
+mkdir -p etc/appliance/dqm_resources/idle
+mkdir -p etc/appliance/dqm_resources/online
+mkdir -p etc/appliance/dqm_resources/offline
+mkdir -p etc/appliance/dqm_resources/except
+mkdir -p etc/appliance/dqm_resources/quarantined
 
 cd $TOPDIR
 #pyelasticsearch

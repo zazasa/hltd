@@ -33,6 +33,8 @@ class hltdConf:
         self.soap2file_port = int(self.soap2file_port)
 
         self.dqm_machine = bool(self.dqm_machine=="True")
+        if self.dqm_machine:
+            self.resource_base = self.dqm_resource_base
 
         self.process_restart_delay_sec = float(self.process_restart_delay_sec)
         self.process_restart_limit = int(self.process_restart_limit)
