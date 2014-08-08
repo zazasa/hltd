@@ -50,7 +50,7 @@ process.MessageLogger = cms.Service("MessageLogger",
 
 process.source = cms.Source("EmptySource",
      firstRun= cms.untracked.uint32(options.runNumber),
-     numberEventsInLuminosityBlock = cms.untracked.uint32(2000),
+     numberEventsInLuminosityBlock = cms.untracked.uint32(500),
      numberEventsInRun       = cms.untracked.uint32(0)    
 )
 
