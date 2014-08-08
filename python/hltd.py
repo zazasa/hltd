@@ -570,7 +570,7 @@ class ProcessWatchdog(threading.Thread):
                 return
 
             #quit codes (configuration errors):
-            quit_codes = [127,90,65]
+            quit_codes = [127,90,65,73]
 
             #cleanup actions- remove process from list and
             # attempt restart on same resource
@@ -658,7 +658,7 @@ class ProcessWatchdog(threading.Thread):
                     logging.fatal('error executing start script. Maybe CMSSW environment is not available (cmsRun executable not in path).')
                 elif returncode==90:
                     logging.fatal('error executing start script: python error.')
-                elif returncode==65:
+                elif returncode in quit_codes:
                     logging.fatal('error executing start script: CMSSW configuration error.')
                 else:
                     logging.fatal('error executing start script: unspecified error.')
