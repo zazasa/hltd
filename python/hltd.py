@@ -559,11 +559,22 @@ class ProcessWatchdog(threading.Thread):
 
             abortedmarker = self.resource.statefiledir+'/'+Run.ABORTED
             if os.path.exists(abortedmarker):
+                #release resources
+                try:
+                    for cpu in self.resource.cpu:
+                        try:
+                            os.rename(used+cpu,idles+cpu)
+                        except Exception as ex:
+                            logging.exception(ex)
+                except:pass
                 return
+
+            #quit codes (configuration errors):
+            quit_codes = [127,90,65]
 
             #cleanup actions- remove process from list and
             # attempt restart on same resource
-            if returncode != 0 and returncode!=127:
+            if returncode != 0 and returncode not in quit_codes:
                 if returncode < 0:
                     logging.error("process "+str(pid)
                               +" for run "+str(self.resource.runnumber)
@@ -639,12 +650,19 @@ class ProcessWatchdog(threading.Thread):
                     except Exception as ex:
                         logging.exception(ex)
 
-            #successful end= release resource
-            elif returncode == 0 or returncode ==127:
+            #successful end= release resource (TODO:maybe should mark aborted for non-0 error codes)
+            elif returncode == 0 or returncode in quit_codes:
                 if returncode==0:
                     logging.info('releasing resource, exit 0 meaning end of run '+str(self.resource.cpu))
+                elif returncode==127:
+                    logging.fatal('error executing start script. Maybe CMSSW environment is not available (cmsRun executable not in path).')
+                elif returncode==90:
+                    logging.fatal('error executing start script: python error.')
+                elif returncode==65:
+                    logging.fatal('error executing start script: CMSSW configuration error.')
                 else:
-                    logging.fatal('error executing start script. Maybe CMSSW environment is not available.')
+                    logging.fatal('error executing start script: unspecified error.')
+
                 # generate an end-of-run marker if it isn't already there - it will be picked up by the RunRanger
                 endmarker = conf.watch_directory+'/end'+str(self.resource.runnumber).zfill(conf.run_number_padding)
                 stoppingmarker = self.resource.statefiledir+'/'+Run.STOPPING
@@ -1098,8 +1116,10 @@ class Run:
             for resource in self.online_resource_list:
                 resource.disableRestart()
             for resource in self.online_resource_list:
-                if resource.processstate==100:
-                    logging.info('waiting for process '+str(resource.process.pid)+
+                if resource.processstate is not None:#was:100
+                    if resource.process is not None and resource.process.pid is not None: ppid = resource.process.pid
+                    else: ppid="None"
+                    logging.info('waiting for process '+str(ppid)+
                                  ' in state '+str(resource.processstate) +
                                  ' to complete ')
                     try:
@@ -1296,14 +1316,15 @@ class RunRanger:
                         runtoend = filter(lambda x: x.runnumber==nr,run_list)
                         if len(runtoend)==1:
                             logging.info('end run '+str(nr))
+                            #remove from run_list to prevent intermittent restarts
+                            run_list.remove(runtoend[0])
+                            time.sleep(.1)
                             if conf.role == 'fu':
                                 runtoend[0].StartWaitForEnd()
                             if bu_emulator and bu_emulator.runnumber != None:
                                 bu_emulator.stop()
-
-                            logging.info('run '+str(nr)+' removing end-of-run marker')
+                            #logging.info('run '+str(nr)+' removing end-of-run marker')
                             #os.remove(event.fullpath)
-                            run_list.remove(runtoend[0])
                         elif len(runtoend)==0:
                             logging.warning('request to end run '+str(nr)
                                           +' which does not exist')

@@ -592,7 +592,7 @@ class RunCompletedChecker(threading.Thread):
         self.urlclose = 'http://localhost:9200/run'+str(nr).zfill(conf.run_number_padding)+'*/_close'
         self.logurlclose = 'http://localhost:9200/log_run'+str(nr).zfill(conf.run_number_padding)+'*/_close'
 
-        self.urlsearch = 'http://localhost:9200/run'+str(nr)+'*/fu-complete/_search&size=1'
+        self.urlsearch = 'http://localhost:9200/run'+str(nr)+'*/fu-complete/_search?size=1'
         self.url_query = '{  "query": { "filtered": {"query": {"match_all": {}}}}, "sort": { "fm_date": { "order": "desc" }}}'
 
 

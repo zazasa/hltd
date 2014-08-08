@@ -277,7 +277,7 @@ class fileHandler(object):
                   shutil.move(oldpath,newpath_tmp)
               break
 
-          except OSError,e:
+          except (OSError,IOError),e:
               self.logger.exception(e)
               retries-=1
               if retries == 0:
@@ -292,7 +292,7 @@ class fileHandler(object):
                 #shutil.move(newpath,newpath.replace(TEMPEXT,""))
                 os.rename(newpath_tmp,newpath)
                 break
-            except OSError,e:
+            except (OSError,IOError),e:
                 self.logger.exception(e)
                 retries-=1
                 if retries == 0:
@@ -335,7 +335,7 @@ class fileHandler(object):
                     try:
                         shutil.copy(self.filepath,newpath)
                         break
-                    except OSError,e:
+                    except (OSError,IOError),e:
                         self.logger.exception(e)
                         retries-=1
                         if retries == 0:
