@@ -153,12 +153,12 @@ cd $TOPDIR
 # we are done here, write the specs and make the fu***** rpm
 cat > hltd.spec <<EOF
 Name: hltd
-Version: 1.3.3
-Release: 8
+Version: 1.3.4
+Release: 5
 Summary: hlt daemon
 License: gpl
-Group: Hacks
-Packager: zee-sub-wun
+Group: DAQ
+Packager: smorovic
 Source: none
 %define _tmppath $TOPDIR/hltd-build
 BuildRoot: %{_tmppath}

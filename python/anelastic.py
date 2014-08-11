@@ -4,6 +4,7 @@ import sys,traceback
 import os
 import time
 import shutil
+import subprocess
 
 import filecmp
 from inotifywrapper import InotifyWrapper
@@ -16,7 +17,6 @@ import logging
 
 from hltdconf import *
 from aUtils import *
-
 
 
 class LumiSectionRanger():
@@ -40,6 +40,7 @@ class LumiSectionRanger():
         self.tempdir = tempdir
         self.jsdfile = None
         self.buffer = []        # file list before the first stream file
+        self.emptyOutTemplate = None
 
 
 
@@ -99,15 +100,17 @@ class LumiSectionRanger():
         filetype = self.infile.filetype
         eventtype = self.eventtype
 
-        if eventtype & inotify.IN_CLOSE_WRITE:
-            if filetype == JSD and not self.jsdfile: self.jsdfile=self.infile.filepath
+        if eventtype:# & inotify.IN_CLOSE_WRITE:
+            if filetype == JSD and not self.jsdfile:
+                self.jsdfile=self.infile.filepath
+                self.createEmptyOutputTemplate()
             elif filetype == COMPLETE:
                 self.processCompleteFile()
             elif filetype == INI: self.processINIfile()
             elif not self.firstStream.isSet():
                 self.buffer.append(self.infile)
                 if filetype == STREAM: self.flushBuffer()
-            elif filetype in [STREAM,INDEX,EOLS,DAT]:
+            elif filetype in [STREAM,STREAMDQMHISTOUTPUT,INDEX,EOLS,DAT,PB]:
                 run,ls = (self.infile.run,self.infile.ls)
                 key = (run,ls)
                 if filetype == EOLS :
@@ -116,6 +119,8 @@ class LumiSectionRanger():
                             self.createEOLSFile(self.LSHandlerList[lskey].ls)
                 if key not in self.LSHandlerList and not filetype == EOLS :
                     self.LSHandlerList[key] = LumiSectionHandler(run,ls,self.activeStreams,self.streamCounters,self.tempdir,self.outdir,self.jsdfile)
+                #if key not in self.LSHandlerList and filetype == EOLS :
+                #    self.copyEmptyDQMJsons(ls)
                 if key in self.LSHandlerList:
                     self.LSHandlerList[key].processFile(self.infile)
                     if self.LSHandlerList[key].closed.isSet():
@@ -124,8 +129,8 @@ class LumiSectionRanger():
                 self.processCRASHfile()
             elif filetype == EOR:
                 self.processEORFile()
-        elif eventtype & inotify.IN_MOVED_TO:
-           if filetype == JSD and not self.jsdfile: self.jsdfile=self.infile.filepath
+#        elif eventtype & inotify.IN_MOVED_TO:
+#           if filetype == JSD and not self.jsdfile: self.jsdfile=self.infile.filepath
     
     def processCRASHfile(self):
         #send CRASHfile to every LSHandler
@@ -163,10 +168,23 @@ class LumiSectionRanger():
         localdir,name,ext,filepath = infile.dir,infile.name,infile.ext,infile.filepath
         run,ls,stream = infile.run,infile.ls,infile.stream
 
-            #calc generic local ini path
+        #start DQM merger thread
+        if STREAMDQMHISTNAME.upper() in stream.upper():
+            global dqmHandler
+            if dqmHandler == None:
+                self.logger.info('DQM histogram ini file: starting DQM merger...')
+                dqmHandler = DQMMerger()
+                if dqmHandler.active==False:
+                    dqmHandler = None
+                    self.logger.error('Failed to start DQM merging thread. Histogram stream will be ignored in this run.')
+                    return
+
+        #calc generic local ini path
         filename = "_".join([run,ls,stream,self.host])+ext
         localfilepath = os.path.join(localdir,filename)
         remotefilepath = os.path.join(self.outdir,run,filename)
+
+
             #check and move/delete ini file
         if not os.path.exists(localfilepath):
             if stream not in self.activeStreams:
@@ -185,11 +203,14 @@ class LumiSectionRanger():
         self.createErrIniFile()
 
     def createEOLSFile(self,ls):
-        eolname = os.path.join(self.tempdir,'run'+self.run_number.zfill(conf.run_number_padding)+"_ls"+ls.zfill(4)+"_EoLS.jsn")
+        eolname = os.path.join(self.tempdir,'run'+self.run_number.zfill(conf.run_number_padding)+"_"+ls+"_EoLS.jsn")
         try:
-            with open(eolname,"w") as fi:
-                self.logger.warning("EOLS file "+eolname+" was not present. Creating it by hltd.")
-        except:pass
+            os.stat(eolname)
+        except OSError:
+            try:
+                with open(eolname,"w") as fi:
+                    self.logger.warning("EOLS file "+eolname+" was not present. Creating it by hltd.")
+            except:pass
             
 
     def processEORFile(self):
@@ -229,8 +250,45 @@ class LumiSectionRanger():
 
         f = fileHandler(srcName)
         f.moveFile(destName)
-        self.logger.info('created local EoR file for '+stream)
+        self.logger.info('created local EoR files for output')
 
+    def createEmptyOutputTemplate(self):
+        if self.emptyOutTemplate!=None:return
+        tempname = os.path.join(conf.watch_directory,'run'+self.run_number.zfill(conf.run_number_padding)+'/output_template.jsn')
+        document = {"definition":self.jsdfile,"data":[str(0),str(0),str(0),str(0),str(""),str(0),str("")],"source":os.uname()[1]}
+        try:
+            with open(tempname,"w") as fi:
+                json.dump(document,fi)
+            self.emptyOutTemplate=fileHandler(tempname)
+        except:logging.exception("unable to create %r" %tempname)
+
+    #special handling for DQM stream (empty lumisection output json is created)
+    def copyEmptyDQMJsons(self,ls):
+        run = 'run'+self.run_number.zfill(conf.run_number_padding)
+        destinationStem = os.path.join(conf.micromerge_output,run,run+'_'+ls)
+        if "streamDQM" in self.activeStreams and self.emptyOutTemplate:
+            destinationName = destinationStem+'_streamDQM_'+os.uname()[1]+'.jsn'
+            self.logger.info("writing empty output json for streamDQM: "+str(ls))
+            self.createBoLS(run,ls,"streamDQM")
+            self.emptyOutTemplate.moveFile(destinationName,True)
+        if "streamDQMHistograms" in self.activeStreams and self.emptyOutTemplate:
+            destinationName = destinationStem+'_streamDQMHistograms_'+os.uname()[1]+'.jsn'
+            self.logger.info("writing empty output json for streamDQMHistograms: "+str(ls))
+            self.createBoLS(run,ls,"streamDQMHistograms")
+            self.emptyOutTemplate.moveFile(destinationName,True)
+
+    def createBoLS(self,run,ls,stream):
+        #create BoLS file in output dir
+        bols_file = run+"_"+ls+"_"+stream+"_BoLS.jsn"
+        bols_path =  os.path.join(self.outdir,run,bols_file)
+        try:
+           open(bols_path,'a').close()
+        except:
+           time.sleep(0.1)
+           try:open(bols_path,'a').close()
+           except:
+               self.logger.warning('unable to create BoLS file for ls ', ls)
+        logger.info("bols file "+ str(bols_path) + " is created in the output")
 
 
 class LumiSectionHandler():
@@ -245,7 +303,7 @@ class LumiSectionHandler():
         self.run = run
         self.outdir = outdir
         self.tempdir = tempdir   
-        self.jsdfile = jsdfile 
+        self.jsdfile = jsdfile
         
         self.outfileList = []
         self.streamErrorFile = ""
@@ -298,12 +356,35 @@ class LumiSectionHandler():
         elif filetype == INDEX: self.processIndexFile()
         elif filetype == EOLS: self.processEOLSFile()
         elif filetype == DAT: self.processDATFile()
+        elif filetype == PB: self.processDATFile()
         elif filetype == CRASH: self.processCRASHFile()
+        elif filetype == STREAMDQMHISTOUTPUT: self.processStreamDQMHistoOutput()
 
         self.checkClosure()
 
     def processStreamFile(self):
         self.logger.info(self.infile.basename)
+
+        #fastHadd was not detected, delete files from histogram stream
+        if self.infile.stream=="streamDQMHistograms" and dqmHandler==None:
+            try:
+                (filestem,ext)=os.path.splitext(self.infile.filepath)
+                os.remove(filestem + '.pb')
+                self.infile.deleteFile()
+            except:pass
+            return
+        
+        if self.infile.pid not in self.pidList:
+            if self.infile.stream=="streamDQMHistograms":
+                self.logger.info("DQM histograms for empty lumisection. This is currently not handled. Files will be removed.")
+                try:
+                    (filestem,ext)=os.path.splitext(self.infile.filepath)
+                    os.remove(filestem + '.pb')
+                    self.infile.deleteFile()
+                except:pass
+            else:
+                self.logger.critical("pid %r not in pidlist as expected for ls %r. Skip file. " %(self.infile.pid,self.ls))
+            return False
         
         if self.infile.pid not in self.pidList: 
             self.logger.critical("pid %r not in pidlist as expected for ls %r. Skip file. " %(self.infile.pid,self.ls))
@@ -317,7 +398,14 @@ class LumiSectionHandler():
         #if self.closed.isSet(): self.closed.clear()
         if infile.data:
             #update pidlist
-            if stream not in self.pidList[pid]["streamList"]: self.pidList[pid]["streamList"].append(stream)
+            try:
+                if stream not in self.pidList[pid]["streamList"]: self.pidList[pid]["streamList"].append(stream)
+            except KeyError as ex:
+                #this case can be ignored for DQM stream (missing fastHadd)
+                if STREAMDQMHISTNAME.upper() not in stream.upper():
+                    self.logger.exception(ex)
+                    raise(ex)
+                return False
 
             #update output files
             outfile = next((outfile for outfile in self.outfileList if outfile.stream == stream),False)
@@ -396,6 +484,12 @@ class LumiSectionHandler():
             file2merge.setFieldByName("InputFiles",inputFileList)
             self.streamErrorFile.merge(file2merge)
 
+    def processStreamDQMHistoOutput(self):
+        self.logger.info(self.infile.basename)
+        stream = self.infile.stream
+        outfile = next((outfile for outfile in self.outfileList if outfile.stream == stream),False)
+        if outfile and outfile.mergeStage==1: outfile.mergeStage+=1
+
     def processDATFile(self):
         self.logger.info(self.infile.basename)
         stream = self.infile.stream
@@ -426,6 +520,17 @@ class LumiSectionHandler():
             stream = outfile.stream
             processed = outfile.getFieldByName("Processed")+outfile.getFieldByName("ErrorEvents")
             if processed == self.totalEvent:
+
+                if outfile.filetype==STREAMDQMHISTOUTPUT:
+                    if outfile.mergeStage==0:
+                        #give to the merging thread
+                        outfile.mergeStage+=1
+                        dqmQueue.put(outfile)
+                        continue
+                    elif outfile.mergeStage==1:
+                        #still merging
+                        continue
+
                 self.streamCounters[stream]+=processed
                 self.logger.info("%r,%r complete" %(self.ls,outfile.stream))
 
@@ -440,6 +545,9 @@ class LumiSectionHandler():
                     except:
                         self.logger.warning('unable to create BoLS file for ls ', self.ls)
                 logger.info("bols file "+ str(bols_path) + " is created in the output")
+
+
+
 
                 #move all dat files in rundir
                 datfilelist = self.datfileList[:]
@@ -485,10 +593,7 @@ class LumiSectionHandler():
             errfile.setFieldByName("Processed", str(total - numErr) )
             errfile.writeout()
             newfilepath = os.path.join(self.outdir,errfile.run,errfile.basename)
-            ##@SM: initially disabled moving error stream json!
             errfile.moveFile(newfilepath)
-
-
 
 
             #close lumisection if all streams are closed
@@ -508,7 +613,151 @@ class LumiSectionHandler():
                 with open(self.EOLS.filepath,"w+") as fi:
                     json.dump(document,fi,sort_keys=True)
         except: logging.exception("unable to write to " %self.EOLS.filepath)
-             
+
+
+class DQMMerger(threading.Thread):
+
+    def __init__(self):
+        threading.Thread.__init__(self)
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.command = 'fastHadd'
+        self.threadEvent = threading.Event()
+        self.abort = False
+        self.active=False
+        self.finish=False
+        try:
+            mergeEnabled = True
+            p = subprocess.Popen(self.command,shell=True,stdout=subprocess.PIPE)
+            p.wait()
+            if p.returncode!=1 and p.returncode!=0:
+                self.logger.error('fastHadd exit code:'+str(p.returncode))
+                mergeEnabled=False
+        except Exception as ex:
+            mergeEnabled = False
+            self.logger.error('fastHadd not present or not working:')
+            self.logger.exception(ex)
+        if mergeEnabled == False:return
+        else: self.logger.info('fastHadd binary tested successfully')
+        self.start()
+        self.active=True
+
+    def run(self):
+        while self.abort == False:
+            try:
+                dqmJson = dqmQueue.get(True,0.5) #blocking with timeout
+                #self.emptyQueue.clear()
+                self.process(dqmJson) 
+            except Queue.Empty as e:
+                if self.finish==True:break
+                continue
+            except KeyboardInterrupt as e:
+                break
+
+    def process(self,outfile):
+       outputName,outputExt = os.path.splitext(outfile.basename)
+       outputName+='.pb'
+       fullOutputPath = os.path.join(watchDir,outputName)
+       command_args = [self.command,"add","-o",fullOutputPath]
+
+       totalEvents = outfile.getFieldByName("Processed")+outfile.getFieldByName("ErrorEvents")
+
+       processedEvents = 0
+       acceptedEvents = 0
+       errorEvents = 0
+
+       numFiles=0
+       for f in outfile.inputs:
+#           try:
+           fname = f.getFieldByName('Filelist')
+           fullpath = os.path.join(watchDir,fname)
+           try:
+               proc = f.getFieldByName('Processed')
+               acc = f.getFieldByName('Accepted')
+               err = f.getFieldByName('ErrorEvents')
+               #self.logger.info('merging file : ' + str(fname) + ' counts:'+str(proc) + ' ' + str(acc) + ' ' + str(err))
+               if fname:
+                   os.stat(fullpath)
+                   command_args.append(fullpath)
+                   numFiles+=1
+                   processedEvents+= proc
+                   acceptedEvents+= acc
+                   errorEvents+= err
+               else:
+                   if proc>0:
+                       self.logger.info('no histograms pb file : '+ str(fullpath))
+                   errorEvents+= proc+err
+
+
+           except OSError as ex:
+               #file missing?
+               errorEvents+= f.getFieldByName('Processed') + f.getFieldByName('ErrorEvents')
+               self.logger.error('fastHadd pb file is missing? : '+ fullpath)
+               self.logger.exception(ex)
+
+       filesize=0
+       hasError=False
+       exitCodes =  outfile.getFieldByName('ReturnCodeMask')
+       if numFiles>=0:
+           if numFiles == 1:
+               #fastHadd crashes trying to merge only one file
+               os.rename(command_args[4],command_args[3])
+           else:
+               p = subprocess.Popen(command_args)
+               p.wait()
+               if p.returncode!=0:
+                   self.logger.error('fastHadd returned with exit code '+str(p.returncode))
+                   outfile.setFieldByName('ReturnCodeMask', str(p.returncode))
+                   hasError=True
+           if numFiles==1 or p.returncode==0:
+               try:
+                   filesize = os.stat(fullOutputPath).st_size
+               except:
+                   self.logger.error('Error checking fastHadd output file size: '+ fullOutputPath)
+                   hasError=True
+               try:
+                   os.chmod(fullOutputPath,0666)
+               except:
+                   self.logger.error('Error fixing permissions of fastHadd output file: '+ fullOutputPath)
+           if numFiles>1:
+               for f in command_args[4:]:
+                   try:
+                       os.remove(f)
+                   except OSError as ex:
+                       self.logger.warning('exception removing file '+f+' : '+str(ex))
+       else:
+           hasError=True
+
+       if hasError:
+           errorEvents+=processedEvents
+           processedEvents=0
+           acceptedEvents=0
+           fullOutputPath=""
+           filesize=0
+
+       #correct for the missing event count in input file (when we have a crash)
+       if totalEvents>processedEvents+errorEvents: errorEvents += totalEvents - processedEvents - errorEvents
+
+       outfile.setFieldByName('Processed',str(processedEvents))
+       outfile.setFieldByName('Accepted',str(acceptedEvents))
+       outfile.setFieldByName('ErrorEvents',str(errorEvents))
+       outfile.setFieldByName('Filelist',outputName)
+       outfile.setFieldByName('Filesize',str(filesize))
+       outfile.writeout()
+ 
+
+    def waitCompletition(self):
+        self.join()
+
+    def waitFinish(self):
+        self.finish=True
+        self.join()
+
+    def abortMerging(self):
+        self.abort = True
+        self.join()
+    
+        
+
 
 if __name__ == "__main__":
     logging.basicConfig(filename=os.path.join(conf.log_dir,"anelastic.log"),
@@ -522,6 +771,7 @@ if __name__ == "__main__":
     sys.stdout = stdOutLog()
 
     eventQueue = Queue.Queue()
+    dqmQueue = Queue.Queue()
     
     dirname = sys.argv[1]
     run_number = sys.argv[2]
@@ -530,9 +780,19 @@ if __name__ == "__main__":
     watchDir = os.path.join(conf.watch_directory,dirname)
     outputDir = conf.micromerge_output
 
+    dqmHandler = None
+
     mask = inotify.IN_CLOSE_WRITE | inotify.IN_MOVED_TO  # watched events
     logger.info("starting anelastic for "+dirname)
     mr = None
+
+
+    #make temp dir if we are here before elastic.py
+    try:
+        os.makedirs(os.path.join(watchDir,ES_DIR_NAME))
+    except OSError:
+        pass
+
     try:
 
         #starting inotify thread
@@ -553,12 +813,8 @@ if __name__ == "__main__":
             mr.stop_inotify()
         sys.exit(1)
 
-    #make temp dir if we are here before elastic.py
-    try:
-        os.makedirs(os.path.join(watchDir,ES_DIR_NAME))
-    except OSError:
-        pass
-
+    #wait for termination of DQM handler
+    if dqmHandler:dqmHandler.waitFinish()
 
     logging.info("Closing notifier")
     if mr is not None:

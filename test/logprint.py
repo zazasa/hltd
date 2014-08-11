@@ -133,8 +133,7 @@ else:
     useFilters2=True
     qdoc['query']['filtered']['filter'] = filter2
 
-
-runindex_query =  '{  "query": { "filtered": {"query": {"match_all": {}}}, "sort": { "_timestamp": { "order": "asc" }}}}'
+runindex_query = '{  "query": { "filtered": {"query": {"match_all": {}}}}, "sort": { "startTime": { "order": "desc" }}}'
 
 
 sleept = 0.5

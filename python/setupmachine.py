@@ -412,7 +412,13 @@ if True:
     if cluster == 'daq2val':
         runindex_name = 'runindex'
     elif cluster == 'daq2':
-        runindex_name = 'runindex_prod' 
+        runindex_name = 'runindex_prod'
+        #hardcode minidaq hosts until role is available
+        #if cnhostname == 'bu-c2f13-27-01.cms' or cnhostname == 'fu-c2f13-19-03.cms' or cnhostname == 'fu-c2f13-19-04.cms':
+        #    runindex_name = 'runindex_minidaq'
+        #hardcode dqm hosts until role is available
+        #if cnhostname == 'bu-c2f13-31-01.cms' or cnhostname == 'fu-c2f13-39-01.cms' or cnhostname == 'fu-c2f13-39-02.cms' or cnhostname == 'fu-c2f13-39-03.cms' or cnhostname == 'fu-c2f13-39-04.cms':
+        #    runindex_name = 'runindex_dqm'
     else:
         
 
@@ -474,13 +480,10 @@ if True:
     clusterName='appliance_'+buName
     if 'elasticsearch' in selection:
 
-        #res = getSelfDataAddr(cluster)
-        #if len(res)==0:
-        #    if budomain=='':
-        es_publish_host=os.uname()[1]+'.cms'
-        #    else:
-        #        es_publish_host=os.uname()[1]+budomain
-        #else: es_publish_host = res[0]
+        if env=="vm":
+            es_publish_host=os.uname()[1]
+        else:
+            es_publish_host=os.uname()[1]+'.cms'
 
         #print "will modify sysconfig elasticsearch configuration"
         #maybe backup vanilla versions
@@ -500,8 +503,10 @@ if True:
             essyscfg = FileManager(elasticsysconf,'=',essysEdited)
             essyscfg.reg('ES_HEAP_SIZE','512M')
             escfg.reg('discovery.zen.ping.multicast.enabled','false')
-            #escfg.reg('discovery.zen.ping.unicast.hosts','[ \"'+buDataAddr+'\" ]')
-            escfg.reg('discovery.zen.ping.unicast.hosts',"[\"" + buName + ".cms" + "\"]")
+            if env=="vm":
+                escfg.reg('discovery.zen.ping.unicast.hosts',"[\"" + buName + "\"]")
+            else:
+                escfg.reg('discovery.zen.ping.unicast.hosts',"[\"" + buName + ".cms" + "\"]")
             escfg.reg('network.publish_host',es_publish_host)
             escfg.reg('transport.tcp.compress','true')
             if cluster != 'test':
@@ -570,6 +575,7 @@ if True:
           hltdcfg.reg('user',username,'[General]')
           hltdcfg.reg('watch_directory','/fff/data','[General]')
           hltdcfg.reg('role','fu','[General]')
+          #hltdcfg.reg('mount_options_output','rw,vers=4,rsize=65536,wsize=65536,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys','[General]')
           hltdcfg.reg('elastic_cluster',clusterName,'[Monitoring]')
           hltdcfg.reg('es_cmssw_log_level',cmsswloglevel,'[Monitoring]')
           hltdcfg.reg('elastic_runindex_url',elastic_host,'[Monitoring]')
@@ -577,6 +583,7 @@ if True:
           hltdcfg.reg('cmssw_base',cmssw_base,'[CMSSW]')
           hltdcfg.reg('cmssw_threads',nthreads,'[CMSSW]')
           hltdcfg.reg('cmssw_streams',nfwkstreams,'[CMSSW]')
+          #hltdcfg.reg('resource_use_fraction',"0.7",'[Resources]')
           #hltdcfg.removeEntry('watch_directory')
           hltdcfg.commit()
 

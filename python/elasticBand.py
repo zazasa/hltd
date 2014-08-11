@@ -105,7 +105,7 @@ class elasticBand():
                         'type' : 'integer',
                         'store': "yes"
                     },
-                    'stream' : {'type' : 'string'},
+                    'stream' : {'type' : 'string','index' : 'not_analyzed'},
                     'source' : {
                         'type' : 'string',
                         'index_analyzer': 'prefix-test-analyzer',
@@ -171,7 +171,7 @@ class elasticBand():
                              }
                     },
                     'ls' : { 'type' : 'integer' },
-                    'stream' : {'type' : 'string'},#,"index" : "not_analyzed"},
+                    'stream' : {'type' : 'string','index' : 'not_analyzed'},
                     'source' : {
                         'type' : 'string',
                         'index_analyzer': 'prefix-test-analyzer',
@@ -312,6 +312,8 @@ class elasticBand():
         run=infile.run
         ls=infile.ls
         stream=infile.stream
+        #removing 'stream' prefix
+        if stream.startswith("stream"): stream = stream[6:]
 
         values = [int(f) if f.isdigit() else str(f) for f in document['data']]
         keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","test"]
@@ -331,6 +333,8 @@ class elasticBand():
         run=infile.run
         ls=infile.ls
         stream=infile.stream
+        #removing 'stream' prefix
+        if stream.startswith("stream"): stream = stream[6:]
 
         values= [int(f) if f.isdigit() else str(f) for f in document['data']]
         keys = ["in","out","errorEvents","returnCodeMask","Filelist","fileSize","InputFiles","test"]

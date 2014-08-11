@@ -3,6 +3,7 @@
 import sys,traceback
 import os
 import datetime
+import time
 
 import logging
 import _inotify as inotify
@@ -24,17 +25,6 @@ import simplejson as json
 
 import socket
 
-#hack: replacing DNS alias round robin for central ES until it is available
-#rotate_temp=0
-#centralListTemp=["srv-c2a11-07-01","srv-c2a11-08-01","srv-c2a11-09-01","srv-c2a11-10-01","srv-c2a11-11-01","srv-c2a11-14-01","srv-c2a11-15-01","srv-c2a11-16-01","srv-c2a11-17-01","srv-c2a11-18-01","srv-c2a11-19-01","srv-c2a11-20-01","srv-c2a11-21-01","srv-c2a11-22-01","srv-c2a11-23-01","srv-c2a11-26-01","srv-c2a11-27-01","srv-c2a11-28-01","srv-c2a11-29-01","srv-c2a11-30-01"]
-
-#def rotateAddr():
-#  global rotate_temp
-#  if rotate_temp>=len(centralListTemp): rotate_temp=0
-#  ip = socket.gethostbyname(centralListTemp[rotate_temp])
-#  rotate_temp+=1
-#  return ip
-
 def getURLwithIP(url):
   try:
       prefix = ''
@@ -49,9 +39,7 @@ def getURLwithIP(url):
   except Exception as ex:
       logging.error('could not parse URL ' +url)
       raise(ex)
-  #@SM: hacks for DNS alias
   if url!='localhost':
-      #ip = rotateAddr()
       ip = socket.gethostbyname(url)
   else: ip='127.0.0.1'
 
@@ -86,8 +74,8 @@ class elasticBandBU:
                 }
              },
             "index":{
-                'number_of_shards' : 1,
-                'number_of_replicas' : 1
+                'number_of_shards' : 10,
+                'number_of_replicas' : 3
             },
         }
 
@@ -157,8 +145,7 @@ class elasticBandBU:
                     }
                 },
             'boxinfo' : {
-                '_id'        :{'path':'id'},
-                #'_parent'    :{'type':'run'},
+                '_id'        :{'path':'id'},#TODO:remove
                 'properties' : {
                     'fm_date'       :{'type':'date'},
                     'id'            :{'type':'string'},
@@ -179,7 +166,35 @@ class elasticBandBU:
                     'store'     : "yes",
                     "path"      : "fm_date"
                     },
+                '_ttl'       : { 'enabled' : True,
+                              'default' :  '30d'
+                    }
                 },
+
+            'boxinfo_last' : {
+                '_id'        :{'path':'id'},
+                'properties' : {
+                    'fm_date'       :{'type':'date'},
+                    'id'            :{'type':'string'},
+                    'broken'        :{'type':'integer'},
+                    'used'          :{'type':'integer'},
+                    'idles'         :{'type':'integer'},
+                    'quarantined'   :{'type':'integer'},
+                    'usedDataDir'   :{'type':'integer'},
+                    'totalDataDir'  :{'type':'integer'},
+                    'usedRamdisk'   :{'type':'integer'},
+                    'totalRamdisk'  :{'type':'integer'},
+                    'usedOutput'    :{'type':'integer'},
+                    'totalOutput'   :{'type':'integer'},
+                    'activeRuns'    :{'type':'string'}
+                    },
+                '_timestamp' : { 
+                    'enabled'   : True,
+                    'store'     : "yes",
+                    "path"      : "fm_date"
+                    }
+                },
+
             'eols' : {
                 '_id'        :{'path':'id'},
                 '_parent'    :{'type':'run'},
@@ -204,7 +219,7 @@ class elasticBandBU:
                     'fm_date'       :{'type':'date'},
                     'id'            :{'type':'string'}, #run+appliance+stream+ls
                     'appliance'     :{'type':'string'},
-                    'stream'        :{'type':'string'},
+                    'stream'        :{'type':'string','index' : 'not_analyzed'},
                     'ls'            :{'type':'integer'},
                     'processed'     :{'type':'integer'},
                     'accepted'      :{'type':'integer'},
@@ -310,12 +325,17 @@ class elasticBandBU:
         self.logger.debug(basename)
         try:
             document = infile.data
-            document['id']= basename + '_' + document['fm_date'].split('.')[0] #strip seconds
+            #TODO:let dynamic ID
+            document['id']= basename + '_' + document['fm_date'].split('.')[0] #TODO:remove
             documents = [document]
         except:
             #in case of malformed box info
             return
         self.index_documents('boxinfo',documents)
+        #self.logger.info(str(document))#check that ID is not present...
+        #TODO:write unique boxinfo
+        #documents[0]['id']=basename
+        #self.index_documents('boxinfo_last',documents)
 
     def elasticize_eols(self,infile):
         basename = infile.basename
@@ -339,7 +359,9 @@ class elasticBandBU:
         data = infile.data['data']
         data.append(infile.mtime)
         data.append(infile.ls[2:])
-        data.append(infile.stream)
+        stream=infile.stream
+        if stream.startswith("stream"): stream = stream[6:]
+        data.append(stream)
         values = [int(f) if str(f).isdigit() else str(f) for f in data]
         keys = ["processed","accepted","errorEvents","fname","size","eolField1","eolField2","fm_date","ls","stream"]
         document = dict(zip(keys, values))
@@ -564,10 +586,16 @@ class RunCompletedChecker(threading.Thread):
         self.mode = mode
         self.nr = nr
         self.nresources = nresources
-        self.eorCheckPath = conf.watch_directory +'/run'+ str(nr).zfill(conf.run_number_padding) + '/run' +  str(nr).zfill(conf.run_number_padding) + '_ls0000_EoR.jsn'
+        self.rundirCheckPath = conf.watch_directory +'/run'+ str(nr).zfill(conf.run_number_padding)
+        self.eorCheckPath = os.path.join(self.rundirCheckPath,'run' +  str(nr).zfill(conf.run_number_padding) + '_ls0000_EoR.jsn')
         self.url = 'http://localhost:9200/run'+str(nr).zfill(conf.run_number_padding)+'*/fu-complete/_count'
         self.urlclose = 'http://localhost:9200/run'+str(nr).zfill(conf.run_number_padding)+'*/_close'
         self.logurlclose = 'http://localhost:9200/log_run'+str(nr).zfill(conf.run_number_padding)+'*/_close'
+
+        self.urlsearch = 'http://localhost:9200/run'+str(nr)+'*/fu-complete/_search?size=1'
+        self.url_query = '{  "query": { "filtered": {"query": {"match_all": {}}}}, "sort": { "fm_date": { "order": "desc" }}}'
+
+
         self.stop = False
         self.threadEvent = threading.Event()
         self.run_dir = run_dir
@@ -578,115 +606,123 @@ class RunCompletedChecker(threading.Thread):
         except Exception,ex:
             self.logger.exception(ex)
 
+
+    def checkBoxes(self,dir):
+
+
+        files = os.listdir(dir)
+        endAllowed=True
+        runFound=False
+        for file in files:
+            if file != os.uname()[1]:
+                #ignore file if it is too old (FU with a problem)
+                if time.time() - os.path.getmtime(dir+file) > 20:continue
+
+                f = open(dir+file,'r')
+                lines = f.readlines()
+                #test that we are not reading incomplete file
+                try:
+                    if lines[-1].startswith('entriesComplete'):pass
+                    else:
+                        endAllowed=False
+                        break
+                except:
+                    endAllowed=False
+                    break
+                firstCopy=None
+                for l in lines:
+                    if l.startswith('activeRuns='):
+                        if firstCopy==None:
+                            firstCopy=l
+                            continue
+                        else:
+                            if firstCopy!=l:
+                                endAllowed=False
+                                break
+                        runstring = l.split('=')
+                        try:
+                            runs = runstring[1].strip('\n ').split(',')
+                            for run in runs:
+                                if run.isdigit()==False:continue
+                                if int(run)==int(self.nr):
+                                    runFound=True
+                                    break
+                        except:
+                            endAllowed=False
+                        break
+                if firstCopy==None:endAllowed=False
+                if runFound==True:break
+                if endAllowed==False:break
+        if endAllowed==True and runFound==False: return False
+        else:return True
+
+
     def run(self):
 
         self.threadEvent.wait(10)
         while self.stop == False:
             self.threadEvent.wait(5)
             if self.stop: return#giving up
-            if os.path.exists(self.eorCheckPath):
+            if os.path.exists(self.eorCheckPath) or os.path.exists(self.rundirCheckPath)==False:
                 break
 
-        #start another loop where we check that no FU contains current run
-        #code checks if the file content is consistent
         dir = conf.resource_base+'/boxes/'
-        if self.mode == 2:
-            while True:
-                files = os.listdir(dir)
-                endAllowed=True
-                runFound=False
-                for file in files:
-                    if file != os.uname()[1]:
-                        f = open(dir+file,'r')
-                        lines = f.readlines()
-                        #test that we are not reading incomplete file
-                        try:
-                            if lines[-1].startswith('entriesComplete'):pass
-                            else:
-                                endAllowed=False
-                                break
-                        except:
-                            endAllowed=False
-                            break
-                        firstCopy=None
-                        for l in lines:
-                            if l.startswith('activeRuns='):
-                                if firstCopy==None:
-                                    firstCopy=l
-                                    continue
-                                else:
-                                    if firstCopy!=l:
-                                        endAllowed=False
-                                        break
-                                runstring = l.split('=')
-                                try:
-                                    runs = runstring[1].strip('\n ').split(',')
-                                    for run in runs:
-                                        if run.isdigit()==False:continue
-                                        if int(run)==int(self.nr):
-                                            runFound=True
-                                            break
-                                except:
-                                    endAllowed=False
-                                break
-                        if firstCopy==None:endAllowed=False
-                        if runFound==True:break
-                        if endAllowed==False:break
+        check_boxes=True
+        check_es_complete=True
+        total_es_elapsed=0
 
-                if endAllowed==True and runFound==False: break
-                else: self.threadEvent.wait(5)
+        while self.stop==False:
+            if check_boxes:
+                check_boxes = self.checkBoxes(dir)
 
-            try:
-                self.active_runs.remove(int(self.nr))
-                time.sleep(10)
-                if conf.close_es_index==True:
-                    resp = requests.post(self.urlclose)
-                    self.logger.info('closed appliance ES index for run '+str(self.nr))
+            if check_boxes==False:
+                try:
+                    self.active_runs.remove(int(self.nr))
+                except:pass
 
-            except Exception,ex:
-                self.logger.error('Error in run completition check')
-                self.logger.exception(ex)
-
-
-
-        elif self.mode == 1:
-            try:
-                totalElapsed=0
-                while self.stop == False:
+            if check_es_complete:
+                try:
                     resp = requests.post(self.url, '')
                     data = json.loads(resp.content)
-
-                    #check for clearing run number from active runs (no run dir or FUs done)
-                    try:
-                        os.stat(self.run_dir)
-                    except OSError:
-                        try:
-                            self.active_runs.remove(int(self.nr))
-                        except:pass
-
                     if int(data['count']) >= len(self.nresources):
-
                         try:
-                            self.active_runs.remove(int(self.nr))
-                        except:pass
-
-                        #all hosts are finished, close the index
-                        #wait a bit for indexing and querying to complete
-                        time.sleep(10)
-                        if conf.close_es_index==True:
-                            resp = requests.post(self.urlclose)
-                            self.logger.info('closed appliance ES index for run '+str(self.nr))
-                        break
+                            respq = requests.post(self.urlsearch,self.url_query)
+                            dataq = json.loads(respq.content)
+                            fm_time = str(dataq['hits']['hits'][0]['_source']['fm_date'])
+                            #fill in central index completition time
+                            #EXPERIMENTAL!
+                            postq = "{runNumber\":\"" + str(self.nr) + "\",\"completedTime\" : \"" + fm_time + "\"}"
+                            requests.post(conf.es_runindex_url+'/'+conf.es_runindex_name+'/run',putq)
+                            self.logger.info("filled in completition time for run"+str(self.nr))
+                        except Exception as ex:
+                            self.logger.exception(ex)
+                        try:
+                            if conf.close_es_index==True:
+                                #wait a bit for central ES queries to complete
+                                time.sleep(10)
+                                resp = requests.post(self.urlclose)
+                                self.logger.info('closed appliance ES index for run '+str(self.nr))
+                        except Exception as exc:
+                            self.logger.error('Error in run completition check')
+                            self.logger.exception(exc)
+                        check_es_complete=False
+                        continue
                     else:
                         time.sleep(5)
-                        totalElapsed+=5
-                        if totalElapsed>600:
+                        total_es_elapsed+=5
+                        if total_es_elapsed>600:
                             self.logger.error('run index complete flag was not written by all FUs, giving up after 10 minutes.')
-                            break
-                    #TODO:write completition time to global ES index
-            except Exception,ex:
-                self.logger.error('Error in run completition check')
-                self.logger.exception(ex)
+                            check_es_complete=False
+                            continue
+                except Exception,ex:
+                    self.logger.error('Error in run completition check')
+                    self.logger.exception(ex)
+                    check_es_complete=False
+
+            #exit fi both checks are complete
+            if check_boxes==False and check_es_complete==False:return
+            #check every 10 seconds
+            self.threadEvent.wait(10)
 
     def stop(self):
         self.stop = True
