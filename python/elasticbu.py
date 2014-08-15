@@ -245,6 +245,9 @@ class elasticBandBU:
                 if "IndexAlreadyExistsException" in str(ex):
                     self.logger.info(ex)
                     break
+                if "InvalidIndexNameException" in str(ex):
+                    self.logger.info(ex)
+                    break
                 else:
                     self.logger.error(ex)
                     if runMode and connectionAttempts>100:
