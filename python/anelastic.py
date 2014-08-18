@@ -386,6 +386,10 @@ class LumiSectionHandler():
                 self.logger.critical("pid %r not in pidlist as expected for ls %r. Skip file. " %(self.infile.pid,self.ls))
             return False
         
+        if self.infile.pid not in self.pidList: 
+            self.logger.critical("pid %r not in pidlist as expected for ls %r. Skip file. " %(self.infile.pid,self.ls))
+            return False
+        
         self.infile.checkSources()
         infile = self.infile
         ls,stream,pid = infile.ls,infile.stream,infile.pid
