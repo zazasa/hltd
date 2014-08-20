@@ -499,9 +499,12 @@ if True:
         escfg = FileManager(elasticconf,':',esEdited,'',' ')
 
         escfg.reg('cluster.name',clusterName)
+        escfg.reg('node.name',cnhostname)
+        essyscfg = FileManager(elasticsysconf,'=',essysEdited)
+        essyscfg.reg('ES_HEAP_SIZE','512M')
+        essyscfg.commit()
+
         if type == 'fu':
-            essyscfg = FileManager(elasticsysconf,'=',essysEdited)
-            essyscfg.reg('ES_HEAP_SIZE','512M')
             escfg.reg('discovery.zen.ping.multicast.enabled','false')
             if env=="vm":
                 escfg.reg('discovery.zen.ping.unicast.hosts',"[\"" + buName + "\"]")
@@ -512,7 +515,6 @@ if True:
             if cluster != 'test':
                 escfg.reg('node.master','false')
                 escfg.reg('node.data','true')
-            essyscfg.commit()
         if type == 'bu':
             escfg.reg('network.publish_host',es_publish_host)
             #escfg.reg('discovery.zen.ping.multicast.enabled','false')
