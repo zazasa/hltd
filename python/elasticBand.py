@@ -23,6 +23,7 @@ class elasticBand():
         self.prcoutBuffer = {}
         self.fuoutBuffer = {}
         self.es = ElasticSearch(es_server_url) 
+        self.number_of_data_nodes = self.es.health()['number_of_data_nodes']
         self.settings = {
             "analysis":{
                 "analyzer": {
@@ -39,8 +40,8 @@ class elasticBand():
                 }
             },
             "index":{
-                'number_of_shards' : 16,
-                'number_of_replicas' : 1
+                'number_of_shards' : self.number_of_data_nodes,
+                'number_of_replicas' : 0
             }
         }
 
