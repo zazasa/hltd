@@ -43,7 +43,7 @@ class elasticBand():
             },
             "index":{
                 'number_of_shards' : 2,
-                'number_of_replicas' : 0
+                'number_of_replicas' : 0,
                 "routing" : {
                     "allocation" : {
                         "require" : {
