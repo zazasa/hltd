@@ -501,7 +501,7 @@ if True:
         escfg.reg('cluster.name',clusterName)
         escfg.reg('node.name',cnhostname)
         essyscfg = FileManager(elasticsysconf,'=',essysEdited)
-        essyscfg.reg('ES_HEAP_SIZE','512M')
+        essyscfg.reg('ES_HEAP_SIZE','1G')
         essyscfg.commit()
 
         if type == 'fu':
@@ -512,6 +512,7 @@ if True:
                 escfg.reg('discovery.zen.ping.unicast.hosts',"[\"" + buName + ".cms" + "\"]")
             escfg.reg('network.publish_host',es_publish_host)
             escfg.reg('transport.tcp.compress','true')
+            escfg.reg('indices.fielddata.cache.size', '30%'
             if cluster != 'test':
                 escfg.reg('node.master','false')
                 escfg.reg('node.data','true')
