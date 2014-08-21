@@ -1,4 +1,4 @@
-import os,time
+import os,socket,time
 import sys
 from pyelasticsearch.client import ElasticSearch
 from pyelasticsearch.client import IndexAlreadyExistsError
@@ -23,6 +23,8 @@ class elasticBand():
         self.prcoutBuffer = {}
         self.fuoutBuffer = {}
         self.es = ElasticSearch(es_server_url) 
+        self.hostname = os.uname()[1]
+        self.hostip = socket.gethostbyname_ex(self.hostname)[2][0]
         self.number_of_data_nodes = self.es.health()['number_of_data_nodes']
         self.settings = {
             "analysis":{
@@ -40,8 +42,18 @@ class elasticBand():
                 }
             },
             "index":{
-                'number_of_shards' : self.number_of_data_nodes,
+                'number_of_shards' : 2,
                 'number_of_replicas' : 0
+                "routing" : {
+                    "allocation" : {
+                        "require" : {
+                            "_ip" : self.hostip
+                            }
+                        }
+                    }
+            }
+          }
+
             }
         }
 
@@ -209,8 +221,12 @@ class elasticBand():
                     'store'     : "yes"
                 },
                 '_ttl'       : { 'enabled' : True,
-                              'default' :  '30d'}
-                ,
+                                 'default' :  '30d'
+                },
+                '_routing' :{
+                    'required' : True,
+                    'path'     : 'host'
+                },
                 'properties' : {
                     'host'      : {'type' : 'string'},
                     'pid'       : {'type' : 'integer'},
@@ -237,9 +253,17 @@ class elasticBand():
         self.run = runstring
         self.monBufferSize = monBufferSize
         self.fastUpdateModulo = fastUpdateModulo
-        self.indexName = runstring + "_"+indexSuffix
+        aliasName = runstring + "_" + indexSuffix
+        self.indexName = aliasName + "_" + self.hostname 
+        alias_command ={'actions': [{"add":
+                                        {"index":self.indexName,
+                                         "alias":aliasName
+                                         }
+                                    }]
+                       }
         try:
             self.es.create_index(self.indexName, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
+            self.es.update_aliases(alias_command)
         except ElasticHttpError as ex:
 #            print "Index already existing - records will be overridden"
             #this is normally fine as the index gets created somewhere across the cluster
