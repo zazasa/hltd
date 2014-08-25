@@ -33,14 +33,14 @@ class elasticBand():
                         "type": "custom",
                         "tokenizer": "prefix-test-tokenizer"
                     }
-                },
+                    },
                 "tokenizer": {
                     "prefix-test-tokenizer": {
                         "type": "path_hierarchy",
                         "delimiter": "_"
+                        }
                     }
-                }
-            },
+                },
             "index":{
                 'number_of_shards' : 2,
                 'number_of_replicas' : 0,
@@ -51,11 +51,11 @@ class elasticBand():
                             }
                         }
                     }
+                }
             }
-          }
-
-            }
-        }
+        
+        
+        
 
         self.run_mapping = {
             'prc-i-state' : {
