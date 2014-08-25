@@ -51,7 +51,8 @@ class elasticBandBU:
     def __init__(self,es_server_url,runnumber,startTime,runMode=True):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.es_server_url=es_server_url
-        self.index_name=conf.elastic_runindex_name
+        self.runindex_name="runindex_"+conf.elastic_runindex_name+"_write"
+        self.boxinfo_name="boxinfo_"+conf.elastic_runindex_name+"_write"
         self.runnumber = str(runnumber)
         self.startTime = startTime
         self.host = os.uname()[1]
@@ -74,8 +75,8 @@ class elasticBandBU:
                 }
              },
             "index":{
-                'number_of_shards' : 10,
-                'number_of_replicas' : 3
+                'number_of_shards' : 20,
+                'number_of_replicas' : 1
             },
         }
 
@@ -144,56 +145,6 @@ class elasticBandBU:
 
                     }
                 },
-            'boxinfo' : {
-                '_id'        :{'path':'id'},#TODO:remove
-                'properties' : {
-                    'fm_date'       :{'type':'date'},
-                    'id'            :{'type':'string'},
-                    'broken'        :{'type':'integer'},
-                    'used'          :{'type':'integer'},
-                    'idles'         :{'type':'integer'},
-                    'quarantined'   :{'type':'integer'},
-                    'usedDataDir'   :{'type':'integer'},
-                    'totalDataDir'  :{'type':'integer'},
-                    'usedRamdisk'   :{'type':'integer'},
-                    'totalRamdisk'  :{'type':'integer'},
-                    'usedOutput'    :{'type':'integer'},
-                    'totalOutput'   :{'type':'integer'},
-                    'activeRuns'    :{'type':'string'}
-                    },
-                '_timestamp' : { 
-                    'enabled'   : True,
-                    'store'     : "yes",
-                    "path"      : "fm_date"
-                    },
-                '_ttl'       : { 'enabled' : True,
-                              'default' :  '30d'
-                    }
-                },
-
-            'boxinfo_last' : {
-                '_id'        :{'path':'id'},
-                'properties' : {
-                    'fm_date'       :{'type':'date'},
-                    'id'            :{'type':'string'},
-                    'broken'        :{'type':'integer'},
-                    'used'          :{'type':'integer'},
-                    'idles'         :{'type':'integer'},
-                    'quarantined'   :{'type':'integer'},
-                    'usedDataDir'   :{'type':'integer'},
-                    'totalDataDir'  :{'type':'integer'},
-                    'usedRamdisk'   :{'type':'integer'},
-                    'totalRamdisk'  :{'type':'integer'},
-                    'usedOutput'    :{'type':'integer'},
-                    'totalOutput'   :{'type':'integer'},
-                    'activeRuns'    :{'type':'string'}
-                    },
-                '_timestamp' : { 
-                    'enabled'   : True,
-                    'store'     : "yes",
-                    "path"      : "fm_date"
-                    }
-                },
 
             'eols' : {
                 '_id'        :{'path':'id'},
@@ -228,17 +179,71 @@ class elasticBandBU:
                     }
                 }
             }
-
+        self.boxinfo_mapping = {
+          'boxinfo' : {
+            '_id'        :{'path':'id'},#TODO:remove
+            'properties' : {
+              'fm_date'       :{'type':'date'},
+              'id'            :{'type':'string'},
+              'broken'        :{'type':'integer'},
+              'used'          :{'type':'integer'},
+              'idles'         :{'type':'integer'},
+              'quarantined'   :{'type':'integer'},
+              'usedDataDir'   :{'type':'integer'},
+              'totalDataDir'  :{'type':'integer'},
+              'usedRamdisk'   :{'type':'integer'},
+              'totalRamdisk'  :{'type':'integer'},
+              'usedOutput'    :{'type':'integer'},
+              'totalOutput'   :{'type':'integer'},
+              'activeRuns'    :{'type':'string'}
+              },
+            '_timestamp' : { 
+              'enabled'   : True,
+              'store'     : "yes",
+              "path"      : "fm_date"
+              },
+            '_ttl'       : { 'enabled' : True,
+                             'default' :  '30d'
+                             }
+            },
+          
+          'boxinfo_last' : {
+            '_id'        :{'path':'id'},
+            'properties' : {
+              'fm_date'       :{'type':'date'},
+              'id'            :{'type':'string'},
+              'broken'        :{'type':'integer'},
+              'used'          :{'type':'integer'},
+              'idles'         :{'type':'integer'},
+              'quarantined'   :{'type':'integer'},
+              'usedDataDir'   :{'type':'integer'},
+              'totalDataDir'  :{'type':'integer'},
+              'usedRamdisk'   :{'type':'integer'},
+              'totalRamdisk'  :{'type':'integer'},
+              'usedOutput'    :{'type':'integer'},
+              'totalOutput'   :{'type':'integer'},
+              'activeRuns'    :{'type':'string'}
+              },
+            '_timestamp' : { 
+              'enabled'   : True,
+              'store'     : "yes",
+              "path"      : "fm_date"
+              }
+            }
+          
+          }
 
         connectionAttempts=0
         while True:
             if self.stopping:break
             connectionAttempts+=1
             try:
-                self.logger.info('writing to elastic index '+self.index_name)
+                self.logger.info('writing to elastic index '+self.runindex_name)
+                self.logger.info('writing to elastic index '+self.boxinfo_name)
                 ip_url=getURLwithIP(es_server_url)
                 self.es = ElasticSearch(es_server_url)
-                self.es.create_index(self.index_name, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
+                self.es.create_index(self.runindex_name, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
+                self.es.create_index(self.boxinfo_name, settings={ 'settings': self.settings, 'mappings': self.boxinfo_mapping })
                 break
             except ElasticHttpError as ex:
                 #this is normally fine as the index gets created somewhere across the cluster
@@ -375,10 +380,15 @@ class elasticBandBU:
 
     def index_documents(self,name,documents):
         attempts=0
+        destination_index = ""
+        if name=="boxinfo":
+          destination_index = self.boxinfo_name
+        else:
+          destination_index = self.runindex_name
         while True:
             attempts+=1
             try:
-                self.es.bulk_index(self.index_name,name,documents)
+                self.es.bulk_index(destination_index,name,documents)
                 return True
             except ElasticHttpError as ex:
                 if attempts<=1:continue
