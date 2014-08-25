@@ -35,7 +35,13 @@ default_eqset_daq2val = 'eq_140325_attributes'
 #default_eqset_daq2 = 'eq_140430_mounttest'
 #default_eqset_daq2 = 'eq_14-508_emu'
 default_eqset_daq2 = 'eq_140522_emu'
-
+minidaq_list = ["bu-c2f13-25-01","bu-c2f13-27-01","fu-c2f13-19-01",
+                "fu-c2f13-19-02","fu-c2f13-19-03","fu-c2f13-19-04"]
+dqm_list = ["bu-c2f13-31-01","fu-c2f13-39-01","fu-c2f13-39-02",
+            "fu-c2f13-39-03","fu-c2f13-39-04"]
+ed_list = ["bu-c2f13-29-01","fu-c2f13-41-01","fu-c2f13-41-02",
+           "fu-c2f13-41-03","fu-c2f13-41-04"]
+myhost = os.uname()[1]
 
 def countCPUs():
     fp=open('/proc/cpuinfo','r')
@@ -46,7 +52,7 @@ def countCPUs():
     return resource_count
 
 def getmachinetype():
-    myhost = os.uname()[1]
+
     #print "running on host ",myhost
     if   myhost.startswith('dvrubu-') : return 'daq2val','fu'
     elif myhost.startswith('dvbu-') : return 'daq2val','bu'
@@ -57,6 +63,7 @@ def getmachinetype():
     else: 
        print "debug"
        return 'unknown','unknown'
+    
 
 def getIPs(hostname):
     try:
@@ -410,9 +417,15 @@ if True:
        
 
     if cluster == 'daq2val':
-        runindex_name = 'runindex'
+        runindex_name = 'dv'
     elif cluster == 'daq2':
-        runindex_name = 'runindex_prod'
+        runindex_name = 'cdaq'
+        if myhost in minidaq_list:
+             runindex_name = 'minidaq'
+        if myhost in dqm_list:
+             runindex_name = 'dqm'
+        if myhost in ed_list:
+             runindex_name = 'ed'
         #hardcode minidaq hosts until role is available
         #if cnhostname == 'bu-c2f13-27-01.cms' or cnhostname == 'fu-c2f13-19-03.cms' or cnhostname == 'fu-c2f13-19-04.cms':
         #    runindex_name = 'runindex_minidaq'
@@ -420,8 +433,6 @@ if True:
         #if cnhostname == 'bu-c2f13-31-01.cms' or cnhostname == 'fu-c2f13-39-01.cms' or cnhostname == 'fu-c2f13-39-02.cms' or cnhostname == 'fu-c2f13-39-03.cms' or cnhostname == 'fu-c2f13-39-04.cms':
         #    runindex_name = 'runindex_dqm'
     else:
-        
-
         runindex_name = 'runindex_test' 
 
     buName = ''
@@ -512,7 +523,7 @@ if True:
                 escfg.reg('discovery.zen.ping.unicast.hosts',"[\"" + buName + ".cms" + "\"]")
             escfg.reg('network.publish_host',es_publish_host)
             escfg.reg('transport.tcp.compress','true')
-            escfg.reg('indices.fielddata.cache.size', '30%'
+            escfg.reg('indices.fielddata.cache.size', '50%'
             if cluster != 'test':
                 escfg.reg('node.master','false')
                 escfg.reg('node.data','true')
