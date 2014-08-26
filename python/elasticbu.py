@@ -51,8 +51,10 @@ class elasticBandBU:
     def __init__(self,es_server_url,runnumber,startTime,runMode=True):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.es_server_url=es_server_url
-        self.runindex_name="runindex_"+conf.elastic_runindex_name+"_write"
-        self.boxinfo_name="boxinfo_"+conf.elastic_runindex_name+"_write"
+        self.runindex_alias="runindex_"+conf.elastic_runindex_name+"_write"
+        self.runindex_name="runindex_"+conf.elastic_runindex_name
+        self.boxinfo_alias="boxinfo_"+conf.elastic_runindex_name+"_write"
+        self.boxinfo_name="boxinfo_"+conf.elastic_runindex_name
         self.runnumber = str(runnumber)
         self.startTime = startTime
         self.host = os.uname()[1]
@@ -238,12 +240,18 @@ class elasticBandBU:
             if self.stopping:break
             connectionAttempts+=1
             try:
-                self.logger.info('writing to elastic index '+self.runindex_name)
-                self.logger.info('writing to elastic index '+self.boxinfo_name)
+                self.logger.info('writing to elastic index '+self.runindex_alias)
+                self.logger.info('writing to elastic index '+self.boxinfo_alias)
                 ip_url=getURLwithIP(es_server_url)
                 self.es = ElasticSearch(es_server_url)
                 self.es.create_index(self.runindex_name, settings={ 'settings': self.settings, 'mappings': self.run_mapping })
                 self.es.create_index(self.boxinfo_name, settings={ 'settings': self.settings, 'mappings': self.boxinfo_mapping })
+                aliases_settings = { "actions": [
+                                        {"add": {"index": self.runindex_name, "alias": self.runindex_alias}},
+                                        {"add": {"index": self.boxinfo_name, "alias": self.boxinfo_alias}}
+                                    ]}
+                self.es.update_aliases(aliases_settings)
+
                 break
             except ElasticHttpError as ex:
                 #this is normally fine as the index gets created somewhere across the cluster
@@ -382,9 +390,9 @@ class elasticBandBU:
         attempts=0
         destination_index = ""
         if name=="boxinfo":
-          destination_index = self.boxinfo_name
+          destination_index = self.boxinfo_alias
         else:
-          destination_index = self.runindex_name
+          destination_index = self.runindex_alias
         while True:
             attempts+=1
             try:
@@ -705,7 +713,7 @@ class RunCompletedChecker(threading.Thread):
                             #fill in central index completition time
                             #EXPERIMENTAL!
                             postq = "{runNumber\":\"" + str(self.nr) + "\",\"completedTime\" : \"" + fm_time + "\"}"
-                            requests.post(conf.es_runindex_url+'/'+conf.es_runindex_name+'/run',putq)
+                            requests.post(conf.es_runindex_url+'/'+"runindex_"+conf.elastic_runindex_name+'_write/run',putq)
                             self.logger.info("filled in completition time for run"+str(self.nr))
                         except Exception as ex:
                             self.logger.exception(ex)

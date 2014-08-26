@@ -218,6 +218,8 @@ echo "fi"                                >> %{buildroot}/etc/init.d/fffmeta
 %defattr(-, root, root, -)
 #/opt/fff
 %attr( 755 ,root, root) /opt/fff/setupmachine.py
+%attr( 755 ,root, root) /opt/fff/setupmachine.pyc
+%attr( 755 ,root, root) /opt/fff/setupmachine.pyo
 %attr( 700 ,root, root) /opt/fff/configurefff.sh
 %attr( 755 ,root, root) /etc/init.d/fffmeta
 %attr( 444 ,root, root) /opt/fff/esplugins/$pluginfile1

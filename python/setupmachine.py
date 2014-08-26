@@ -523,7 +523,7 @@ if True:
                 escfg.reg('discovery.zen.ping.unicast.hosts',"[\"" + buName + ".cms" + "\"]")
             escfg.reg('network.publish_host',es_publish_host)
             escfg.reg('transport.tcp.compress','true')
-            escfg.reg('indices.fielddata.cache.size', '50%'
+            escfg.reg('indices.fielddata.cache.size', '50%')
             if cluster != 'test':
                 escfg.reg('node.master','false')
                 escfg.reg('node.data','true')
